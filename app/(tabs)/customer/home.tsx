@@ -1,18 +1,19 @@
-import { Ionicons } from '@expo/vector-icons';
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-  Dimensions,
   FlatList,
-  Modal,
   SafeAreaView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View
+  View,
+  Modal,
+  TextInput,
+  Dimensions
 } from "react-native";
 import { db } from "../../../firebaseConfig";
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from "expo-router";
 
 const { width } = Dimensions.get('window');
 
@@ -24,6 +25,7 @@ export default function CustomerHome() {
   const [createPostModalVisible, setCreatePostModalVisible] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
   const [postType, setPostType] = useState("NEED");
+  const router = useRouter();
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -74,31 +76,60 @@ export default function CustomerHome() {
         <Text style={styles.sidePanelTitle}>Menu</Text>
       </View>
       
-      <TouchableOpacity style={styles.menuItem}>
+      <TouchableOpacity 
+        style={styles.menuItem}
+        onPress={() => {
+          setSidePanelVisible(false);
+          router.push("/customer/home");
+        }}
+      >
         <Ionicons name="home" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Home</Text>
       </TouchableOpacity>
       
-      <TouchableOpacity style={styles.menuItem}>
+      <TouchableOpacity 
+        style={styles.menuItem}
+        onPress={() => {
+          setSidePanelVisible(false);
+          router.push("/customer/search");
+        }}
+      >
         <Ionicons name="search" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Search</Text>
       </TouchableOpacity>
       
-      <TouchableOpacity style={styles.menuItem}>
+      <TouchableOpacity 
+        style={styles.menuItem}
+        onPress={() => {
+          setSidePanelVisible(false);
+          router.push("/customer/messages");
+        }}
+      >
         <Ionicons name="chatbubbles" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Messages</Text>
       </TouchableOpacity>
       
-      <TouchableOpacity style={styles.menuItem}>
+      <TouchableOpacity 
+        style={styles.menuItem}
+        onPress={() => {
+          setSidePanelVisible(false);
+          router.push("/customer/myorders");
+        }}
+      >
         <Ionicons name="list" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Orders</Text>
       </TouchableOpacity>
       
-      <TouchableOpacity style={styles.menuItem}>
+      <TouchableOpacity 
+        style={styles.menuItem}
+        onPress={() => {
+          setSidePanelVisible(false);
+          router.push("/customer/profile");
+        }}
+      >
         <Ionicons name="person" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Profile</Text>
       </TouchableOpacity>
-
     </View>
   );
 
