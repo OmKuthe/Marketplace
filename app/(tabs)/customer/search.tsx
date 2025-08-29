@@ -37,8 +37,6 @@ export default function SearchScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    // Load recent searches from local storage
-    // In a real app, you might use AsyncStorage or similar
     const loadSearches = async () => {
         try {
           const savedSearches = await AsyncStorage.getItem("recentSearches");

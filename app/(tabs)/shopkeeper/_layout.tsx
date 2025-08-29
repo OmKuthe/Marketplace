@@ -37,7 +37,7 @@ export default function ShopkeeperLayout() {
         }}
       />
       <Tabs.Screen
-        name="orders"
+        name="myorders"
         options={{
           title: "Orders",
           tabBarIcon: ({ color, size }) => (

@@ -37,7 +37,7 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
-        name="orders"
+        name="myorders"
         options={{
           title: "Orders",
           tabBarIcon: ({ color, size }) => (
@@ -55,5 +55,6 @@ export default function CustomerLayout() {
         }}
       />
     </Tabs>
+    
   );
 }
