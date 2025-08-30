@@ -112,23 +112,19 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    router.push("/customer/edit-profile"as any);
-  };
-
-  const handleAddressManagement = () => {
-    router.push("/customer/addresses"as any);
+    router.push("/profile/edit-profile"as any);
   };
 
   const handleOrderHistory = () => {
-    router.push("/customer/orders"as any);
+    router.push("/profile/orders"as any);
   };
 
   const handlePaymentMethods = () => {
-    router.push("/customer/payment-methods"as any);
+    router.push("/profile/payment"as any);
   };
 
   const handleSupport = () => {
-    router.push("/customer/support"as any);
+    router.push("/profile/support"as any);
   };
 
   const SidePanel = () => (
@@ -280,13 +276,6 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItemCard} onPress={handleAddressManagement}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="location-outline" size={22} color="#007AFF" />
-              <Text style={styles.menuItemText}>Addresses</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItemCard} onPress={handlePaymentMethods}>
             <View style={styles.menuItemLeft}>
@@ -359,21 +348,6 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItemCard}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="document-text-outline" size={22} color="#007AFF" />
-              <Text style={styles.menuItemText}>Terms & Conditions</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItemCard}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="shield-checkmark-outline" size={22} color="#007AFF" />
-              <Text style={styles.menuItemText}>Privacy Policy</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </TouchableOpacity>
         </View>
 
         {/* Logout Button */}

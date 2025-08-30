@@ -216,7 +216,7 @@ export default function MessagesScreen() {
   const renderConversation = ({ item }: { item: Conversation }) => (
     <TouchableOpacity 
       style={styles.conversationItem}
-      onPress={() => router.push(`/customer/chat/${item.id}` as any)}
+      onPress={() => router.push(`../chat/${item.id}` as any)}
     >
       <Image 
         source={{ uri: item.participants[0].avatar || 'https://via.placeholder.com/150' }} 

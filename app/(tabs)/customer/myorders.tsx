@@ -266,7 +266,7 @@ export default function myorders() {
   const renderOrderItem = ({ item }: { item: Order }) => (
     <TouchableOpacity 
       style={styles.orderCard}
-      onPress={() => router.push(`/customer/myorders/${item.id}`as any)}
+      onPress={() => router.push(`/orders/${item.id}`as any)}
     >
       <View style={styles.orderHeader}>
         <View style={styles.shopInfo}>
