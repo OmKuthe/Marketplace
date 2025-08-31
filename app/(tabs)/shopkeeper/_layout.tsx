@@ -19,11 +19,11 @@ export default function ShopkeeperLayout() {
         }}
       />
       <Tabs.Screen
-        name="search"
+        name="products"
         options={{
-          title: "Search",
+          title: "products",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" size={size} color={color} />
+            <Ionicons name="cube" size={size} color={color} />
           ),
         }}
       />
