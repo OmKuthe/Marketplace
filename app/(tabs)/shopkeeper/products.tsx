@@ -1,5 +1,5 @@
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   FlatList,
   SafeAreaView,
@@ -13,12 +13,14 @@ import {
   Modal,
   Image,
   Alert,
-  ScrollView
+  ScrollView,
+  Keyboard
 } from "react-native";
 import { db, auth } from "../../../firebaseConfig";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
+import { TouchableWithoutFeedback } from "react-native";
 
 type Product = {
   id: string;
@@ -62,9 +64,34 @@ export default function ProductsScreen() {
     fetchProducts();
   }, []);
 
+  // Use useCallback to memoize the filter function
+  const filterProducts = useCallback(() => {
+    let filtered = products;
+
+    // Filter by search query
+    if (searchQuery) {
+      filtered = filtered.filter(product =>
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Filter by category
+    if (activeCategory !== "all") {
+      filtered = filtered.filter(product =>
+        product.category === activeCategory
+      );
+    }
+
+    setFilteredProducts(filtered);
+  }, [products, searchQuery, activeCategory]);
+
   useEffect(() => {
     filterProducts();
-  }, [products, searchQuery, activeCategory]);
+  }, [filterProducts]);
+
+
+  
 
   const fetchProducts = async () => {
     try {
@@ -84,33 +111,12 @@ export default function ProductsScreen() {
       })) as Product[];
       
       setProducts(data);
-    } catch (err) {
+    } catch (err: any) {
       console.log("Error fetching products:", err);
       Alert.alert("Error", "Failed to load products");
     } finally {
       setLoading(false);
     }
-  };
-
-  const filterProducts = () => {
-    let filtered = products;
-
-    // Filter by search query
-    if (searchQuery) {
-      filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Filter by category
-    if (activeCategory !== "all") {
-      filtered = filtered.filter(product =>
-        product.category === activeCategory
-      );
-    }
-
-    setFilteredProducts(filtered);
   };
 
   const handleAddProduct = async () => {
@@ -126,7 +132,8 @@ export default function ProductsScreen() {
         return;
       }
 
-      await addDoc(collection(db, "products"), {
+      // Create the new product object
+      const productToAdd = {
         name: newProduct.name,
         description: newProduct.description,
         price: parseFloat(newProduct.price),
@@ -135,12 +142,23 @@ export default function ProductsScreen() {
         imageUrl: newProduct.imageUrl,
         shopId: user.uid,
         createdAt: new Date()
-      });
+      };
 
+      // Add to Firestore
+      const docRef = await addDoc(collection(db, "products"), productToAdd);
+      
+      // Update local state immediately with the new product
+      setProducts(prevProducts => [
+        { id: docRef.id, ...productToAdd },
+        ...prevProducts
+      ]);
+      
       Alert.alert("Success", "Product added successfully");
       setAddModalVisible(false);
       resetForm();
-      fetchProducts();
+      
+      // Dismiss keyboard if it's open
+      Keyboard.dismiss();
     } catch (err) {
       console.log("Error adding product:", err);
       Alert.alert("Error", "Failed to add product");
@@ -152,19 +170,32 @@ export default function ProductsScreen() {
 
     try {
       const productRef = doc(db, "products", selectedProduct.id);
-      await updateDoc(productRef, {
+      const updatedProduct = {
         name: newProduct.name,
         description: newProduct.description,
         price: parseFloat(newProduct.price),
         category: newProduct.category,
         stock: parseInt(newProduct.stock),
         imageUrl: newProduct.imageUrl
-      });
+      };
+      
+      await updateDoc(productRef, updatedProduct);
+
+      // Update local state immediately
+      setProducts(prevProducts => 
+        prevProducts.map(product => 
+          product.id === selectedProduct.id 
+            ? { ...product, ...updatedProduct }
+            : product
+        )
+      );
 
       Alert.alert("Success", "Product updated successfully");
       setEditModalVisible(false);
       resetForm();
-      fetchProducts();
+      
+      // Dismiss keyboard if it's open
+      Keyboard.dismiss();
     } catch (err) {
       console.log("Error updating product:", err);
       Alert.alert("Error", "Failed to update product");
@@ -183,8 +214,13 @@ export default function ProductsScreen() {
           onPress: async () => {
             try {
               await deleteDoc(doc(db, "products", productId));
+              
+              // Update local state immediately
+              setProducts(prevProducts => 
+                prevProducts.filter(product => product.id !== productId)
+              );
+              
               Alert.alert("Success", "Product deleted successfully");
-              fetchProducts();
             } catch (err) {
               console.log("Error deleting product:", err);
               Alert.alert("Error", "Failed to delete product");
@@ -196,6 +232,7 @@ export default function ProductsScreen() {
   };
 
   const pickImage = async () => {
+    // FIX: Updated to use the non-deprecated method
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -233,6 +270,179 @@ export default function ProductsScreen() {
     setEditModalVisible(true);
   };
 
+  // Create a separate component for the ProductModal to prevent re-renders
+  const ProductModal = React.memo(({ isEdit = false, visible, onClose, onSubmit, newProduct, setNewProduct, pickImage }: any) => {
+    const [localProduct, setLocalProduct] = useState(newProduct);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+  
+    // Sync with parent state when modal opens/closes
+    useEffect(() => {
+      if (visible) {
+        setLocalProduct(newProduct);
+        setErrors({});
+      }
+    }, [visible, newProduct]);
+  
+    const validateForm = () => {
+      const newErrors: Record<string, string> = {};
+  
+      if (!localProduct.name.trim()) {
+        newErrors.name = "Product name is required";
+      }
+  
+      if (!localProduct.price.trim()) {
+        newErrors.price = "Price is required";
+      } else if (isNaN(parseFloat(localProduct.price)) || parseFloat(localProduct.price) <= 0) {
+        newErrors.price = "Please enter a valid price";
+      }
+  
+      if (!localProduct.category) {
+        newErrors.category = "Category is required";
+      }
+  
+      if (localProduct.stock && (isNaN(parseInt(localProduct.stock)) || parseInt(localProduct.stock) < 0)) {
+        newErrors.stock = "Please enter a valid stock quantity";
+      }
+  
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+    };
+  
+    const handleSubmit = () => {
+      if (validateForm()) {
+        // Update parent state before submitting
+        setNewProduct(localProduct);
+        onSubmit();
+      }
+    };
+  
+    const handleChange = (field: string, value: string) => {
+      setLocalProduct({ ...localProduct, [field]: value });
+      // Clear error when user starts typing
+      if (errors[field]) {
+        setErrors({ ...errors, [field]: "" });
+      }
+    };
+  
+    return (
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={onClose}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>
+                {isEdit ? "Edit Product" : "Add New Product"}
+              </Text>
+              
+              <ScrollView 
+                style={styles.modalScroll}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <View>
+                  <TextInput
+                    style={[styles.input, errors.name && styles.inputError]}
+                    placeholder="Product Name *"
+                    value={localProduct.name}
+                    onChangeText={(text) => handleChange('name', text)}
+                  />
+                  {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+                </View>
+                
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Description"
+                  value={localProduct.description}
+                  onChangeText={(text) => handleChange('description', text)}
+                  multiline
+                  numberOfLines={3}
+                />
+                
+                <View>
+                  <TextInput
+                    style={[styles.input, errors.price && styles.inputError]}
+                    placeholder="Price *"
+                    value={localProduct.price}
+                    onChangeText={(text) => handleChange('price', text.replace(/[^0-9.]/g, ''))}
+                    keyboardType="decimal-pad"
+                  />
+                  {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
+                </View>
+                
+                <View>
+                  <TextInput
+                    style={[styles.input, errors.stock && styles.inputError]}
+                    placeholder="Stock Quantity"
+                    value={localProduct.stock}
+                    onChangeText={(text) => handleChange('stock', text.replace(/[^0-9]/g, ''))}
+                    keyboardType="numeric"
+                  />
+                  {errors.stock && <Text style={styles.errorText}>{errors.stock}</Text>}
+                </View>
+                
+                <View>
+                  <Text style={styles.label}>Category *</Text>
+                  {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
+                  <View style={styles.categoryContainer}>
+                    {categories.map((category) => (
+                      <TouchableOpacity
+                        key={category}
+                        style={[
+                          styles.categoryButton,
+                          localProduct.category === category && styles.activeCategoryButton
+                        ]}
+                        onPress={() => handleChange('category', category)}
+                      >
+                        <Text style={[
+                          styles.categoryText,
+                          localProduct.category === category && styles.activeCategoryText
+                        ]}>
+                          {category}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+                
+                <Text style={styles.label}>Product Image</Text>
+                <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+                  {localProduct.imageUrl ? (
+                    <Image source={{ uri: localProduct.imageUrl }} style={styles.imagePreview} />
+                  ) : (
+                    <View style={styles.imagePlaceholder}>
+                      <Ionicons name="camera" size={24} color="#666" />
+                      <Text style={styles.imagePlaceholderText}>Select Image</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={onClose}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.submitButton]}
+                    onPress={handleSubmit}
+                  >
+                    <Text style={styles.submitButtonText}>
+                      {isEdit ? "Update" : "Add"} Product
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    );
+  });
   const SidePanel = () => (
     <View style={styles.sidePanel}>
       <TouchableOpacity 
@@ -298,107 +508,6 @@ export default function ProductsScreen() {
         <Text style={styles.menuItemText}>Profile</Text>
       </TouchableOpacity>
     </View>
-  );
-
-  const ProductModal = ({ isEdit = false }) => (
-    <Modal
-      visible={isEdit ? editModalVisible : addModalVisible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => isEdit ? setEditModalVisible(false) : setAddModalVisible(false)}
-    >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>
-            {isEdit ? "Edit Product" : "Add New Product"}
-          </Text>
-          
-          <ScrollView style={styles.modalScroll}>
-            <TextInput
-              style={styles.input}
-              placeholder="Product Name *"
-              value={newProduct.name}
-              onChangeText={(text) => setNewProduct({ ...newProduct, name: text })}
-            />
-            
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Description"
-              value={newProduct.description}
-              onChangeText={(text) => setNewProduct({ ...newProduct, description: text })}
-              multiline
-              numberOfLines={3}
-            />
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Price *"
-              value={newProduct.price}
-              onChangeText={(text) => setNewProduct({ ...newProduct, price: text })}
-              keyboardType="decimal-pad"
-            />
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Stock Quantity"
-              value={newProduct.stock}
-              onChangeText={(text) => setNewProduct({ ...newProduct, stock: text })}
-              keyboardType="numeric"
-            />
-            
-            <Text style={styles.label}>Category *</Text>
-            <View style={styles.categoryContainer}>
-              {categories.map((category) => (
-                <TouchableOpacity
-                  key={category}
-                  style={[
-                    styles.categoryButton,
-                    newProduct.category === category && styles.activeCategoryButton
-                  ]}
-                  onPress={() => setNewProduct({ ...newProduct, category })}
-                >
-                  <Text style={[
-                    styles.categoryText,
-                    newProduct.category === category && styles.activeCategoryText
-                  ]}>
-                    {category}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            <Text style={styles.label}>Product Image</Text>
-            <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-              {newProduct.imageUrl ? (
-                <Image source={{ uri: newProduct.imageUrl }} style={styles.imagePreview} />
-              ) : (
-                <View style={styles.imagePlaceholder}>
-                  <Ionicons name="camera" size={24} color="#666" />
-                  <Text style={styles.imagePlaceholderText}>Select Image</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => isEdit ? setEditModalVisible(false) : setAddModalVisible(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.submitButton]}
-                onPress={isEdit ? handleUpdateProduct : handleAddProduct}
-              >
-                <Text style={styles.submitButtonText}>
-                  {isEdit ? "Update" : "Add"} Product
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
   );
 
   if (loading) {
@@ -524,10 +633,26 @@ export default function ProductsScreen() {
       />
 
       {/* Add Product Modal */}
-      <ProductModal isEdit={false} />
+      <ProductModal
+        isEdit={false}
+        visible={addModalVisible}
+        onClose={() => setAddModalVisible(false)}
+        onSubmit={handleAddProduct}
+        newProduct={newProduct}
+        setNewProduct={setNewProduct}
+        pickImage={pickImage}
+      />
 
       {/* Edit Product Modal */}
-      <ProductModal isEdit={true} />
+      <ProductModal
+        isEdit={true}
+        visible={editModalVisible}
+        onClose={() => setEditModalVisible(false)}
+        onSubmit={handleUpdateProduct}
+        newProduct={newProduct}
+        setNewProduct={setNewProduct}
+        pickImage={pickImage}
+      />
     </SafeAreaView>
   );
 }
@@ -848,5 +973,14 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: 'white',
     fontWeight: '600',
+  },
+  inputError: {
+    borderColor: '#FF3B30',
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginTop: -10,
+    marginBottom: 15,
   },
 });
