@@ -14,7 +14,10 @@ import {
 } from "react-native";
 import { db } from "../../../firebaseConfig";
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from "react-native";
 import { useRouter } from "expo-router";
+import { getAuth } from "firebase/auth";
+
 
 const { width } = Dimensions.get('window');
 
@@ -31,10 +34,13 @@ export default function ShopkeeperHome() {
   const router = useRouter();
 
   useEffect(() => {
-    const fetchPosts = async () => {
+    const fetchProducts = async () => {
       try {
-        // For shopkeepers, we might want to show posts relevant to their business
-        const q = query(collection(db, "posts"), orderBy("timestamp", "desc"));
+        const q = query(
+          collection(db, "products"),
+          orderBy("createdAt", "desc")
+        );
+  
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -43,29 +49,16 @@ export default function ShopkeeperHome() {
         setPosts(data);
         setFilteredPosts(data);
       } catch (err) {
-        console.log("Error fetching posts:", err);
+        console.log("Error fetching products:", err);
       }
     };
-
-    const fetchShopStats = async () => {
-      // Mock data - in a real app, you would fetch from Firestore
-      setStats({
-        totalOrders: 24,
-        pendingOrders: 3,
-        totalRevenue: 1845
-      });
-    };
-
-    fetchPosts();
-    fetchShopStats();
+  
+    fetchProducts();
   }, []);
-
+  
+  
   useEffect(() => {
-    if (activeTab === "all") {
       setFilteredPosts(posts);
-    } else {
-      setFilteredPosts(posts.filter(post => post.type === activeTab.toUpperCase()));
-    }
   }, [activeTab, posts]);
 
   const SidePanel = () => (
@@ -218,34 +211,36 @@ export default function ShopkeeperHome() {
         </TouchableOpacity>
       </View>
 
-      {/* Posts List */}
-      <FlatList
+        {/* Posts List */}
+        <FlatList
         data={filteredPosts}
         keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20 }}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.card,
-              item.type === "NEED" ? styles.needCard : styles.offerCard,
-            ]}
-          >
-            <Text style={styles.cardTitle}>
-              {item.type === "NEED" ? "📝 Customer Need" : "🏷️ Offer"}
-            </Text>
-            <Text style={styles.cardContent}>{item.content}</Text>
-            {item.timestamp && (
-              <Text style={styles.timestamp}>
-                {new Date(item.timestamp.seconds * 1000).toLocaleString()}
-              </Text>
-            )}
-            <TouchableOpacity style={styles.responseButton}>
-              <Text style={styles.responseButtonText}>Respond</Text>
-            </TouchableOpacity>
+          <TouchableOpacity>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{item.name}</Text>
+              <Text style={styles.cardContent}>{item.description}</Text>
+              <Text style={styles.cardContent}>Price: ${item.price}</Text>
+
+              {item.image ? (
+                <Image
+                  source={{ uri: item.image }}
+                  style={{ width: "100%", height: 180, borderRadius: 10, marginTop: 8 }}
+                  resizeMode="cover"
+                />
+              ) : null}
+
+              {item.timestamp && (
+                <Text style={styles.timestamp}>
+                  {new Date(item.timestamp.seconds * 1000).toLocaleString()}
+                </Text>
+              )}
+            </View>
           </TouchableOpacity>
         )}
+        contentContainerStyle={{ paddingBottom: 20 }}
       />
+    
     </SafeAreaView>
   );
 }

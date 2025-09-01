@@ -23,7 +23,14 @@ type Post = {
     content: string;
     timestamp: any;
   };
-
+  type Product = {
+    id: string;
+    name: string;
+    description: string;
+    category?: string;
+    price?: number;
+    createdAt?: { seconds: number; nanoseconds: number };
+  };
 const { width } = Dimensions.get('window');
 
 export default function SearchScreen() {
@@ -51,47 +58,41 @@ export default function SearchScreen() {
       loadSearches();
     }, []);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+    const handleSearch = async () => {
+      if (!searchQuery.trim()) return;
     
-    setIsSearching(true);
-    try {
-      const updatedSearches = [
-        searchQuery,
-        ...recentSearches.filter(s => s !== searchQuery).slice(0, 4)
-      ];
-      setRecentSearches(updatedSearches);
- 
-      let q;
-      if (activeFilter === "all") {
-        q = query(
-          collection(db, "posts"),
-          orderBy("timestamp", "desc")
+      setIsSearching(true);
+      try {
+        const updatedSearches = [
+          searchQuery,
+          ...recentSearches.filter(s => s !== searchQuery).slice(0, 4)
+        ];
+        setRecentSearches(updatedSearches);
+    
+        const q = query(
+          collection(db, "products"),
+          orderBy("createdAt", "desc")
         );
-      } else {
-        q = query(
-          collection(db, "posts"),
-          where("type", "==", activeFilter.toUpperCase()),
-          orderBy("timestamp", "desc")
+    
+        const snapshot = await getDocs(q);
+const data: Product[] = snapshot.docs.map((doc) => ({
+  id: doc.id,
+  ...(doc.data() as Omit<Product, "id">),
+}));
+    
+        const filteredData = data.filter(product =>
+          product.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          product.description?.toLowerCase().includes(searchQuery.toLowerCase())
         );
+    
+        setSearchResults(filteredData);
+      } catch (err) {
+        console.log("Error searching products:", err);
+      } finally {
+        setIsSearching(false);
       }
-      
-      const snapshot = await getDocs(q);
-      const data : Post[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data()as Omit<Post, "id">),
-      }));
-        const filteredData = data.filter(post => 
-        post.content.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      
-      setSearchResults(filteredData);
-    } catch (err) {
-      console.log("Error searching posts:", err);
-    } finally {
-      setIsSearching(false);
-    }
-  };
+    };
+    
 
   const clearSearch = () => {
     setSearchQuery("");
@@ -268,25 +269,26 @@ export default function SearchScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 20 }}
                 renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.card,
-                      item.type === "NEED" ? styles.needCard : styles.offerCard,
-                    ]}
-                  >
-                    <Text style={styles.cardTitle}>
-                      {item.type === "NEED" ? "📝 Need" : "🏷️ Offer"}
-                    </Text>
-                    <Text style={styles.cardContent}>{item.content}</Text>
-                    {item.timestamp && (
-                      <Text style={styles.timestamp}>
-                        {new Date(item.timestamp.seconds * 1000).toLocaleString()}
-                      </Text>
-                    )}
-                    {item.userName && (
-                      <Text style={styles.userInfo}>Posted by: {item.userName}</Text>
-                    )}
-                  </TouchableOpacity>
+                  <FlatList
+  data={searchResults}
+  keyExtractor={(item) => item.id}
+  showsVerticalScrollIndicator={false}
+  contentContainerStyle={{ paddingBottom: 20 }}
+  renderItem={({ item }) => (
+    <TouchableOpacity style={styles.card}>
+      <Text style={styles.cardTitle}>{item.name}</Text>
+      <Text style={styles.cardContent}>{item.description}</Text>
+      <Text style={styles.cardContent}>💰 ${item.price}</Text>
+      <Text style={styles.cardContent}>📂 {item.category}</Text>
+      {item.createdAt?.seconds && (
+        <Text style={styles.timestamp}>
+          {new Date(item.createdAt.seconds * 1000).toLocaleString()}
+        </Text>
+      )}
+    </TouchableOpacity>
+  )}
+/>
+
                 )}
               />
             </>

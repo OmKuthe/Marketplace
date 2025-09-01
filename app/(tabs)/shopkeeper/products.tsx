@@ -1,4 +1,4 @@
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, serverTimestamp } from "firebase/firestore";
 import React, { useEffect, useState, useCallback } from "react";
 import {
   FlatList,
@@ -141,7 +141,7 @@ export default function ProductsScreen() {
         stock: parseInt(newProduct.stock) || 0,
         imageUrl: newProduct.imageUrl,
         shopId: user.uid,
-        createdAt: new Date()
+        createdAt: serverTimestamp()
       };
 
       // Add to Firestore

@@ -26,11 +26,14 @@ export default function CustomerHome() {
   const [newPostContent, setNewPostContent] = useState("");
   const [postType, setPostType] = useState("NEED");
   const router = useRouter();
-
   useEffect(() => {
-    const fetchPosts = async () => {
+    const fetchProducts = async () => {
       try {
-        const q = query(collection(db, "posts"), orderBy("timestamp", "desc"));
+        const q = query(
+          collection(db, "products"),
+          orderBy("createdAt", "desc")
+        );
+  
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -39,12 +42,13 @@ export default function CustomerHome() {
         setPosts(data);
         setFilteredPosts(data);
       } catch (err) {
-        console.log("Error fetching posts:", err);
+        console.log("Error fetching products:", err);
       }
     };
-    fetchPosts();
+  
+    fetchProducts();
   }, []);
-
+  
   useEffect(() => {
     if (activeTab === "all") {
       setFilteredPosts(posts);
@@ -179,29 +183,32 @@ export default function CustomerHome() {
 
       {/* Posts List */}
       <FlatList
-        data={filteredPosts}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20 }}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.card,
-              item.type === "NEED" ? styles.needCard : styles.offerCard,
-            ]}
-          >
-            <Text style={styles.cardTitle}>
-              {item.type === "NEED" ? "📝 Need" : "🏷️ Offer"}
-            </Text>
-            <Text style={styles.cardContent}>{item.content}</Text>
-            {item.timestamp && (
-              <Text style={styles.timestamp}>
-                {new Date(item.timestamp.seconds * 1000).toLocaleString()}
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
-      />
+  data={filteredPosts}
+  keyExtractor={(item) => item.id}
+  showsVerticalScrollIndicator={false}
+  contentContainerStyle={{ paddingBottom: 20 }}
+  renderItem={({ item }) => (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => {
+        // later: navigate to a ProductDetail screen
+        console.log("Clicked product:", item.name);
+      }}
+    >
+      <Text style={styles.cardTitle}>{item.name}</Text>
+      <Text style={styles.cardContent}>{item.description}</Text>
+      <Text style={styles.cardContent}>💰 ${item.price}</Text>
+      <Text style={styles.cardContent}>📦 Stock: {item.stock}</Text>
+      <Text style={styles.cardContent}>📂 {item.category}</Text>
+
+      {item.createdAt?.seconds && (
+        <Text style={styles.timestamp}>
+          {new Date(item.createdAt.seconds * 1000).toLocaleString()}
+        </Text>
+      )}
+    </TouchableOpacity>
+  )}
+/>
 
       {/* Create Post Modal */}
       <Modal
