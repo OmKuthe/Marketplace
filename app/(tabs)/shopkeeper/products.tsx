@@ -1,26 +1,13 @@
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, serverTimestamp } from "firebase/firestore";
 import React, { useEffect, useState, useCallback } from "react";
-import {
-  FlatList,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  TextInput,
-  ActivityIndicator,
-  Dimensions,
-  Modal,
-  Image,
-  Alert,
-  ScrollView,
-  Keyboard
-} from "react-native";
+import { FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Dimensions, Modal, Image, Alert, ScrollView, Keyboard } from "react-native";
 import { db, auth } from "../../../firebaseConfig";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
 import { TouchableWithoutFeedback } from "react-native";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import * as FileSystem from "expo-file-system";
 
 type Product = {
   id: string;
@@ -34,6 +21,16 @@ type Product = {
   shopId: string;
 };
 
+// Add interface for product form data
+interface ProductFormData {
+  name: string;
+  description: string;
+  price: string;
+  category: string;
+  stock: string;
+  imageUrl: string;
+}
+
 const { width } = Dimensions.get('window');
 
 export default function ProductsScreen() {
@@ -46,10 +43,11 @@ export default function ProductsScreen() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
+  const [uploading, setUploading] = useState(false);
   const router = useRouter();
 
   // New product form state
-  const [newProduct, setNewProduct] = useState({
+  const [newProduct, setNewProduct] = useState<ProductFormData>({
     name: "",
     description: "",
     price: "",
@@ -78,9 +76,7 @@ export default function ProductsScreen() {
 
     // Filter by category
     if (activeCategory !== "all") {
-      filtered = filtered.filter(product =>
-        product.category === activeCategory
-      );
+      filtered = filtered.filter(product => product.category === activeCategory);
     }
 
     setFilteredProducts(filtered);
@@ -89,9 +85,6 @@ export default function ProductsScreen() {
   useEffect(() => {
     filterProducts();
   }, [filterProducts]);
-
-
-  
 
   const fetchProducts = async () => {
     try {
@@ -103,13 +96,13 @@ export default function ProductsScreen() {
         where("shopId", "==", user.uid),
         orderBy("createdAt", "desc")
       );
-      
+
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Product[];
-      
+
       setProducts(data);
     } catch (err: any) {
       console.log("Error fetching products:", err);
@@ -119,8 +112,11 @@ export default function ProductsScreen() {
     }
   };
 
-  const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.price || !newProduct.category) {
+  // Add proper type to productData parameter
+  const handleAddProduct = async (productData: ProductFormData) => {
+    const storage = getStorage();
+    
+    if (!productData.name || !productData.price || !productData.category) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
@@ -132,27 +128,54 @@ export default function ProductsScreen() {
         return;
       }
 
+      setUploading(true);
+
       // Create the new product object
       const productToAdd = {
-        name: newProduct.name,
-        description: newProduct.description,
-        price: parseFloat(newProduct.price),
-        category: newProduct.category,
-        stock: parseInt(newProduct.stock) || 0,
-        imageUrl: newProduct.imageUrl,
+        name: productData.name,
+        description: productData.description,
+        price: parseFloat(productData.price),
+        category: productData.category,
+        stock: parseInt(productData.stock) || 0,
+        imageUrl: productData.imageUrl,
         shopId: user.uid,
         createdAt: serverTimestamp()
       };
 
+      let downloadURL = productData.imageUrl;
+      
+      // Only upload to storage if it's a local file URI
+      if (productData.imageUrl && (productData.imageUrl.startsWith('file:') || productData.imageUrl.startsWith('content:'))) {
+        try {
+          // Convert image to blob for upload
+          const response = await fetch(productData.imageUrl);
+          const blob = await response.blob();
+          
+          // Create a reference to the file in Firebase Storage
+          const storageRef = ref(storage, `products/${Date.now()}_${user.uid}.jpg`);
+          
+          // Upload the file to Firebase Storage
+          const uploadResult = await uploadBytes(storageRef, blob);
+          
+          // Get the download URL
+          downloadURL = await getDownloadURL(uploadResult.ref);
+        } catch (uploadError) {
+          console.log("Error uploading image:", uploadError);
+          Alert.alert("Warning", "Failed to upload image, but product will be added without image");
+        }
+      }
+      
+      productToAdd.imageUrl = downloadURL;
+
       // Add to Firestore
       const docRef = await addDoc(collection(db, "products"), productToAdd);
-      
+
       // Update local state immediately with the new product
       setProducts(prevProducts => [
-        { id: docRef.id, ...productToAdd },
+        { id: docRef.id, ...productToAdd, createdAt: new Date() },
         ...prevProducts
       ]);
-      
+
       Alert.alert("Success", "Product added successfully");
       setAddModalVisible(false);
       resetForm();
@@ -162,29 +185,66 @@ export default function ProductsScreen() {
     } catch (err) {
       console.log("Error adding product:", err);
       Alert.alert("Error", "Failed to add product");
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleUpdateProduct = async () => {
+  // Add proper type to productData parameter
+  const handleUpdateProduct = async (productData: ProductFormData) => {
     if (!selectedProduct) return;
 
     try {
+      setUploading(true);
       const productRef = doc(db, "products", selectedProduct.id);
-      const updatedProduct = {
-        name: newProduct.name,
-        description: newProduct.description,
-        price: parseFloat(newProduct.price),
-        category: newProduct.category,
-        stock: parseInt(newProduct.stock),
-        imageUrl: newProduct.imageUrl
-      };
       
+      let imageUrl = productData.imageUrl||"";
+      
+      // Only upload to storage if it's a local file URI (new image selected)
+      if (productData.imageUrl && (productData.imageUrl.startsWith('file:') || productData.imageUrl.startsWith('content:'))) {
+        try {
+          const storage = getStorage();
+          const user = auth.currentUser;
+          
+          // Convert image to blob for upload
+          const response = await fetch(productData.imageUrl);
+          const blob = await response.blob();
+          
+          // Create a reference to the file in Firebase Storage
+          const storageRef = ref(storage, `products/${Date.now()}_${user?.uid}.jpg`);
+          
+          // Upload the file to Firebase Storage
+          const uploadResult = await uploadBytes(storageRef, blob);
+          
+          // Get the download URL
+          imageUrl = await getDownloadURL(uploadResult.ref);
+        } catch (uploadError) {
+          console.log("Error uploading image:", uploadError);
+          Alert.alert("Warning", "Failed to upload image, but product will be updated without new image");
+          // Keep the existing image URL if upload fails
+          if (selectedProduct.imageUrl) {
+            imageUrl = selectedProduct.imageUrl;
+          } else {
+            imageUrl = ""; // fallback if product had no image
+          }
+        }
+      }
+      
+      const updatedProduct = {
+        name: productData.name,
+        description: productData.description,
+        price: parseFloat(productData.price),
+        category: productData.category,
+        stock: parseInt(productData.stock),
+        imageUrl: imageUrl
+      };
+
       await updateDoc(productRef, updatedProduct);
 
       // Update local state immediately
-      setProducts(prevProducts => 
-        prevProducts.map(product => 
-          product.id === selectedProduct.id 
+      setProducts(prevProducts =>
+        prevProducts.map(product =>
+          product.id === selectedProduct.id
             ? { ...product, ...updatedProduct }
             : product
         )
@@ -199,6 +259,8 @@ export default function ProductsScreen() {
     } catch (err) {
       console.log("Error updating product:", err);
       Alert.alert("Error", "Failed to update product");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -207,7 +269,10 @@ export default function ProductsScreen() {
       "Confirm Delete",
       "Are you sure you want to delete this product?",
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
         {
           text: "Delete",
           style: "destructive",
@@ -216,7 +281,7 @@ export default function ProductsScreen() {
               await deleteDoc(doc(db, "products", productId));
               
               // Update local state immediately
-              setProducts(prevProducts => 
+              setProducts(prevProducts =>
                 prevProducts.filter(product => product.id !== productId)
               );
               
@@ -232,16 +297,26 @@ export default function ProductsScreen() {
   };
 
   const pickImage = async () => {
-    // FIX: Updated to use the non-deprecated method
+    // Request permissions first
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please grant camera roll permissions to upload images');
+      return;
+    }
+
+    // Use the updated method for image picking
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 1,
+      quality: 0.8, // Slightly reduced quality for faster uploads
     });
 
     if (!result.canceled) {
-      setNewProduct({ ...newProduct, imageUrl: result.assets[0].uri });
+      setNewProduct({
+        ...newProduct,
+        imageUrl: result.assets[0].uri
+      });
     }
   };
 
@@ -271,10 +346,10 @@ export default function ProductsScreen() {
   };
 
   // Create a separate component for the ProductModal to prevent re-renders
-  const ProductModal = React.memo(({ isEdit = false, visible, onClose, onSubmit, newProduct, setNewProduct, pickImage }: any) => {
-    const [localProduct, setLocalProduct] = useState(newProduct);
+  const ProductModal = React.memo(({ isEdit = false, visible, onClose, onSubmit, newProduct, setNewProduct, pickImage, uploading }: any) => {
+    const [localProduct, setLocalProduct] = useState<ProductFormData>(newProduct);
     const [errors, setErrors] = useState<Record<string, string>>({});
-  
+
     // Sync with parent state when modal opens/closes
     useEffect(() => {
       if (visible) {
@@ -282,48 +357,55 @@ export default function ProductsScreen() {
         setErrors({});
       }
     }, [visible, newProduct]);
-  
+
     const validateForm = () => {
       const newErrors: Record<string, string> = {};
-  
+
       if (!localProduct.name.trim()) {
         newErrors.name = "Product name is required";
       }
-  
+
       if (!localProduct.price.trim()) {
         newErrors.price = "Price is required";
       } else if (isNaN(parseFloat(localProduct.price)) || parseFloat(localProduct.price) <= 0) {
         newErrors.price = "Please enter a valid price";
       }
-  
+
       if (!localProduct.category) {
         newErrors.category = "Category is required";
       }
-  
+
       if (localProduct.stock && (isNaN(parseInt(localProduct.stock)) || parseInt(localProduct.stock) < 0)) {
         newErrors.stock = "Please enter a valid stock quantity";
       }
-  
+
       setErrors(newErrors);
       return Object.keys(newErrors).length === 0;
     };
-  
+
     const handleSubmit = () => {
       if (validateForm()) {
-        // Update parent state before submitting
+        // Update parent state and submit with the local product data
         setNewProduct(localProduct);
-        onSubmit();
+        onSubmit(localProduct);
       }
     };
-  
-    const handleChange = (field: string, value: string) => {
-      setLocalProduct({ ...localProduct, [field]: value });
+
+    const handleChange = (field: keyof ProductFormData, value: string) => {
+      setLocalProduct({
+        ...localProduct,
+        [field]: value
+      });
+      
       // Clear error when user starts typing
       if (errors[field]) {
-        setErrors({ ...errors, [field]: "" });
+        setErrors({
+          ...errors,
+          [field]: ""
+        });
       }
     };
-  
+
     return (
       <Modal
         visible={visible}
@@ -337,8 +419,8 @@ export default function ProductsScreen() {
               <Text style={styles.modalTitle}>
                 {isEdit ? "Edit Product" : "Add New Product"}
               </Text>
-              
-              <ScrollView 
+
+              <ScrollView
                 style={styles.modalScroll}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
@@ -352,7 +434,7 @@ export default function ProductsScreen() {
                   />
                   {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
                 </View>
-                
+
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Description"
@@ -361,7 +443,7 @@ export default function ProductsScreen() {
                   multiline
                   numberOfLines={3}
                 />
-                
+
                 <View>
                   <TextInput
                     style={[styles.input, errors.price && styles.inputError]}
@@ -372,7 +454,7 @@ export default function ProductsScreen() {
                   />
                   {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
                 </View>
-                
+
                 <View>
                   <TextInput
                     style={[styles.input, errors.stock && styles.inputError]}
@@ -383,7 +465,7 @@ export default function ProductsScreen() {
                   />
                   {errors.stock && <Text style={styles.errorText}>{errors.stock}</Text>}
                 </View>
-                
+
                 <View>
                   <Text style={styles.label}>Category *</Text>
                   {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
@@ -397,19 +479,21 @@ export default function ProductsScreen() {
                         ]}
                         onPress={() => handleChange('category', category)}
                       >
-                        <Text style={[
-                          styles.categoryText,
-                          localProduct.category === category && styles.activeCategoryText
-                        ]}>
+                        <Text
+                          style={[
+                            styles.categoryText,
+                            localProduct.category === category && styles.activeCategoryText
+                          ]}
+                        >
                           {category}
                         </Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 </View>
-                
+
                 <Text style={styles.label}>Product Image</Text>
-                <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+                <TouchableOpacity style={styles.imagePicker} onPress={pickImage} disabled={uploading}>
                   {localProduct.imageUrl ? (
                     <Image source={{ uri: localProduct.imageUrl }} style={styles.imagePreview} />
                   ) : (
@@ -419,21 +503,27 @@ export default function ProductsScreen() {
                     </View>
                   )}
                 </TouchableOpacity>
-                
+
                 <View style={styles.modalButtons}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.modalButton, styles.cancelButton]}
                     onPress={onClose}
+                    disabled={uploading}
                   >
                     <Text style={styles.cancelButtonText}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.modalButton, styles.submitButton]}
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.submitButton, uploading && styles.disabledButton]}
                     onPress={handleSubmit}
+                    disabled={uploading}
                   >
-                    <Text style={styles.submitButtonText}>
-                      {isEdit ? "Update" : "Add"} Product
-                    </Text>
+                    {uploading ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text style={styles.submitButtonText}>
+                        {isEdit ? "Update" : "Add"} Product
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -443,20 +533,21 @@ export default function ProductsScreen() {
       </Modal>
     );
   });
+
   const SidePanel = () => (
     <View style={styles.sidePanel}>
-      <TouchableOpacity 
-        style={styles.sidePanelClose} 
+      <TouchableOpacity
+        style={styles.sidePanelClose}
         onPress={() => setSidePanelVisible(false)}
       >
         <Ionicons name="close" size={24} color="#333" />
       </TouchableOpacity>
-      
+
       <View style={styles.sidePanelHeader}>
         <Text style={styles.sidePanelTitle}>Shop Menu</Text>
       </View>
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         style={styles.menuItem}
         onPress={() => {
           setSidePanelVisible(false);
@@ -466,16 +557,16 @@ export default function ProductsScreen() {
         <Ionicons name="home" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Dashboard</Text>
       </TouchableOpacity>
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         style={[styles.menuItem, styles.activeMenuItem]}
         onPress={() => setSidePanelVisible(false)}
       >
         <Ionicons name="cube" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Products</Text>
       </TouchableOpacity>
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         style={styles.menuItem}
         onPress={() => {
           setSidePanelVisible(false);
@@ -485,8 +576,8 @@ export default function ProductsScreen() {
         <Ionicons name="list" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Orders</Text>
       </TouchableOpacity>
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         style={styles.menuItem}
         onPress={() => {
           setSidePanelVisible(false);
@@ -496,8 +587,8 @@ export default function ProductsScreen() {
         <Ionicons name="stats-chart" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Analytics</Text>
       </TouchableOpacity>
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         style={styles.menuItem}
         onPress={() => {
           setSidePanelVisible(false);
@@ -549,22 +640,43 @@ export default function ProductsScreen() {
       </View>
 
       {/* Category Filters */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-        <TouchableOpacity 
-          style={[styles.categoryFilter, activeCategory === "all" && styles.activeCategoryFilter]}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoryScroll}
+      >
+        <TouchableOpacity
+          style={[
+            styles.categoryFilter,
+            activeCategory === "all" && styles.activeCategoryFilter
+          ]}
           onPress={() => setActiveCategory("all")}
         >
-          <Text style={[styles.categoryFilterText, activeCategory === "all" && styles.activeCategoryFilterText]}>
+          <Text
+            style={[
+              styles.categoryFilterText,
+              activeCategory === "all" && styles.activeCategoryFilterText
+            ]}
+          >
             All
           </Text>
         </TouchableOpacity>
+
         {categories.map((category) => (
-          <TouchableOpacity 
+          <TouchableOpacity
             key={category}
-            style={[styles.categoryFilter, activeCategory === category && styles.activeCategoryFilter]}
+            style={[
+              styles.categoryFilter,
+              activeCategory === category && styles.activeCategoryFilter
+            ]}
             onPress={() => setActiveCategory(category)}
           >
-            <Text style={[styles.categoryFilterText, activeCategory === category && styles.activeCategoryFilterText]}>
+            <Text
+              style={[
+                styles.categoryFilterText,
+                activeCategory === category && styles.activeCategoryFilterText
+              ]}
+            >
               {category}
             </Text>
           </TouchableOpacity>
@@ -581,13 +693,13 @@ export default function ProductsScreen() {
             <Ionicons name="cube-outline" size={50} color="#ccc" />
             <Text style={styles.emptyText}>No products found</Text>
             <Text style={styles.emptySubText}>
-              {searchQuery || activeCategory !== "all" 
-                ? "Try changing your search or filters" 
+              {searchQuery || activeCategory !== "all"
+                ? "Try changing your search or filters"
                 : "Add your first product to get started"
               }
             </Text>
             {!searchQuery && activeCategory === "all" && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addFirstButton}
                 onPress={() => setAddModalVisible(true)}
               >
@@ -598,8 +710,12 @@ export default function ProductsScreen() {
         }
         renderItem={({ item }) => (
           <View style={styles.productCard}>
-            {item.imageUrl && (
+            {item.imageUrl ? (
               <Image source={{ uri: item.imageUrl }} style={styles.productImage} />
+            ) : (
+              <View style={styles.productImagePlaceholder}>
+                <Ionicons name="cube-outline" size={24} color="#ccc" />
+              </View>
             )}
             <View style={styles.productInfo}>
               <Text style={styles.productName}>{item.name}</Text>
@@ -615,13 +731,13 @@ export default function ProductsScreen() {
               <Text style={styles.productCategory}>{item.category}</Text>
             </View>
             <View style={styles.productActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => openEditModal(item)}
               >
                 <Ionicons name="create-outline" size={20} color="#007AFF" />
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => handleDeleteProduct(item.id)}
               >
@@ -641,6 +757,7 @@ export default function ProductsScreen() {
         newProduct={newProduct}
         setNewProduct={setNewProduct}
         pickImage={pickImage}
+        uploading={uploading}
       />
 
       {/* Edit Product Modal */}
@@ -652,6 +769,7 @@ export default function ProductsScreen() {
         newProduct={newProduct}
         setNewProduct={setNewProduct}
         pickImage={pickImage}
+        uploading={uploading}
       />
     </SafeAreaView>
   );
@@ -783,6 +901,15 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 8,
     marginRight: 12,
+  },
+  productImagePlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 12,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   productInfo: {
     flex: 1,
@@ -965,6 +1092,9 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: '#007AFF',
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
   },
   cancelButtonText: {
     color: '#333',
