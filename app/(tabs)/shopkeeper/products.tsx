@@ -627,6 +627,18 @@ export default function ProductsScreen() {
     
 
     <SafeAreaView style={styles.container}>
+      {/* Fullscreen Loader while uploading */}
+{uploading && (
+  <Modal transparent={true} animationType="fade">
+    <View style={styles.loaderOverlay}>
+      <View style={styles.loaderBox}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loaderText}>Adding product...</Text>
+      </View>
+    </View>
+  </Modal>
+)}
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
