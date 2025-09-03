@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { useEffect, useState } from "react";
 import { auth, db } from "../firebaseConfig"; // adjust import path to your firebase config
 
 type Role = "customer" | "shopkeeper" | null;
