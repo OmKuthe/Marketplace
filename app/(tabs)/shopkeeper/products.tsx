@@ -161,7 +161,8 @@ export default function ProductsScreen() {
           downloadURL = await getDownloadURL(uploadResult.ref);
         } catch (uploadError) {
           console.log("Error uploading image:", uploadError);
-          Alert.alert("Warning", "Failed to upload image, but product will be added without image");
+          //Alert.alert("Warning", "Failed to upload image, but product will be added without image");
+          //return if we want to pause the uploading
         }
       }
       
@@ -184,7 +185,7 @@ export default function ProductsScreen() {
       Keyboard.dismiss();
     } catch (err) {
       console.log("Error adding product:", err);
-      Alert.alert("Error", "Failed to add product");
+      //Alert.alert("Error", "Failed to add product");
     } finally {
       setUploading(false);
     }
@@ -220,7 +221,7 @@ export default function ProductsScreen() {
           imageUrl = await getDownloadURL(uploadResult.ref);
         } catch (uploadError) {
           console.log("Error uploading image:", uploadError);
-          Alert.alert("Warning", "Failed to upload image, but product will be updated without new image");
+          //Alert.alert("Warning", "Failed to upload image, but product will be updated without new image");
           // Keep the existing image URL if upload fails
           if (selectedProduct.imageUrl) {
             imageUrl = selectedProduct.imageUrl;
@@ -407,6 +408,10 @@ export default function ProductsScreen() {
     };
 
     return (
+
+
+      
+
       <Modal
         visible={visible}
         animationType="slide"
@@ -425,12 +430,26 @@ export default function ProductsScreen() {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
+
+              <Text style={styles.label}>Product Image</Text>
+                <TouchableOpacity style={styles.imagePicker} onPress={pickImage} disabled={uploading}>
+                  {localProduct.imageUrl ? (
+                    <Image source={{ uri: localProduct.imageUrl }} style={styles.imagePreview} />
+                  ) : (
+                    <View style={styles.imagePlaceholder}>
+                      <Ionicons name="camera" size={24} color="#666" />
+                      <Text style={styles.imagePlaceholderText}>Select Image</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
                 <View>
                   <TextInput
                     style={[styles.input, errors.name && styles.inputError]}
                     placeholder="Product Name *"
                     value={localProduct.name}
                     onChangeText={(text) => handleChange('name', text)}
+                    blurOnSubmit={false}     // 👈 prevents triggering form-like submit
+                    onSubmitEditing={() => {}} // 👈 no-op handler so Enter doesn’t refresh
                   />
                   {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
                 </View>
@@ -442,6 +461,8 @@ export default function ProductsScreen() {
                   onChangeText={(text) => handleChange('description', text)}
                   multiline
                   numberOfLines={3}
+                  blurOnSubmit={false}     // 👈 prevents triggering form-like submit
+                  onSubmitEditing={() => {}} // 👈 no-op handler so Enter doesn’t refresh
                 />
 
                 <View>
@@ -451,6 +472,8 @@ export default function ProductsScreen() {
                     value={localProduct.price}
                     onChangeText={(text) => handleChange('price', text.replace(/[^0-9.]/g, ''))}
                     keyboardType="decimal-pad"
+                    blurOnSubmit={false}     // 👈 prevents triggering form-like submit
+                    onSubmitEditing={() => {}} // 👈 no-op handler so Enter doesn’t refresh
                   />
                   {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
                 </View>
@@ -462,6 +485,8 @@ export default function ProductsScreen() {
                     value={localProduct.stock}
                     onChangeText={(text) => handleChange('stock', text.replace(/[^0-9]/g, ''))}
                     keyboardType="numeric"
+                    blurOnSubmit={false}     // 👈 prevents triggering form-like submit
+                    onSubmitEditing={() => {}} // 👈 no-op handler so Enter doesn’t refresh
                   />
                   {errors.stock && <Text style={styles.errorText}>{errors.stock}</Text>}
                 </View>
@@ -491,18 +516,6 @@ export default function ProductsScreen() {
                     ))}
                   </View>
                 </View>
-
-                <Text style={styles.label}>Product Image</Text>
-                <TouchableOpacity style={styles.imagePicker} onPress={pickImage} disabled={uploading}>
-                  {localProduct.imageUrl ? (
-                    <Image source={{ uri: localProduct.imageUrl }} style={styles.imagePreview} />
-                  ) : (
-                    <View style={styles.imagePlaceholder}>
-                      <Ionicons name="camera" size={24} color="#666" />
-                      <Text style={styles.imagePlaceholderText}>Select Image</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
 
                 <View style={styles.modalButtons}>
                   <TouchableOpacity
@@ -611,6 +624,8 @@ export default function ProductsScreen() {
   }
 
   return (
+    
+
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
@@ -775,7 +790,30 @@ export default function ProductsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(
+  
+  {loaderOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loaderBox: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  loaderText: {
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },  
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
