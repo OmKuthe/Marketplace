@@ -110,7 +110,7 @@ const AnimatedProductCard = ({ item, index }: any) => {
       
       {/* Product Image */}
       <Image 
-        source={{ uri: item.image || 'https://via.placeholder.com/400x300' }} 
+        source={{ uri: item.imageUrl || 'https://via.placeholder.com/400x300' }} 
         style={styles.productImage}
         resizeMode="cover"
       />
@@ -622,7 +622,9 @@ const styles = StyleSheet.create({
   },
   productImage: {
     width: '100%',
-    height: 320,
+    aspectRatio: 4 / 3, // keeps 4:3 ratio no matter what
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
   },
   cardFooter: {
     padding: 16,
@@ -633,6 +635,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  
   orderButton: {
     flexDirection: 'row',
     alignItems: 'center',
