@@ -1,23 +1,18 @@
-import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from "expo-router";
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
+  Dimensions,
   FlatList,
+  Image,
   SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  Modal,
-  TextInput,
-  Dimensions,
-  ScrollView
+  View
 } from "react-native";
 import { db } from "../../../firebaseConfig";
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from "react-native";
-import { useRouter } from "expo-router";
-import { getAuth } from "firebase/auth";
-
 
 const { width } = Dimensions.get('window');
 
@@ -146,46 +141,18 @@ export default function ShopkeeperHome() {
       {sidePanelVisible && <SidePanel />}
 
       {/* Stats Overview */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsContainer}>
+      <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{stats.totalOrders}</Text>
           <Text style={styles.statLabel}>Total Orders</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.pendingOrders}</Text>
+        <View style={[styles.statCard, styles.statCardHighlight]}>
+          <Text style={[styles.statValue, styles.statValueHighlight]}>{stats.pendingOrders}</Text>
           <Text style={styles.statLabel}>Pending Orders</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>${stats.totalRevenue}</Text>
           <Text style={styles.statLabel}>Revenue</Text>
-        </View>
-      </ScrollView>
-
-      {/* Quick Actions */}
-      <View style={styles.actionsContainer}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => router.push("/shopkeeper/messages")}
-          >
-            <Ionicons name="add-circle" size={24} color="#007AFF" />
-            <Text style={styles.actionButtonText}>Messages</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => router.push("/shopkeeper/myorders")}
-          >
-            <Ionicons name="list-circle" size={24} color="#007AFF" />
-            <Text style={styles.actionButtonText}>View Orders</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => router.push("/shopkeeper/profile")}
-          >
-            <Ionicons name="stats-chart" size={24} color="#007AFF" />
-            <Text style={styles.actionButtonText}>Profile</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -211,67 +178,104 @@ export default function ShopkeeperHome() {
         </TouchableOpacity>
       </View>
 
-        {/* Posts List */}
-        <FlatList
+      {/* Posts List */}
+      <FlatList
         data={filteredPosts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <TouchableOpacity>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{item.name}</Text>
-              <Text style={styles.cardContent}>{item.description}</Text>
-              <Text style={styles.cardContent}>Price: ${item.price}</Text>
-
-              {item.image ? (
-                <Image
-                  source={{ uri: item.image }}
-                  style={{ width: "100%", height: 180, borderRadius: 10, marginTop: 8 }}
-                  resizeMode="cover"
-                />
-              ) : null}
-
-              {item.timestamp && (
-                <Text style={styles.timestamp}>
-                  {new Date(item.timestamp.seconds * 1000).toLocaleString()}
-                </Text>
-              )}
+          <View style={styles.card}>
+            {/* User Info Header */}
+            <View style={styles.cardHeader}>
+              <View style={styles.userInfo}>
+                <View style={styles.avatar}></View>
+                <View>
+                  <Text style={styles.username}>john_doe</Text>
+                  <Text style={styles.userLocation}>New York, NY</Text>
+                </View>
+              </View>
+              <TouchableOpacity>
+                <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+            
+            {/* Product Image */}
+            {item.image ? (
+              <Image
+                source={{ uri: item.image }}
+                style={styles.productImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Ionicons name="image" size={40} color="#ccc" />
+                <Text style={styles.placeholderText}>No Image</Text>
+              </View>
+            )}
+
+            {/* Product Details */}
+            <View style={styles.cardContent}>
+              <Text style={styles.productName}>{item.name}</Text>
+              <Text style={styles.productDescription}>{item.description}</Text>
+              
+              <View style={styles.detailsRow}>
+                <Text style={styles.productPrice}>${item.price}</Text>
+                <Text style={styles.productCategory}>#{item.category || 'General'}</Text>
+              </View>
+              
+              <View style={styles.detailsRow}>
+                <Text style={styles.stockInfo}>20 in stock</Text>
+                <Text style={styles.postDate}>
+                  {item.timestamp ? 
+                    new Date(item.timestamp.seconds * 1000).toLocaleDateString() : 
+                    '3/9/2025'
+                  }
+                </Text>
+              </View>
+            </View>
+          </View>
         )}
-        contentContainerStyle={{ paddingBottom: 20 }}
+        contentContainerStyle={styles.listContent}
       />
-    
     </SafeAreaView>
   );
 }
 
+//proto 2
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "#fafafa",
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 22,  // Increased from 16
+    paddingHorizontal: 20, // Increased from 16
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,  // Slightly larger
     fontWeight: "bold",
+    marginVertical: 4,  // Added vertical margin
   },
   sidePanel: {
     position: 'absolute',
     top: 0,
     left: 0,
-    width: width * 0.7,
+    width: width * 0.75,
     height: '100%',
     backgroundColor: '#fff',
     zIndex: 100,
-    padding: 20,
+    padding: 24,  // Increased from 20
+    elevation: 5,
     shadowColor: "#000",
     shadowOffset: {
       width: 2,
@@ -279,151 +283,446 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5,
   },
   sidePanelClose: {
     alignSelf: 'flex-end',
-    marginBottom: 20,
+    marginBottom: 24,  // Increased from 20
+    padding: 8,  // Added for better touch area
   },
   sidePanelHeader: {
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    paddingBottom: 15,
-    marginBottom: 20,
+    paddingBottom: 20,  // Increased from 15
+    marginBottom: 24,  // Increased from 20
   },
   sidePanelTitle: {
-    fontSize: 22,
+    fontSize: 24,  // Increased from 22
     fontWeight: 'bold',
+    marginVertical: 6,  // Added vertical spacing
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
+    paddingVertical: 18,  // Increased from 15
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
   menuItemText: {
-    fontSize: 16,
-    marginLeft: 15,
+    fontSize: 17,  // Slightly larger
+    marginLeft: 16,  // Increased from 15
   },
   statsContainer: {
-    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 20,  // Increased vertical padding
+    paddingHorizontal: 20,  // Increased horizontal padding
+    marginBottom: 8,  // Added bottom margin
   },
   statCard: {
     backgroundColor: '#fff',
-    padding: 16,
+    padding: 20,  // Increased from 16
     borderRadius: 12,
-    marginRight: 12,
-    minWidth: 120,
+    width: '30%',
     alignItems: 'center',
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
     elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  statCardHighlight: {
+    backgroundColor: '#e6f7ff',
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 22,  // Increased from 20
     fontWeight: 'bold',
     color: '#007AFF',
+    marginVertical: 6,  // Added vertical spacing
+  },
+  statValueHighlight: {
+    color: '#1890ff',
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 13,  // Slightly larger
     color: '#666',
-    marginTop: 4,
-  },
-  actionsContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  actionButton: {
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  actionButtonText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#333',
+    marginTop: 6,  // Increased from 4
   },
   tabContainer: {
     flexDirection: 'row',
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: 20,  // Increased from 16
+    marginBottom: 20,  // Increased from 16
     backgroundColor: '#f0f0f0',
     borderRadius: 10,
     overflow: 'hidden',
   },
   tab: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 12,  // Increased from 10
     alignItems: 'center',
   },
   activeTab: {
     backgroundColor: '#007AFF',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 15,  // Slightly larger
     fontWeight: '500',
   },
   activeTabText: {
     color: 'white',
   },
+  listContent: {
+    paddingVertical: 20,  // Increased vertical padding
+    paddingHorizontal: 20,  // Increased horizontal padding
+    paddingBottom: 24,  // Increased bottom padding
+  },
   card: {
-    padding: 15,
+    backgroundColor: '#fff',
     borderRadius: 12,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    marginBottom: 20,  // Increased from 16
+    overflow: 'hidden',
     elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  needCard: {
-    backgroundColor: "#ffe0e6",
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,  // Increased from 12
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  offerCard: {
-    backgroundColor: "#e1f0ff",
-  },
-  cardTitle: {
-    fontWeight: "bold",
-    fontSize: 16,
-    marginBottom: 6,
-  },
-  cardContent: {
-    fontSize: 14,
-    marginBottom: 6,
-    color: "#333",
-  },
-  timestamp: {
-    fontSize: 12,
-    color: "#666",
-    textAlign: "right",
-    marginBottom: 8,
-  },
-  responseButton: {
-    backgroundColor: '#007AFF',
-    padding: 8,
-    borderRadius: 6,
+  userInfo: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  responseButtonText: {
-    color: 'white',
+  avatar: {
+    width: 40,  // Increased from 36
+    height: 40,  // Increased from 36
+    borderRadius: 20,  // Adjusted for new size
+    backgroundColor: '#007AFF',
+    marginRight: 12,  // Increased from 10
+  },
+  username: {
     fontWeight: '600',
+    fontSize: 15,  // Slightly larger
+  },
+  userLocation: {
+    fontSize: 13,  // Slightly larger
+    color: '#666',
+    marginTop: 2,  // Added spacing
+  },
+  productImage: {
+    width: '100%',
+    height: 320,  // Increased from 300
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: 220,  // Increased from 200
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,  // Added padding
+  },
+  placeholderText: {
+    marginTop: 12,  // Increased from 8
+    color: '#999',
+    fontSize: 14,  // Added font size for consistency
+  },
+  cardContent: {
+    padding: 20,  // Increased from 16
+  },
+  productName: {
+    fontWeight: 'bold',
+    fontSize: 19,  // Increased from 18
+    marginBottom: 12,  // Increased from 8
+  },
+  productDescription: {
+    fontSize: 15,  // Increased from 14
+    color: '#333',
+    marginBottom: 16,  // Increased from 12
+    lineHeight: 22,  // Increased from 20
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,  // Increased from 8
+  },
+  productPrice: {
+    fontWeight: 'bold',
+    fontSize: 17,  // Increased from 16
+    color: '#007AFF',
+  },
+  productCategory: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 10,  // Increased from 8
+    paddingVertical: 6,  // Increased from 4
+    borderRadius: 6,  // Increased from 4
+  },
+  stockInfo: {
+    fontSize: 15,  // Increased from 14
+    color: '#52c41a',
+    marginVertical: 4,  // Added vertical spacing
+  },
+  postDate: {
+    fontSize: 13,  // Increased from 12
+    color: '#999',
+    marginTop: 4,  // Added spacing
+  },
+  // New footer style
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 20,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
 });
+
+
+//proto 1
+// const styles = StyleSheet.create({
+//   container: {
+//     flex: 1,
+//     backgroundColor: "#fafafa",
+//   },
+//   header: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-between',
+//     alignItems: 'center',
+//     padding: 16,
+//     backgroundColor: '#fff',
+//     borderBottomWidth: 1,
+//     borderBottomColor: '#eee',
+//     elevation: 2,
+//     shadowColor: '#000',
+//     shadowOffset: { width: 0, height: 1 },
+//     shadowOpacity: 0.1,
+//     shadowRadius: 2,
+//   },
+//   headerTitle: {
+//     fontSize: 20,
+//     fontWeight: "bold",
+//   },
+//   sidePanel: {
+//     position: 'absolute',
+//     top: 0,
+//     left: 0,
+//     width: width * 0.75,
+//     height: '100%',
+//     backgroundColor: '#fff',
+//     zIndex: 100,
+//     padding: 20,
+//     elevation: 5,
+//     shadowColor: "#000",
+//     shadowOffset: {
+//       width: 2,
+//       height: 0,
+//     },
+//     shadowOpacity: 0.25,
+//     shadowRadius: 3.84,
+//   },
+//   sidePanelClose: {
+//     alignSelf: 'flex-end',
+//     marginBottom: 20,
+//   },
+//   sidePanelHeader: {
+//     borderBottomWidth: 1,
+//     borderBottomColor: '#eee',
+//     paddingBottom: 15,
+//     marginBottom: 20,
+//   },
+//   sidePanelTitle: {
+//     fontSize: 22,
+//     fontWeight: 'bold',
+//   },
+//   menuItem: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//     paddingVertical: 15,
+//     borderBottomWidth: 1,
+//     borderBottomColor: '#f0f0f0',
+//   },
+//   menuItemText: {
+//     fontSize: 16,
+//     marginLeft: 15,
+//   },
+//   statsContainer: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-between',
+//     padding: 16,
+//   },
+//   statCard: {
+//     backgroundColor: '#fff',
+//     padding: 16,
+//     borderRadius: 12,
+//     width: '30%',
+//     alignItems: 'center',
+//     elevation: 2,
+//     shadowColor: "#000",
+//     shadowOffset: {
+//       width: 0,
+//       height: 1,
+//     },
+//     shadowOpacity: 0.1,
+//     shadowRadius: 2,
+//   },
+//   statCardHighlight: {
+//     backgroundColor: '#e6f7ff',
+//   },
+//   statValue: {
+//     fontSize: 20,
+//     fontWeight: 'bold',
+//     color: '#007AFF',
+//   },
+//   statValueHighlight: {
+//     color: '#1890ff',
+//   },
+//   statLabel: {
+//     fontSize: 12,
+//     color: '#666',
+//     marginTop: 4,
+//   },
+//   tabContainer: {
+//     flexDirection: 'row',
+//     marginHorizontal: 16,
+//     marginBottom: 16,
+//     backgroundColor: '#f0f0f0',
+//     borderRadius: 10,
+//     overflow: 'hidden',
+//   },
+//   tab: {
+//     flex: 1,
+//     paddingVertical: 10,
+//     alignItems: 'center',
+//   },
+//   activeTab: {
+//     backgroundColor: '#007AFF',
+//   },
+//   tabText: {
+//     fontSize: 14,
+//     fontWeight: '500',
+//   },
+//   activeTabText: {
+//     color: 'white',
+//   },
+//   listContent: {
+//     padding: 16,
+//     paddingBottom: 20,
+//   },
+//   card: {
+//     backgroundColor: '#fff',
+//     borderRadius: 12,
+//     marginBottom: 16,
+//     overflow: 'hidden',
+//     elevation: 2,
+//     shadowColor: "#000",
+//     shadowOffset: {
+//       width: 0,
+//       height: 1,
+//     },
+//     shadowOpacity: 0.1,
+//     shadowRadius: 2,
+//   },
+//   cardHeader: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-between',
+//     alignItems: 'center',
+//     padding: 12,
+//     borderBottomWidth: 1,
+//     borderBottomColor: '#f0f0f0',
+//   },
+//   userInfo: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//   },
+//   avatar: {
+//     width: 36,
+//     height: 36,
+//     borderRadius: 18,
+//     backgroundColor: '#007AFF',
+//     marginRight: 10,
+//   },
+//   username: {
+//     fontWeight: '600',
+//     fontSize: 14,
+//   },
+//   userLocation: {
+//     fontSize: 12,
+//     color: '#666',
+//   },
+//   productImage: {
+//     width: '100%',
+//     height: 300,
+//   },
+//   imagePlaceholder: {
+//     width: '100%',
+//     height: 200,
+//     backgroundColor: '#f0f0f0',
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//   },
+//   placeholderText: {
+//     marginTop: 8,
+//     color: '#999',
+//   },
+//   cardContent: {
+//     padding: 16,
+//   },
+//   productName: {
+//     fontWeight: 'bold',
+//     fontSize: 18,
+//     marginBottom: 8,
+//   },
+//   productDescription: {
+//     fontSize: 14,
+//     color: '#333',
+//     marginBottom: 12,
+//     lineHeight: 20,
+//   },
+//   detailsRow: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-between',
+//     alignItems: 'center',
+//     marginBottom: 8,
+//   },
+//   productPrice: {
+//     fontWeight: 'bold',
+//     fontSize: 16,
+//     color: '#007AFF',
+//   },
+//   productCategory: {
+//     fontSize: 14,
+//     color: '#666',
+//     backgroundColor: '#f0f0f0',
+//     paddingHorizontal: 8,
+//     paddingVertical: 4,
+//     borderRadius: 4,
+//   },
+//   stockInfo: {
+//     fontSize: 14,
+//     color: '#52c41a',
+//   },
+//   postDate: {
+//     fontSize: 12,
+//     color: '#999',
+//   },
+// });

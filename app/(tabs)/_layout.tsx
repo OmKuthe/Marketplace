@@ -1,7 +1,7 @@
 import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { useEffect } from "react";
 import { auth, db } from "../../firebaseConfig";
 
 export default function Layout() {

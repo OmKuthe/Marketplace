@@ -1,20 +1,20 @@
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Dimensions,
   FlatList,
   SafeAreaView,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  View,
   TextInput,
-  ActivityIndicator,
-  Dimensions
+  TouchableOpacity,
+  View
 } from "react-native";
 import { db } from "../../../firebaseConfig";
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
 type Post = {
