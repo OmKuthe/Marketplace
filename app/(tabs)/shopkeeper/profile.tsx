@@ -9,58 +9,31 @@ import {
   ScrollView,
   Switch,
   Alert,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { auth, db } from "../../../firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 const { width } = Dimensions.get('window');
 
-// Define types for shopkeeper profile
-type ShopProfile = {
-  id: string;
-  name: string;
+// Simplified type to match your Firebase data
+type ShopkeeperData = {
+  uid: string;
   email: string;
-  phone?: string;
-  avatar?: string;
-  role: 'customer' | 'shopkeeper';
   shopName: string;
-  shopDescription?: string;
-  shopAddress?: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-  };
-  businessHours?: {
-    open: string;
-    close: string;
-    days: string[];
-  };
-  preferences?: {
-    notifications: boolean;
-    orderAlerts: boolean;
-    darkMode: boolean;
-    language: string;
-  };
-  stats?: {
-    totalOrders: number;
-    completedOrders: number;
-    pendingOrders: number;
-    totalRevenue: number;
-    activeProducts: number;
-    customerRating: number;
-    joinedDate: Date;
-  };
-  verification?: {
-    verified: boolean;
-    documentStatus: 'pending' | 'approved' | 'rejected';
-  };
+  ownerName: string;
+  location: string;
+  phone: string;
+  createdAt: any;
 };
 
 export default function ShopkeeperProfileScreen() {
-  const [user, setUser] = useState<ShopProfile | null>(null);
+  const [user, setUser] = useState<ShopkeeperData | null>(null);
   const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -68,56 +41,31 @@ export default function ShopkeeperProfileScreen() {
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const router = useRouter();
 
-  // Mock shopkeeper data
   useEffect(() => {
-    const mockShopkeeper: ShopProfile = {
-      id: "shopkeeper-123",
-      name: "Rajesh Kumar",
-      email: "rajesh@freshgrocery.com",
-      phone: "+91 9876543210",
-      avatar: "https://images.unsplash.com/photo-1566492031773-4f4e44671d66?w=150&h=150&fit=crop&crop=face",
-      role: "shopkeeper",
-      shopName: "Fresh Grocery Store",
-      shopDescription: "Your one-stop shop for fresh organic vegetables, fruits, and dairy products",
-      shopAddress: {
-        street: "45 Market Street",
-        city: "Mumbai",
-        state: "Maharashtra",
-        zipCode: "400001"
-      },
-      businessHours: {
-        open: "08:00",
-        close: "20:00",
-        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-      },
-      preferences: {
-        notifications: true,
-        orderAlerts: true,
-        darkMode: false,
-        language: "English"
-      },
-      stats: {
-        totalOrders: 247,
-        completedOrders: 230,
-        pendingOrders: 17,
-        totalRevenue: 184500,
-        activeProducts: 45,
-        customerRating: 4.8,
-        joinedDate: new Date("2023-06-15")
-      },
-      verification: {
-        verified: true,
-        documentStatus: 'approved'
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.replace("/"); // if logged out, go to login
+        return;
       }
-    };
+  
+      try {
+        const docRef = doc(db, "shopkeepers", currentUser.uid);
+        const snap = await getDoc(docRef);
 
-    setTimeout(() => {
-      setUser(mockShopkeeper);
-      setNotificationsEnabled(mockShopkeeper.preferences?.notifications || true);
-      setOrderAlertsEnabled(mockShopkeeper.preferences?.orderAlerts || true);
-      setDarkModeEnabled(mockShopkeeper.preferences?.darkMode || false);
-      setIsLoading(false);
-    }, 1000);
+        if (snap.exists()) {
+          setUser(snap.data() as ShopkeeperData);
+        } else {
+          console.log("No shopkeeper profile found");
+        }
+      } catch (error) {
+        console.error("Error fetching shopkeeper:", error);
+        Alert.alert("Error", "Failed to fetch profile.");
+      } finally {
+        setIsLoading(false);
+      }
+    });
+  
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = () => {
@@ -164,7 +112,6 @@ export default function ShopkeeperProfileScreen() {
   const handleSupport = () => {
     router.push("/shop_prof/support");
   };
-
 
   const SidePanel = () => (
     <View style={styles.sidePanel}>
@@ -244,8 +191,25 @@ export default function ShopkeeperProfileScreen() {
           <View style={{ width: 28 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <Ionicons name="business-outline" size={64} color="#ccc" />
+          <ActivityIndicator size="large" color="#007AFF" />
           <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
+            <Ionicons name="menu" size={28} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>👤 Shop Profile</Text>
+          <View style={{ width: 28 }} />
+        </View>
+        <View style={styles.centered}>
+          <Text>No shopkeeper profile found</Text>
         </View>
       </SafeAreaView>
     );
@@ -270,23 +234,15 @@ export default function ShopkeeperProfileScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Profile Header */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            <Image 
-              source={{ uri: user?.avatar || 'https://via.placeholder.com/150' }} 
-              style={styles.avatar}
-            />
-            {user?.verification?.verified && (
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              </View>
-            )}
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.shopName}>{user?.shopName}</Text>
-            <Text style={styles.userName}>{user?.name}</Text>
-            <Text style={styles.userEmail}>{user?.email}</Text>
-            <Text style={styles.shopDescription}>{user?.shopDescription}</Text>
-          </View>
+          <Image 
+            source={{ uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }} 
+            style={styles.avatar}
+          />
+          <Text style={styles.shopName}>{user.shopName}</Text>
+          <Text style={styles.userName}>Owner: {user.ownerName}</Text>
+          <Text style={styles.userEmail}>{user.email}</Text>
+          <Text style={styles.userEmail}>📍 {user.location}</Text>
+          <Text style={styles.userEmail}>📞 {user.phone}</Text>
         </View>
 
         {/* Business Info */}
@@ -294,37 +250,31 @@ export default function ShopkeeperProfileScreen() {
           <View style={styles.infoItem}>
             <Ionicons name="location-outline" size={18} color="#007AFF" />
             <Text style={styles.infoText} numberOfLines={1}>
-              {user?.shopAddress?.street}, {user?.shopAddress?.city}
-            </Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="time-outline" size={18} color="#007AFF" />
-            <Text style={styles.infoText}>
-              {user?.businessHours?.open} - {user?.businessHours?.close}
+              {user.location}
             </Text>
           </View>
           <View style={styles.infoItem}>
             <Ionicons name="call-outline" size={18} color="#007AFF" />
-            <Text style={styles.infoText}>{user?.phone}</Text>
+            <Text style={styles.infoText}>{user.phone}</Text>
           </View>
         </View>
 
-        {/* Stats Section */}
+        {/* Stats Section - Using placeholder data since not in Firebase */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.stats?.totalOrders || 0}</Text>
+            <Text style={styles.statNumber}>0</Text>
             <Text style={styles.statLabel}>Total Orders</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>₹{(user?.stats?.totalRevenue || 0).toLocaleString()}</Text>
+            <Text style={styles.statNumber}>₹0</Text>
             <Text style={styles.statLabel}>Revenue</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.stats?.activeProducts || 0}</Text>
+            <Text style={styles.statNumber}>0</Text>
             <Text style={styles.statLabel}>Products</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.stats?.customerRating || 0}/5</Text>
+            <Text style={styles.statNumber}>0/5</Text>
             <Text style={styles.statLabel}>Rating</Text>
           </View>
         </View>
@@ -523,6 +473,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   profileHeader: {
     backgroundColor: '#fff',
     padding: 24,
@@ -530,25 +485,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-  },
-  verifiedBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#34C759',
-    borderRadius: 10,
-    padding: 2,
-  },
-  profileInfo: {
-    alignItems: 'center',
+    marginBottom: 16,
   },
   shopName: {
     fontSize: 22,
@@ -565,34 +506,7 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 8,
-  },
-  shopDescription: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  verificationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginTop: 8,
-  },
-  verified: {
-    backgroundColor: '#34C759',
-  },
-  notVerified: {
-    backgroundColor: '#FF9500',
-  },
-  verificationText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 4,
+    marginBottom: 2,
   },
   businessInfo: {
     backgroundColor: '#fff',

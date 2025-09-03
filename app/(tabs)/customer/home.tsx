@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from "expo-router";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -36,8 +36,32 @@ const colors = {
   success: '#4CAF50',    // Green for success actions
 };
 
+// Define types
+type ShopkeeperData = {
+  uid: string;
+  email: string;
+  shopName: string;
+  ownerName: string;
+  location: string;
+  phone: string;
+  createdAt: any;
+};
+
+type Product = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  category: string;
+  type: string;
+  imageUrl?: string;
+  createdAt?: any;
+  shopkeeperId?: string; // Add this field
+};
+
 // Animated Product Card Component
-const AnimatedProductCard = ({ item, index }: any) => {
+const AnimatedProductCard = ({ item, index, shopkeeperData }: { item: Product; index: number; shopkeeperData: ShopkeeperData | null }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const [saved, setSaved] = useState(false);
@@ -87,16 +111,20 @@ const AnimatedProductCard = ({ item, index }: any) => {
         }
       ]}
     >
-      {/* Card Header with User Info */}
+      {/* Card Header with Shopkeeper Info */}
       <View style={styles.cardHeader}>
         <View style={styles.userInfo}>
           <Image 
-            source={{ uri: 'https://randomuser.me/api/portraits/men/1.jpg' }} 
+            source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }} 
             style={styles.avatar}
           />
           <View>
-            <Text style={styles.username}>john_doe</Text>
-            <Text style={styles.userLocation}>New York, NY</Text>
+            <Text style={styles.username}>
+              {shopkeeperData?.shopName || 'Unknown Shop'}
+            </Text>
+            <Text style={styles.userLocation}>
+              {shopkeeperData?.location || 'Unknown Location'}
+            </Text>
           </View>
         </View>
         <TouchableOpacity onPress={handleSave}>
@@ -154,8 +182,9 @@ const AnimatedProductCard = ({ item, index }: any) => {
 };
 
 export default function CustomerHome() {
-  const [posts, setPosts] = useState<any[]>([]);
-  const [filteredPosts, setFilteredPosts] = useState<any[]>([]);
+  const [posts, setPosts] = useState<Product[]>([]);
+  const [filteredPosts, setFilteredPosts] = useState<Product[]>([]);
+  const [shopkeeperData, setShopkeeperData] = useState<{[key: string]: ShopkeeperData}>({});
   const [activeTab, setActiveTab] = useState("all");
   const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [createPostModalVisible, setCreatePostModalVisible] = useState(false);
@@ -174,8 +203,9 @@ export default function CustomerHome() {
   });
   
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchProductsAndShopkeepers = async () => {
       try {
+        // Fetch products
         const q = query(
           collection(db, "products"),
           orderBy("createdAt", "desc")
@@ -185,15 +215,36 @@ export default function CustomerHome() {
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        }));
+        })) as Product[];
+        
         setPosts(data);
         setFilteredPosts(data);
+
+        // Fetch shopkeeper data for each product
+        const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
+        
+        for (const product of data) {
+          // Check if product has a shopkeeperId field (might be named differently)
+          const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
+          
+          if (shopkeeperId && !shopkeeperMap[shopkeeperId]) {
+            try {
+              const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
+              if (shopkeeperDoc.exists()) {
+                shopkeeperMap[shopkeeperId] = shopkeeperDoc.data() as ShopkeeperData;
+              }
+            } catch (error) {
+              console.error("Error fetching shopkeeper:", error);
+            }
+          }
+        }
+        setShopkeeperData(shopkeeperMap);
       } catch (err) {
         console.log("Error fetching products:", err);
       }
     };
   
-    fetchProducts();
+    fetchProductsAndShopkeepers();
   }, []);
   
   useEffect(() => {
@@ -359,9 +410,19 @@ export default function CustomerHome() {
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 25 }}
-        renderItem={({ item, index }) => (
-          <AnimatedProductCard item={item} index={index} />
-        )}
+        renderItem={({ item, index }) => {
+          // Get the shopkeeper ID from the product (checking multiple possible field names)
+          const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+          const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+          
+          return (
+            <AnimatedProductCard 
+              item={item} 
+              index={index} 
+              shopkeeperData={shopkeeper}
+            />
+          );
+        }}
       />
 
       {/* Enhanced Create Post Modal */}
@@ -474,7 +535,6 @@ export default function CustomerHome() {
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
