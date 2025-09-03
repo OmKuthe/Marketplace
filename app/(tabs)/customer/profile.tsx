@@ -9,83 +9,61 @@ import {
   ScrollView,
   Switch,
   Alert,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { auth, db } from "../../../firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 const { width } = Dimensions.get('window');
 
-// Define types for user profile
-type UserProfile = {
-  id: string;
-  name: string;
+// Define types for customer profile based on your Firebase data
+type CustomerProfile = {
+  uid: string;
   email: string;
-  phone?: string;
-  avatar?: string;
-  role: 'customer' | 'shopkeeper';
-  address?: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-  };
-  preferences?: {
-    notifications: boolean;
-    darkMode: boolean;
-    language: string;
-  };
-  stats?: {
-    orders: number;
-    completedOrders: number;
-    pendingOrders: number;
-    joinedDate: Date;
-  };
+  fullName: string;
+  address: string;
+  phone: string;
+  createdAt: any;
 };
 
 export default function ProfileScreen() {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<CustomerProfile | null>(null);
   const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const router = useRouter();
 
-  // Mock user data - replace with actual data from your backend
   useEffect(() => {
-    const mockUser: UserProfile = {
-      id: "user-123",
-      name: "John Doe",
-      email: "john.doe@example.com",
-      phone: "+1 (555) 123-4567",
-      avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-      role: "customer",
-      address: {
-        street: "123 Main Street",
-        city: "New York",
-        state: "NY",
-        zipCode: "10001"
-      },
-      preferences: {
-        notifications: true,
-        darkMode: false,
-        language: "English"
-      },
-      stats: {
-        orders: 15,
-        completedOrders: 12,
-        pendingOrders: 3,
-        joinedDate: new Date("2024-01-15")
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.replace("/"); // if logged out, go to login
+        return;
       }
-    };
+  
+      try {
+        const docRef = doc(db, "customers", currentUser.uid);
+        const snap = await getDoc(docRef);
 
-    setTimeout(() => {
-      setUser(mockUser);
-      setNotificationsEnabled(mockUser.preferences?.notifications || true);
-      setDarkModeEnabled(mockUser.preferences?.darkMode || false);
-      setIsLoading(false);
-    }, 1000);
+        if (snap.exists()) {
+          setUser(snap.data() as CustomerProfile);
+        } else {
+          console.log("No customer profile found");
+        }
+      } catch (error) {
+        console.error("Error fetching customer:", error);
+        Alert.alert("Error", "Failed to fetch profile.");
+      } finally {
+        setIsLoading(false);
+      }
+    });
+  
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = () => {
@@ -112,19 +90,19 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    router.push("/profile/edit-profile"as any);
+    router.push("/profile/edit-profile" as any);
   };
 
   const handleOrderHistory = () => {
-    router.push("/profile/orders"as any);
+    router.push("/profile/orders" as any);
   };
 
   const handlePaymentMethods = () => {
-    router.push("/profile/payment"as any);
+    router.push("/profile/payment" as any);
   };
 
   const handleSupport = () => {
-    router.push("/profile/support"as any);
+    router.push("/profile/support" as any);
   };
 
   const SidePanel = () => (
@@ -205,8 +183,25 @@ export default function ProfileScreen() {
           <View style={{ width: 28 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <Ionicons name="person-circle-outline" size={64} color="#ccc" />
+          <ActivityIndicator size="large" color="#007AFF" />
           <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
+            <Ionicons name="menu" size={28} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>👤 Profile</Text>
+          <View style={{ width: 28 }} />
+        </View>
+        <View style={styles.centered}>
+          <Text>No customer profile found</Text>
         </View>
       </SafeAreaView>
     );
@@ -232,33 +227,47 @@ export default function ProfileScreen() {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <Image 
-            source={{ uri: user?.avatar || 'https://via.placeholder.com/150' }} 
+            source={{ uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }} 
             style={styles.avatar}
           />
           <View style={styles.profileInfo}>
-            <Text style={styles.userName}>{user?.name}</Text>
+            <Text style={styles.userName}>{user?.fullName}</Text>
             <Text style={styles.userEmail}>{user?.email}</Text>
-            <Text style={styles.userRole}>{user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : ""}</Text>
+            <Text style={styles.userRole}>Customer</Text>
           </View>
         </View>
 
-        {/* Stats Section */}
+        {/* Address Info */}
+        <View style={styles.businessInfo}>
+          <View style={styles.infoItem}>
+            <Ionicons name="location-outline" size={18} color="#007AFF" />
+            <Text style={styles.infoText} numberOfLines={2}>
+              {user?.address}
+            </Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Ionicons name="call-outline" size={18} color="#007AFF" />
+            <Text style={styles.infoText}>{user?.phone}</Text>
+          </View>
+        </View>
+
+        {/* Stats Section - Using placeholder data since not in Firebase */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.stats?.orders || 0}</Text>
+            <Text style={styles.statNumber}>0</Text>
             <Text style={styles.statLabel}>Total Orders</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.stats?.completedOrders || 0}</Text>
+            <Text style={styles.statNumber}>0</Text>
             <Text style={styles.statLabel}>Completed</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.stats?.pendingOrders || 0}</Text>
+            <Text style={styles.statNumber}>0</Text>
             <Text style={styles.statLabel}>Pending</Text>
           </View>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
-              {user?.stats?.joinedDate ? new Date().getFullYear() - user.stats.joinedDate.getFullYear() : 0}
+              {user?.createdAt ? new Date().getFullYear() - new Date(user.createdAt.seconds * 1000).getFullYear() : 0}
             </Text>
             <Text style={styles.statLabel}>Years</Text>
           </View>
@@ -275,7 +284,6 @@ export default function ProfileScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
-
 
           <TouchableOpacity style={styles.menuItemCard} onPress={handlePaymentMethods}>
             <View style={styles.menuItemLeft}>
@@ -347,7 +355,6 @@ export default function ProfileScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
-
         </View>
 
         {/* Logout Button */}
@@ -441,6 +448,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   profileHeader: {
     backgroundColor: '#fff',
     padding: 24,
@@ -476,6 +488,23 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     fontWeight: '500',
+  },
+  businessInfo: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 8,
+    flex: 1,
   },
   statsContainer: {
     flexDirection: 'row',
