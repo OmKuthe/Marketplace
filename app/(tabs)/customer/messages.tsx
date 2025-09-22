@@ -1,18 +1,28 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from "expo-router";
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  where
+} from 'firebase/firestore';
 import React, { useEffect, useState } from "react";
 import {
+  Dimensions,
   FlatList,
+  Image,
   SafeAreaView,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  View,
   TextInput,
-  Image,
-  Dimensions
+  TouchableOpacity,
+  View
 } from "react-native";
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from "expo-router";
-import { router } from "expo-router";
+import { db } from '../../../firebaseConfig';
+import { useAuth } from '../../../hooks/useAuth';
 
 const { width } = Dimensions.get('window');
 
@@ -37,108 +47,113 @@ type Conversation = {
   participants: User[];
   lastMessage: Message;
   unreadCount: number;
+  updatedAt: Date;
 };
 
 export default function MessagesScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sidePanelVisible, setSidePanelVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   const router = useRouter();
 
-  // Mock data - replace with actual data from your backend
+  // Fetch real conversations from Firestore
   useEffect(() => {
-    const mockConversations: Conversation[] = [
-      {
-        id: "1",
-        participants: [
-          {
-            id: "2",
-            name: "Organic Grocery Store",
-            role: "shopkeeper",
-            avatar: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=150&h=150&fit=crop&crop=face"
-          }
-        ],
-        lastMessage: {
-          id: "101",
-          text: "Hi! We have fresh organic vegetables available this week. Would you like to place an order?",
-          timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-          senderId: "2",
-          read: true
-        },
-        unreadCount: 0
-      },
-      {
-        id: "2",
-        participants: [
-          {
-            id: "3",
-            name: "Local Bakery",
-            role: "shopkeeper",
-            avatar: "https://images.unsplash.com/photo-1608190003443-86a6a5c6fcdc?w=150&h=150&fit=crop&crop=face"
-          }
-        ],
-        lastMessage: {
-          id: "102",
-          text: "Your bread order is ready for pickup!",
-          timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-          senderId: "3",
-          read: false
-        },
-        unreadCount: 1
-      },
-      {
-        id: "3",
-        participants: [
-          {
-            id: "4",
-            name: "Dairy Farm",
-            role: "shopkeeper",
-            avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face"
-          }
-        ],
-        lastMessage: {
-          id: "103",
-          text: "We got your milk requirement. Will deliver tomorrow morning.",
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-          senderId: "4",
-          read: true
-        },
-        unreadCount: 0
-      },
-      {
-        id: "4",
-        participants: [
-          {
-            id: "5",
-            name: "Fruit Vendor",
-            role: "shopkeeper",
-            avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face"
-          }
-        ],
-        lastMessage: {
-          id: "104",
-          text: "Seasonal fruits are available now. What would you like?",
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-          senderId: "5",
-          read: true
-        },
-        unreadCount: 0
-      }
-    ];
+    if (!user) return;
 
-    setConversations(mockConversations);
-  }, []);
+    const conversationsRef = collection(db, 'conversations');
+    
+    // Query conversations where current user is a participant
+    const q = query(
+      conversationsRef, 
+      where('participants', 'array-contains', user.uid),
+      orderBy('updatedAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      try {
+        const conversationsData: Conversation[] = [];
+        
+        for (const docSnapshot of snapshot.docs) {
+          const data = docSnapshot.data();
+          
+          // Get participant details
+          const participantDetails: User[] = [];
+          for (const participantId of data.participants) {
+            if (participantId !== user.uid) {
+              try {
+                const userDoc = await getDoc(doc(db, 'users', participantId));
+                if (userDoc.exists()) {
+                  const userData = userDoc.data();
+                  participantDetails.push({
+                    id: participantId,
+                    name: userData?.name || 'Unknown User',
+                    avatar: userData?.avatar,
+                    role: userData?.role || 'customer'
+                  });
+                }
+              } catch (error) {
+                console.error('Error fetching user details:', error);
+                // Fallback user data
+                participantDetails.push({
+                  id: participantId,
+                  name: 'Unknown User',
+                  role: 'customer'
+                });
+              }
+            }
+          }
+
+          // Calculate unread count
+          const unreadCount = data.lastMessage && 
+                            data.lastMessage.senderId !== user.uid && 
+                            !data.lastMessage.read ? 1 : 0;
+
+          conversationsData.push({
+            id: docSnapshot.id,
+            participants: participantDetails,
+            lastMessage: {
+              id: 'last', // Placeholder for last message ID
+              text: data.lastMessage?.text || 'No messages yet',
+              timestamp: data.lastMessage?.timestamp?.toDate() || data.updatedAt?.toDate() || new Date(),
+              senderId: data.lastMessage?.senderId || '',
+              read: data.lastMessage?.read || true
+            },
+            unreadCount,
+            updatedAt: data.updatedAt?.toDate() || new Date()
+          });
+        }
+
+        setConversations(conversationsData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error processing conversations:', error);
+        setLoading(false);
+      }
+    }, (error) => {
+      console.error('Error listening to conversations:', error);
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, [user]);
 
   const filteredConversations = conversations.filter(conv =>
-    conv.participants[0].name.toLowerCase().includes(searchQuery.toLowerCase())
+    conv.participants.some(participant => 
+      participant.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
   );
 
   const formatTime = (date: Date) => {
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
     
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diffInHours < 1) {
+      const diffInMinutes = Math.floor(diffInHours * 60);
+      return `${diffInMinutes}m ago`;
+    } else if (diffInHours < 24) {
+      return `${Math.floor(diffInHours)}h ago`;
     } else if (diffInHours < 48) {
       return 'Yesterday';
     } else {
@@ -213,39 +228,59 @@ export default function MessagesScreen() {
     </View>
   );
 
-  const renderConversation = ({ item }: { item: Conversation }) => (
-    <TouchableOpacity 
-      style={styles.conversationItem}
-      onPress={() => router.push(`../chat/${item.id}` as any)}
-    >
-      <Image 
-        source={{ uri: item.participants[0].avatar || 'https://via.placeholder.com/150' }} 
-        style={styles.avatar}
-      />
-      <View style={styles.conversationContent}>
-        <View style={styles.conversationHeader}>
-          <Text style={styles.conversationName}>{item.participants[0].name}</Text>
-          <Text style={styles.timestamp}>{formatTime(item.lastMessage.timestamp)}</Text>
+  const renderConversation = ({ item }: { item: Conversation }) => {
+    const otherParticipant = item.participants[0]; // The other user in the conversation
+    
+    return (
+      <TouchableOpacity 
+        style={styles.conversationItem}
+        onPress={() => router.push(`/chat/${item.id}`)}
+      >
+        <Image 
+          source={{ uri: otherParticipant?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face' }} 
+          style={styles.avatar}
+          defaultSource={{ uri: 'https://via.placeholder.com/150' }}
+        />
+        <View style={styles.conversationContent}>
+          <View style={styles.conversationHeader}>
+            <Text style={styles.conversationName}>
+              {otherParticipant?.name || 'Unknown User'}
+            </Text>
+            <Text style={styles.timestamp}>
+              {formatTime(item.lastMessage.timestamp)}
+            </Text>
+          </View>
+          <View style={styles.conversationPreview}>
+            <Text 
+              style={[
+                styles.lastMessage, 
+                item.unreadCount > 0 && styles.unreadMessage
+              ]}
+              numberOfLines={1}
+            >
+              {item.lastMessage.senderId === user?.uid ? 'You: ' : ''}
+              {item.lastMessage.text}
+            </Text>
+            {item.unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadCount}>{item.unreadCount}</Text>
+              </View>
+            )}
+          </View>
         </View>
-        <View style={styles.conversationPreview}>
-          <Text 
-            style={[
-              styles.lastMessage, 
-              !item.lastMessage.read && styles.unreadMessage
-            ]}
-            numberOfLines={1}
-          >
-            {item.lastMessage.text}
-          </Text>
-          {item.unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadCount}>{item.unreadCount}</Text>
-            </View>
-          )}
+      </TouchableOpacity>
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text>Loading conversations...</Text>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -283,13 +318,19 @@ export default function MessagesScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderConversation}
           contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
         />
       ) : (
         <View style={styles.emptyState}>
           <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyStateText}>No conversations yet</Text>
+          <Text style={styles.emptyStateText}>
+            {searchQuery ? 'No conversations found' : 'No conversations yet'}
+          </Text>
           <Text style={styles.emptyStateSubText}>
-            Start a conversation with a shopkeeper from their post or profile
+            {searchQuery 
+              ? 'Try adjusting your search terms'
+              : 'Start a conversation with a shopkeeper from their post or profile'
+            }
           </Text>
         </View>
       )}
@@ -301,6 +342,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
+    paddingTop: 20, // Added padding on top
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -310,6 +357,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    marginTop: 10, // Additional top margin
   },
   headerTitle: {
     fontSize: 20,
@@ -324,6 +372,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     zIndex: 100,
     padding: 20,
+    paddingTop: 50, // Added padding for top safe area
     shadowColor: "#000",
     shadowOffset: {
       width: 2,
@@ -384,6 +433,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 16,
+    paddingTop: 8, // Reduced top padding since container has padding
   },
   conversationItem: {
     flexDirection: 'row',
@@ -455,6 +505,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
+    paddingTop: 100, // Added more top padding for empty state
   },
   emptyStateText: {
     fontSize: 18,

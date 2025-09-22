@@ -1,19 +1,19 @@
-import React, { useEffect, useState } from "react";
-import {
-  FlatList,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  TextInput,
-  Image,
-  Dimensions,
-  ActivityIndicator
-} from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
-import { ScrollView } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native";
 
 const { width } = Dimensions.get('window');
 
@@ -430,6 +430,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
+    paddingTop: 20, // Added padding on top
   },
   header: {
     flexDirection: 'row',
@@ -439,6 +440,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    marginTop: 10, // Additional top margin
   },
   headerTitle: {
     fontSize: 20,
