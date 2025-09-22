@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   Dimensions,
@@ -16,6 +16,30 @@ import { db } from "../../../firebaseConfig";
 
 const { width } = Dimensions.get('window');
 
+type ShopkeeperData = {
+  uid: string;
+  email: string;
+  shopName: string;
+  ownerName: string;
+  location: string;
+  phone: string;
+  createdAt: any;
+};
+
+type Product = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  category: string;
+  type: string;
+  imageUrl?: string;
+  createdAt?: any;
+  shopkeeperId?: string; // Add this field
+};
+
+
 export default function ShopkeeperHome() {
   const [posts, setPosts] = useState<any[]>([]);
   const [filteredPosts, setFilteredPosts] = useState<any[]>([]);
@@ -26,11 +50,14 @@ export default function ShopkeeperHome() {
     pendingOrders: 0,
     totalRevenue: 0
   });
+  const [shopkeeperData, setShopkeeperData] = useState<{[key: string]: any}>({});
+
   const router = useRouter();
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchProductsAndShopkeepers = async () => {
       try {
+        // Fetch products
         const q = query(
           collection(db, "products"),
           orderBy("createdAt", "desc")
@@ -40,15 +67,36 @@ export default function ShopkeeperHome() {
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        }));
+        })) as Product[];
+        
         setPosts(data);
         setFilteredPosts(data);
+
+        // Fetch shopkeeper data for each product
+        const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
+        
+        for (const product of data) {
+          // Check if product has a shopkeeperId field (might be named differently)
+          const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
+          
+          if (shopkeeperId && !shopkeeperMap[shopkeeperId]) {
+            try {
+              const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
+              if (shopkeeperDoc.exists()) {
+                shopkeeperMap[shopkeeperId] = shopkeeperDoc.data() as ShopkeeperData;
+              }
+            } catch (error) {
+              console.error("Error fetching shopkeeper:", error);
+            }
+          }
+        }
+        setShopkeeperData(shopkeeperMap);
       } catch (err) {
         console.log("Error fetching products:", err);
       }
     };
   
-    fetchProducts();
+    fetchProductsAndShopkeepers();
   }, []);
   
   
@@ -186,17 +234,22 @@ export default function ShopkeeperHome() {
           <View style={styles.card}>
             {/* User Info Header */}
             <View style={styles.cardHeader}>
-              <View style={styles.userInfo}>
-                <View style={styles.avatar}></View>
-                <View>
-                  <Text style={styles.username}>john_doe</Text>
-                  <Text style={styles.userLocation}>New York, NY</Text>
-                </View>
+            <View style={styles.userInfo}>
+              <View style={styles.avatar}></View>
+              <View>
+                <Text style={styles.username}>
+                  {shopkeeperData[item.shopId || item.shopName|| item.shopkeeper]?.name || "Unknown Shopkeeper"}
+                </Text>
+                <Text style={styles.userLocation}>
+                  {shopkeeperData[item.shopId || item.shopkeeperID || item.shopkeeper]?.location || "Unknown Location"}
+                </Text>
               </View>
-              <TouchableOpacity>
-                <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
-              </TouchableOpacity>
             </View>
+            <TouchableOpacity>
+              <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
+
             
             {/* Product Image */}
             {item.image ? (
@@ -496,233 +549,3 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
 });
-
-
-//proto 1
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     backgroundColor: "#fafafa",
-//   },
-//   header: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     padding: 16,
-//     backgroundColor: '#fff',
-//     borderBottomWidth: 1,
-//     borderBottomColor: '#eee',
-//     elevation: 2,
-//     shadowColor: '#000',
-//     shadowOffset: { width: 0, height: 1 },
-//     shadowOpacity: 0.1,
-//     shadowRadius: 2,
-//   },
-//   headerTitle: {
-//     fontSize: 20,
-//     fontWeight: "bold",
-//   },
-//   sidePanel: {
-//     position: 'absolute',
-//     top: 0,
-//     left: 0,
-//     width: width * 0.75,
-//     height: '100%',
-//     backgroundColor: '#fff',
-//     zIndex: 100,
-//     padding: 20,
-//     elevation: 5,
-//     shadowColor: "#000",
-//     shadowOffset: {
-//       width: 2,
-//       height: 0,
-//     },
-//     shadowOpacity: 0.25,
-//     shadowRadius: 3.84,
-//   },
-//   sidePanelClose: {
-//     alignSelf: 'flex-end',
-//     marginBottom: 20,
-//   },
-//   sidePanelHeader: {
-//     borderBottomWidth: 1,
-//     borderBottomColor: '#eee',
-//     paddingBottom: 15,
-//     marginBottom: 20,
-//   },
-//   sidePanelTitle: {
-//     fontSize: 22,
-//     fontWeight: 'bold',
-//   },
-//   menuItem: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     paddingVertical: 15,
-//     borderBottomWidth: 1,
-//     borderBottomColor: '#f0f0f0',
-//   },
-//   menuItemText: {
-//     fontSize: 16,
-//     marginLeft: 15,
-//   },
-//   statsContainer: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     padding: 16,
-//   },
-//   statCard: {
-//     backgroundColor: '#fff',
-//     padding: 16,
-//     borderRadius: 12,
-//     width: '30%',
-//     alignItems: 'center',
-//     elevation: 2,
-//     shadowColor: "#000",
-//     shadowOffset: {
-//       width: 0,
-//       height: 1,
-//     },
-//     shadowOpacity: 0.1,
-//     shadowRadius: 2,
-//   },
-//   statCardHighlight: {
-//     backgroundColor: '#e6f7ff',
-//   },
-//   statValue: {
-//     fontSize: 20,
-//     fontWeight: 'bold',
-//     color: '#007AFF',
-//   },
-//   statValueHighlight: {
-//     color: '#1890ff',
-//   },
-//   statLabel: {
-//     fontSize: 12,
-//     color: '#666',
-//     marginTop: 4,
-//   },
-//   tabContainer: {
-//     flexDirection: 'row',
-//     marginHorizontal: 16,
-//     marginBottom: 16,
-//     backgroundColor: '#f0f0f0',
-//     borderRadius: 10,
-//     overflow: 'hidden',
-//   },
-//   tab: {
-//     flex: 1,
-//     paddingVertical: 10,
-//     alignItems: 'center',
-//   },
-//   activeTab: {
-//     backgroundColor: '#007AFF',
-//   },
-//   tabText: {
-//     fontSize: 14,
-//     fontWeight: '500',
-//   },
-//   activeTabText: {
-//     color: 'white',
-//   },
-//   listContent: {
-//     padding: 16,
-//     paddingBottom: 20,
-//   },
-//   card: {
-//     backgroundColor: '#fff',
-//     borderRadius: 12,
-//     marginBottom: 16,
-//     overflow: 'hidden',
-//     elevation: 2,
-//     shadowColor: "#000",
-//     shadowOffset: {
-//       width: 0,
-//       height: 1,
-//     },
-//     shadowOpacity: 0.1,
-//     shadowRadius: 2,
-//   },
-//   cardHeader: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     padding: 12,
-//     borderBottomWidth: 1,
-//     borderBottomColor: '#f0f0f0',
-//   },
-//   userInfo: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//   },
-//   avatar: {
-//     width: 36,
-//     height: 36,
-//     borderRadius: 18,
-//     backgroundColor: '#007AFF',
-//     marginRight: 10,
-//   },
-//   username: {
-//     fontWeight: '600',
-//     fontSize: 14,
-//   },
-//   userLocation: {
-//     fontSize: 12,
-//     color: '#666',
-//   },
-//   productImage: {
-//     width: '100%',
-//     height: 300,
-//   },
-//   imagePlaceholder: {
-//     width: '100%',
-//     height: 200,
-//     backgroundColor: '#f0f0f0',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-//   placeholderText: {
-//     marginTop: 8,
-//     color: '#999',
-//   },
-//   cardContent: {
-//     padding: 16,
-//   },
-//   productName: {
-//     fontWeight: 'bold',
-//     fontSize: 18,
-//     marginBottom: 8,
-//   },
-//   productDescription: {
-//     fontSize: 14,
-//     color: '#333',
-//     marginBottom: 12,
-//     lineHeight: 20,
-//   },
-//   detailsRow: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     marginBottom: 8,
-//   },
-//   productPrice: {
-//     fontWeight: 'bold',
-//     fontSize: 16,
-//     color: '#007AFF',
-//   },
-//   productCategory: {
-//     fontSize: 14,
-//     color: '#666',
-//     backgroundColor: '#f0f0f0',
-//     paddingHorizontal: 8,
-//     paddingVertical: 4,
-//     borderRadius: 4,
-//   },
-//   stockInfo: {
-//     fontSize: 14,
-//     color: '#52c41a',
-//   },
-//   postDate: {
-//     fontSize: 12,
-//     color: '#999',
-//   },
-// });

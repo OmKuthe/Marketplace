@@ -1,3 +1,5 @@
+import { useAuth } from '@/hooks/useAuth';
+import { conversationService } from '@/utils/conversationService';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from "expo-router";
@@ -57,11 +59,21 @@ type Product = {
   type: string;
   imageUrl?: string;
   createdAt?: any;
-  shopkeeperId?: string; // Add this field
+  shopkeeperId?: string;
 };
 
 // Animated Product Card Component
-const AnimatedProductCard = ({ item, index, shopkeeperData }: { item: Product; index: number; shopkeeperData: ShopkeeperData | null }) => {
+const AnimatedProductCard = ({ 
+  item, 
+  index, 
+  shopkeeperData,
+  onMessagePress 
+}: { 
+  item: Product; 
+  index: number; 
+  shopkeeperData: ShopkeeperData | null;
+  onMessagePress: (product: Product) => void;
+}) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const [saved, setSaved] = useState(false);
@@ -150,7 +162,10 @@ const AnimatedProductCard = ({ item, index, shopkeeperData }: { item: Product; i
             <Ionicons name="cart" size={20} color="white" />
             <Text style={styles.orderButtonText}>Order Now</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.messageButton}>
+          <TouchableOpacity 
+            style={styles.messageButton}
+            onPress={() => onMessagePress(item)}
+          >
             <Ionicons name="chatbubble-ellipses" size={20} color={colors.primary} />
             <Text style={styles.messageButtonText}>Message</Text>
           </TouchableOpacity>
@@ -190,6 +205,7 @@ export default function CustomerHome() {
   const [createPostModalVisible, setCreatePostModalVisible] = useState(false);
   const [postType, setPostType] = useState("NEED");
   const router = useRouter();
+  const { user } = useAuth();
   
   // New state for enhanced create post form
   const [newPost, setNewPost] = useState({
@@ -201,6 +217,42 @@ export default function CustomerHome() {
     type: "NEED",
     image: null as string | null,
   });
+  
+  const handleMessageButton = async (product: Product) => {
+    if (!user) {
+      alert('Please log in to send messages');
+      return;
+    }
+
+    try {
+      // Get the shopkeeper ID from the product
+      const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
+      
+      if (!shopkeeperId) {
+        alert('Unable to identify the shopkeeper');
+        return;
+      }
+
+      // Show loading indicator
+      alert('Starting conversation...');
+
+      // Find or create conversation
+      const conversationId = await conversationService.findOrCreateConversation(
+        user.uid, 
+        shopkeeperId
+      );
+
+      // Send initial message with product info
+      await conversationService.sendInitialMessage(conversationId, user.uid, product);
+
+      // Navigate to the chat screen
+      router.push(`/chat/${conversationId}`);
+      
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+      alert('Failed to start conversation. Please try again.');
+    }
+  };
   
   useEffect(() => {
     const fetchProductsAndShopkeepers = async () => {
@@ -420,6 +472,7 @@ export default function CustomerHome() {
               item={item} 
               index={index} 
               shopkeeperData={shopkeeper}
+              onMessagePress={handleMessageButton}
             />
           );
         }}
@@ -535,6 +588,7 @@ export default function CustomerHome() {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -682,7 +736,7 @@ const styles = StyleSheet.create({
   },
   productImage: {
     width: '100%',
-    aspectRatio: 4 / 3, // keeps 4:3 ratio no matter what
+    aspectRatio: 4 / 3,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
   },
@@ -695,7 +749,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  
   orderButton: {
     flexDirection: 'row',
     alignItems: 'center',
