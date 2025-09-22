@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
   menuItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'spacnpx expo starte-between',
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
@@ -603,3 +603,5 @@ const styles = StyleSheet.create({
     color: '#999',
   },
 });
+
+
