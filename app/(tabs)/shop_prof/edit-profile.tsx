@@ -63,53 +63,88 @@
 // });
 
 
-
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   SafeAreaView,
-  View,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
+  View,
+  ScrollView,
   Alert,
   Image,
-  Modal,
-  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
+import { auth, db } from "../../../firebaseConfig";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function EditProfileScreen() {
   const router = useRouter();
 
-  const [shopLogo, setShopLogo] = useState<string | null>(null);
-  const [shopName, setShopName] = useState("Fresh Grocery Store");
-  const [ownerName, setOwnerName] = useState("Rajesh Kumar");
-  const [phone, setPhone] = useState("+91 9876543210");
-  const [location, setLocation] = useState("Mumbai");
+  // Profile fields
+  const [shopName, setShopName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("");
+  const [shopLogo, setShopLogo] = useState<string | null>(null); // dummy
+  const [mapDetails, setMapDetails] = useState<string>(""); // dummy
 
-  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  // Load current data from Firestore
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!auth.currentUser) return;
 
-  const cities = ["Mumbai", "Delhi", "Bangalore", "Chennai", "Hyderabad", "Pune"];
+      try {
+        const ref = doc(db, "shopkeepers", auth.currentUser.uid);
+        const snap = await getDoc(ref);
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
+        if (snap.exists()) {
+          const data = snap.data();
+          setShopName(data.shopName || "");
+          setOwnerName(data.ownerName || "");
+          setEmail(data.email || auth.currentUser.email || "");
+          setPhone(data.phone || "");
+          setLocation(data.location || "");
+        }
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+        Alert.alert("Error", "Failed to load profile.");
+      }
+    };
 
-    if (!result.canceled) {
-      setShopLogo(result.assets[0].uri);
+    fetchProfile();
+  }, []);
+
+  // Save updates to Firestore
+  const handleSave = async () => {
+    if (!auth.currentUser) return;
+
+    try {
+      const ref = doc(db, "shopkeepers", auth.currentUser.uid);
+
+      await setDoc(
+        ref,
+        {
+          shopName,
+          ownerName,
+          email,
+          phone,
+          location,
+          shopLogo,   // dummy field
+          mapDetails, // dummy field
+        },
+        { merge: true }
+      );
+
+      Alert.alert("✅ Profile Updated", "Your profile has been saved.");
+      router.back();
+    } catch (err) {
+      console.error("Error saving profile:", err);
+      Alert.alert("❌ Error", "Failed to save profile.");
     }
-  };
-
-  const handleSave = () => {
-    Alert.alert("Profile Updated", "Your shop details have been saved successfully.");
-    router.back();
   };
 
   return (
@@ -123,19 +158,25 @@ export default function EditProfileScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Form */}
-      <View style={styles.form}>
-        {/* Shop Logo */}
-        <TouchableOpacity style={styles.logoContainer} onPress={pickImage}>
-          {shopLogo ? (
-            <Image source={{ uri: shopLogo }} style={styles.logo} />
-          ) : (
-            <Ionicons name="image-outline" size={40} color="#aaa" />
-          )}
-          <Text style={styles.logoText}>Change Shop Logo</Text>
-        </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.form}>
+        {/* Shop Logo (dummy) */}
+        <View style={styles.logoContainer}>
+          <Image
+            source={{
+              uri:
+                shopLogo ||
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            }}
+            style={styles.avatar}
+          />
+          <TouchableOpacity
+            style={styles.changeLogoBtn}
+            onPress={() => Alert.alert("Dummy", "Logo upload not yet implemented")}
+          >
+            <Text style={styles.changeLogoText}>Change Logo</Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* Shop Name */}
         <Text style={styles.label}>Shop Name</Text>
         <TextInput
           style={styles.input}
@@ -143,7 +184,6 @@ export default function EditProfileScreen() {
           onChangeText={setShopName}
         />
 
-        {/* Owner Name */}
         <Text style={styles.label}>Owner Name</Text>
         <TextInput
           style={styles.input}
@@ -151,7 +191,14 @@ export default function EditProfileScreen() {
           onChangeText={setOwnerName}
         />
 
-        {/* Phone */}
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+        />
+
         <Text style={styles.label}>Phone</Text>
         <TextInput
           style={styles.input}
@@ -160,50 +207,25 @@ export default function EditProfileScreen() {
           keyboardType="phone-pad"
         />
 
-        {/* Location Picker */}
         <Text style={styles.label}>Location</Text>
-        <TouchableOpacity
+        <TextInput
           style={styles.input}
-          onPress={() => setLocationModalVisible(true)}
-        >
-          <Text style={{ fontSize: 16 }}>{location}</Text>
-        </TouchableOpacity>
+          value={location}
+          onChangeText={setLocation}
+        />
 
-        {/* Save Button */}
+        <Text style={styles.label}>Map Details (Dummy)</Text>
+        <TextInput
+          style={styles.input}
+          value={mapDetails}
+          onChangeText={setMapDetails}
+          placeholder="Not linked to Firebase yet"
+        />
+
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Text style={styles.saveText}>Save Changes</Text>
         </TouchableOpacity>
-      </View>
-
-      {/* Location Modal */}
-      <Modal visible={locationModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Location</Text>
-            <FlatList
-              data={cities}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.cityItem}
-                  onPress={() => {
-                    setLocation(item);
-                    setLocationModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.cityText}>{item}</Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity
-              style={styles.closeModalButton}
-              onPress={() => setLocationModalVisible(false)}
-            >
-              <Text style={styles.closeModalText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -228,7 +250,6 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
     fontSize: 16,
-    backgroundColor: "#fafafa",
   },
   saveButton: {
     backgroundColor: "#007AFF",
@@ -242,50 +263,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  logo: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 8,
-  },
-  logoText: {
-    fontSize: 14,
-    color: "#007AFF",
-    marginTop: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    padding: 20,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    maxHeight: "50%",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  cityItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  cityText: {
-    fontSize: 16,
-    color: "#333",
-  },
-  closeModalButton: {
-    marginTop: 12,
-    alignItems: "center",
-    padding: 12,
-  },
-  closeModalText: {
-    color: "#FF3B30",
-    fontWeight: "500",
-  },
+  avatar: { width: 100, height: 100, borderRadius: 50 },
+  changeLogoBtn: { marginTop: 8 },
+  changeLogoText: { color: "#007AFF", fontSize: 14 },
 });
