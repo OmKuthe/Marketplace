@@ -1,3 +1,4 @@
+// app/shopkeeper/myorders.tsx
 import React, { useEffect, useState } from "react";
 import {
   FlatList,
@@ -15,33 +16,14 @@ import {
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
+import { 
+  Order, 
+  getOrders, 
+  updateOrderStatus as updateOrderStatusBackend,
+  subscribeToOrders 
+} from '../../../lib/orders';
 
 const { width } = Dimensions.get('window');
-
-// Define types for our orders
-type OrderItem = {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  image?: string;
-};
-
-type Order = {
-  id: string;
-  customerId: string;
-  customerName: string;
-  customerAvatar?: string;
-  items: OrderItem[];
-  totalAmount: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
-  createdAt: Date;
-  updatedAt: Date;
-  deliveryAddress?: string;
-  paymentMethod: 'cash' | 'card' | 'upi';
-  customerPhone?: string;
-  specialInstructions?: string;
-};
 
 export default function ShopkeeperOrdersScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -52,125 +34,24 @@ export default function ShopkeeperOrdersScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // Mock data - replace with actual data from your backend
-  useEffect(() => {
-    const mockOrders: Order[] = [
-      {
-        id: "ORD-001",
-        customerId: "cust-001",
-        customerName: "Sarah Johnson",
-        customerAvatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "1", name: "Organic Apples", price: 120, quantity: 2 },
-          { id: "2", name: "Fresh Spinach", price: 40, quantity: 1 },
-          { id: "3", name: "Carrots", price: 30, quantity: 3 }
-        ],
-        totalAmount: 120 * 2 + 40 + 30 * 3,
-        status: "pending",
-        createdAt: new Date(Date.now() - 1000 * 60 * 10), // 10 minutes ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 10),
-        deliveryAddress: "123 Main St, Apartment 4B",
-        paymentMethod: "card",
-        customerPhone: "+1234567890",
-        specialInstructions: "Please leave at door if I'm not home"
-      },
-      {
-        id: "ORD-002",
-        customerId: "cust-002",
-        customerName: "Mike Chen",
-        customerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "4", name: "Whole Wheat Bread", price: 80, quantity: 2 },
-          { id: "5", name: "Croissant", price: 50, quantity: 4 }
-        ],
-        totalAmount: 80 * 2 + 50 * 4,
-        status: "confirmed",
-        createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 5),
-        deliveryAddress: "456 Oak Avenue, Floor 2",
-        paymentMethod: "upi",
-        customerPhone: "+1234567891"
-      },
-      {
-        id: "ORD-003",
-        customerId: "cust-003",
-        customerName: "Emma Rodriguez",
-        customerAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "6", name: "Fresh Milk", price: 60, quantity: 2 },
-          { id: "7", name: "Butter", price: 90, quantity: 1 },
-          { id: "8", name: "Cheese", price: 150, quantity: 1 }
-        ],
-        totalAmount: 60 * 2 + 90 + 150,
-        status: "preparing",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 30),
-        deliveryAddress: "789 Pine Road",
-        paymentMethod: "cash",
-        customerPhone: "+1234567892",
-        specialInstructions: "Please call before delivery"
-      },
-      {
-        id: "ORD-004",
-        customerId: "cust-004",
-        customerName: "David Kim",
-        customerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "9", name: "Bananas", price: 40, quantity: 6 },
-          { id: "10", name: "Oranges", price: 70, quantity: 8 }
-        ],
-        totalAmount: 40 * 6 + 70 * 8,
-        status: "ready",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 15),
-        deliveryAddress: "321 Elm Street",
-        paymentMethod: "upi",
-        customerPhone: "+1234567893"
-      },
-      {
-        id: "ORD-005",
-        customerId: "cust-005",
-        customerName: "Lisa Thompson",
-        customerAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "11", name: "Tomatoes", price: 35, quantity: 10 },
-          { id: "12", name: "Potatoes", price: 25, quantity: 5 },
-          { id: "13", name: "Onions", price: 30, quantity: 4 }
-        ],
-        totalAmount: 35 * 10 + 25 * 5 + 30 * 4,
-        status: "completed",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 23),
-        deliveryAddress: "654 Maple Lane",
-        paymentMethod: "card",
-        customerPhone: "+1234567894"
-      },
-      {
-        id: "ORD-006",
-        customerId: "cust-006",
-        customerName: "John Williams",
-        customerAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "14", name: "Chicken Breast", price: 200, quantity: 2 },
-          { id: "15", name: "Bell Peppers", price: 45, quantity: 3 }
-        ],
-        totalAmount: 200 * 2 + 45 * 3,
-        status: "cancelled",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12), // 12 hours ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 11),
-        deliveryAddress: "987 Cedar Avenue",
-        paymentMethod: "upi",
-        customerPhone: "+1234567895"
-      }
-    ];
+  // Replace with your actual shop ID
+  const SHOP_ID = "shop-001";
 
-    setTimeout(() => {
-      setOrders(mockOrders);
-      setFilteredOrders(mockOrders);
+  // Fetch orders with real-time updates
+  useEffect(() => {
+    setIsLoading(true);
+    
+    // Set up real-time listener
+    const unsubscribe = subscribeToOrders(SHOP_ID, (ordersData) => {
+      setOrders(ordersData);
       setIsLoading(false);
-    }, 1000); // Simulate loading
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
 
+  // Apply filters whenever orders, activeFilter, or searchQuery change
   useEffect(() => {
     let filtered = orders;
     
@@ -223,15 +104,16 @@ export default function ShopkeeperOrdersScreen() {
     return `₹${amount.toFixed(2)}`;
   };
 
-  const updateOrderStatus = (orderId: string, newStatus: Order['status']) => {
-    setOrders(orders.map(order => 
-      order.id === orderId 
-        ? { ...order, status: newStatus, updatedAt: new Date() }
-        : order
-    ));
-    
-    // TODO: Update order status in Firebase
-    Alert.alert("Success", `Order status updated to ${getStatusText(newStatus)}`);
+  // Update order status in Firebase
+  const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      await updateOrderStatusBackend(orderId, newStatus);
+      // No need to manually update local state - real-time listener will handle it
+      Alert.alert("Success", `Order status updated to ${getStatusText(newStatus)}`);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      Alert.alert("Error", "Failed to update order status. Please try again.");
+    }
   };
 
   const showStatusUpdateOptions = (order: Order) => {
@@ -399,7 +281,7 @@ export default function ShopkeeperOrdersScreen() {
       <View style={styles.orderActions}>
         <TouchableOpacity 
           style={styles.detailsButton}
-          onPress={() => router.push(`/orders/${item.id}`)}
+          onPress={() => router.push(`../orders/${item.id}`)}
         >
           <Text style={styles.detailsButtonText}>View Details</Text>
         </TouchableOpacity>
@@ -416,7 +298,7 @@ export default function ShopkeeperOrdersScreen() {
     </View>
   );
 
-  if (isLoading) {
+  if (isLoading && orders.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -548,7 +430,9 @@ export default function ShopkeeperOrdersScreen() {
   );
 }
 
+// Keep all your existing styles the same...
 const styles = StyleSheet.create({
+  // ... (all your existing styles remain exactly the same)
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
