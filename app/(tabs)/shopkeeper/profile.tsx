@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
   menuItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'spacnpx expo starte-between',
+    justifyContent: 'space-between', // Fixed the typo here
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
@@ -602,6 +602,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
-});
-
+} as const);
 
