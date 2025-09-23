@@ -1447,14 +1447,14 @@ export default function ProductsScreen() {
             key={category}
             style={[
               styles.categoryFilter,
-              activeCategory === category.toLowerCase() && styles.activeCategoryFilter
+              activeCategory.toLowerCase() === category.toLowerCase() && styles.activeCategoryFilter
             ]}
             onPress={() => setActiveCategory(category.toLowerCase())}
           >
             <Text
               style={[
                 styles.categoryFilterText,
-                activeCategory === category.toLowerCase() && styles.activeCategoryFilterText
+                activeCategory.toLowerCase() === category.toLowerCase() && styles.activeCategoryFilterText
               ]}
             >
               {category}
@@ -1766,7 +1766,7 @@ export default function ProductsScreen() {
         </View>
       </View>
 
-      {/* Category Filters - Fixed Component */}
+      {/* Fixed Category Filters */}
       <CategoryFilters />
 
       {/* Products List */}
@@ -1800,7 +1800,7 @@ export default function ProductsScreen() {
               <Image source={{ uri: item.imageUrl }} style={styles.productImage} />
             ) : (
               <View style={styles.productImagePlaceholder}>
-                <Ionicons name="cube-outline" size={24} color="#ccc" />
+                <Ionicons name="cube-outline" size={40} color="#ccc" />
               </View>
             )}
             
@@ -1810,12 +1810,15 @@ export default function ProductsScreen() {
                 <Text style={styles.productPrice}>${item.price}</Text>
               </View>
               
-              <Text style={styles.productCategory}>#{item.category}</Text>
+              <Text style={styles.productDescription} numberOfLines={2}>
+                {item.description}
+              </Text>
               
               <View style={styles.productFooter}>
-                <Text style={styles.productStock}>
-                  {item.stock} in stock
-                </Text>
+                <View style={styles.productInfo}>
+                  <Text style={styles.productCategory}>#{item.category}</Text>
+                  <Text style={styles.productStock}>{item.stock} in stock</Text>
+                </View>
                 <View style={styles.productActions}>
                   <TouchableOpacity
                     style={styles.actionButton}
@@ -1911,12 +1914,11 @@ const styles = StyleSheet.create({
   },
   categoryScrollContent: {
     paddingHorizontal: 16,
-    alignItems: 'center',
   },
   categoryFilter: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    marginHorizontal: 4,
+    marginRight: 8,
     backgroundColor: '#f5f5f5',
     borderRadius: 20,
     minWidth: 80,
@@ -1937,74 +1939,78 @@ const styles = StyleSheet.create({
     padding: 16,
     flexGrow: 1,
   },
+  // Fixed Product Card Styles to match your design
   productCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    flexDirection: 'row',
     overflow: 'hidden',
   },
   productImage: {
-    width: 100,
-    height: 100,
+    width: '100%',
+    height: 200,
   },
   productImagePlaceholder: {
-    width: 100,
-    height: 100,
+    width: '100%',
+    height: 200,
     backgroundColor: '#f5f5f5',
     justifyContent: 'center',
     alignItems: 'center',
   },
   productContent: {
-    flex: 1,
-    padding: 12,
+    padding: 16,
   },
   productHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   productName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     flex: 1,
-    marginRight: 8,
+    marginRight: 10,
   },
   productPrice: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#007AFF',
   },
-  productCategory: {
-    fontSize: 12,
+  productDescription: {
+    fontSize: 14,
     color: '#666',
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 12,
+    lineHeight: 20,
   },
   productFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  productInfo: {
+    flex: 1,
+  },
+  productCategory: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
   productStock: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   productActions: {
     flexDirection: 'row',
   },
   actionButton: {
-    padding: 6,
+    padding: 8,
     marginLeft: 8,
   },
   emptyContainer: {
@@ -2151,7 +2157,6 @@ const styles = StyleSheet.create({
     marginTop: -12,
     marginBottom: 16,
   },
-  // Fixed Modal Category Styles
   modalCategoryContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
