@@ -1129,7 +1129,6 @@
 //   },
 // });
 
-
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from "expo-router";
@@ -1162,6 +1161,17 @@ interface ProductFormData {
 
 const { width } = Dimensions.get('window');
 
+// Define categories with consistent casing
+const CATEGORIES = [
+  { label: "All", value: "all" },
+  { label: "Electronics", value: "electronics" },
+  { label: "Clothing", value: "clothing" },
+  { label: "Food", value: "food" },
+  { label: "Books", value: "books" },
+  { label: "Home", value: "home" },
+  { label: "Other", value: "other" }
+];
+
 export default function ProductsScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -1184,12 +1194,11 @@ export default function ProductsScreen() {
     imageUrl: ""
   });
 
-  const categories = ["All", "Electronics", "Clothing", "Food", "Books", "Home", "Other"];
-
   useEffect(() => {
     fetchProducts();
   }, []);
 
+  // Fixed filter function with case-insensitive comparison
   const filterProducts = useCallback(() => {
     let filtered = products;
 
@@ -1201,7 +1210,9 @@ export default function ProductsScreen() {
     }
 
     if (activeCategory !== "all") {
-      filtered = filtered.filter(product => product.category === activeCategory);
+      filtered = filtered.filter(product => 
+        product.category.toLowerCase() === activeCategory.toLowerCase()
+      );
     }
 
     setFilteredProducts(filtered);
@@ -1434,7 +1445,7 @@ export default function ProductsScreen() {
     setEditModalVisible(true);
   };
 
-  // Fixed Category Filter Component
+  // Fixed Category Filter Component with consistent casing
   const CategoryFilters = () => (
     <View style={styles.categoryContainer}>
       <ScrollView
@@ -1442,22 +1453,22 @@ export default function ProductsScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.categoryScrollContent}
       >
-        {categories.map((category) => (
+        {CATEGORIES.map((category) => (
           <TouchableOpacity
-            key={category}
+            key={category.value}
             style={[
               styles.categoryFilter,
-              activeCategory.toLowerCase() === category.toLowerCase() && styles.activeCategoryFilter
+              activeCategory === category.value && styles.activeCategoryFilter
             ]}
-            onPress={() => setActiveCategory(category.toLowerCase())}
+            onPress={() => setActiveCategory(category.value)}
           >
             <Text
               style={[
                 styles.categoryFilterText,
-                activeCategory.toLowerCase() === category.toLowerCase() && styles.activeCategoryFilterText
+                activeCategory === category.value && styles.activeCategoryFilterText
               ]}
             >
-              {category}
+              {category.label}
             </Text>
           </TouchableOpacity>
         ))}
@@ -1521,6 +1532,9 @@ export default function ProductsScreen() {
         });
       }
     };
+
+    // Filter categories for modal (exclude "All")
+    const modalCategories = CATEGORIES.filter(cat => cat.value !== 'all');
 
     return (
       <Modal
@@ -1598,22 +1612,24 @@ export default function ProductsScreen() {
                   <Text style={styles.label}>Category *</Text>
                   {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
                   <View style={styles.modalCategoryContainer}>
-                    {categories.filter(cat => cat !== 'All').map((category) => (
+                    {modalCategories.map((category) => (
                       <TouchableOpacity
-                        key={category}
+                        key={category.value}
                         style={[
                           styles.modalCategoryButton,
-                          localProduct.category === category && styles.activeModalCategoryButton
+                          localProduct.category.toLowerCase() === category.value.toLowerCase() && 
+                          styles.activeModalCategoryButton
                         ]}
-                        onPress={() => handleChange('category', category)}
+                        onPress={() => handleChange('category', category.label)}
                       >
                         <Text
                           style={[
                             styles.modalCategoryText,
-                            localProduct.category === category && styles.activeModalCategoryText
+                            localProduct.category.toLowerCase() === category.value.toLowerCase() && 
+                            styles.activeModalCategoryText
                           ]}
                         >
-                          {category}
+                          {category.label}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -1733,7 +1749,9 @@ export default function ProductsScreen() {
           <View style={styles.loaderOverlay}>
             <View style={styles.loaderBox}>
               <ActivityIndicator size="large" color="#007AFF" />
-              <Text style={styles.loaderText}>Adding product...</Text>
+              <Text style={styles.loaderText}>
+                {editModalVisible ? "Updating product..." : "Adding product..."}
+              </Text>
             </View>
           </View>
         </Modal>
@@ -1905,7 +1923,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
   },
-  // Fixed Category Styles
   categoryContainer: {
     backgroundColor: '#fff',
     paddingVertical: 12,
@@ -1939,7 +1956,6 @@ const styles = StyleSheet.create({
     padding: 16,
     flexGrow: 1,
   },
-  // Fixed Product Card Styles to match your design
   productCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
