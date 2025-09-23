@@ -842,7 +842,7 @@ export default function ShopkeeperHome() {
         contentContainerStyle={styles.listContent}
       />
 
-      {/* Bottom Navigation - Added to match your image */}
+      Bottom Navigation - Added to match your image
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem}>
           <Ionicons name="home" size={24} color="#007AFF" />
