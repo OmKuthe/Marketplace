@@ -26,7 +26,6 @@ import { useAuth } from '../../../hooks/useAuth';
 
 const { width } = Dimensions.get('window');
 
-// Define types for our messages
 type User = {
   id: string;
   name: string;
@@ -58,63 +57,141 @@ export default function MessagesScreen() {
   const { user } = useAuth();
   const router = useRouter();
 
+  // Function to fetch user details from both users and shopkeepers collections
+// Fix the fetchUserDetails function - replace it with this version
+const fetchUserDetails = async (participantId: string): Promise<User> => {
+  try {
+    console.log('🔍 Fetching details for participant:', participantId);
+    
+    // First try the users collection
+    console.log('📁 Checking users collection...');
+    const userDoc = await getDoc(doc(db, 'users', participantId));
+    console.log('📄 Users doc exists:', userDoc.exists());
+    
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      console.log('✅ Found in users collection - data:', userData);
+      
+      // Check if userData has name field, if not use email or fallback
+      let userName = userData?.name;
+      
+      if (!userName) {
+        // If no name field, try to use email username part or fallback
+        if (userData?.email) {
+          userName = userData.email.split('@')[0]; // Use part before @ from email
+          console.log('📧 Using email username as name:', userName);
+        } else {
+          userName = 'Unknown User';
+          console.log('❌ No name or email found, using fallback');
+        }
+      }
+      
+      return {
+        id: participantId,
+        name: userName,
+        avatar: userData?.avatar,
+        role: (userData?.role === 'shopkeeper' ? 'shopkeeper' : 'customer') as 'customer' | 'shopkeeper'
+      };
+    }
+    
+    // If not found in users, try the shopkeepers collection
+    console.log('📁 Checking shopkeepers collection...');
+    const shopkeeperDoc = await getDoc(doc(db, 'shopkeepers', participantId));
+    console.log('📄 Shopkeepers doc exists:', shopkeeperDoc.exists());
+    
+    if (shopkeeperDoc.exists()) {
+      const shopkeeperData = shopkeeperDoc.data();
+      console.log('✅ Found in shopkeepers collection - data:', shopkeeperData);
+      
+      // Use ownerName, shopName, or fallback
+      const userName = shopkeeperData?.ownerName || shopkeeperData?.shopName || 'Shopkeeper';
+      
+      return {
+        id: participantId,
+        name: userName,
+        avatar: shopkeeperData?.shopLogo,
+        role: 'shopkeeper'
+      };
+    }
+    
+    // If not found in either collection
+    console.log('❌ User not found in any collection for ID:', participantId);
+    return {
+      id: participantId,
+      name: 'Unknown User',
+      role: 'customer'
+    };
+    
+  } catch (error) {
+    console.error('❌ Error fetching user details:', error);
+    return {
+      id: participantId,
+      name: 'Unknown User',
+      role: 'customer'
+    };
+  }
+};
+
   // Fetch real conversations from Firestore
   useEffect(() => {
     if (!user) return;
-
+  
     const conversationsRef = collection(db, 'conversations');
     
-    // Query conversations where current user is a participant
     const q = query(
       conversationsRef, 
-      where('participants', 'array-contains', user.uid),
-      orderBy('updatedAt', 'desc')
+      where('participants', 'array-contains', user.uid)
     );
-
+      
+    console.log('Querying conversations for user:', user.uid);
+  
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       try {
+        console.log('Snapshot received, docs count:', snapshot.docs.length);
+        
+        if (snapshot.empty) {
+          console.log('No conversations found in the collection');
+          setConversations([]);
+          setLoading(false);
+          return;
+        }
+        
         const conversationsData: Conversation[] = [];
         
         for (const docSnapshot of snapshot.docs) {
           const data = docSnapshot.data();
+          console.log('Conversation data:', data); 
           
+          if (!data.participants || !Array.isArray(data.participants)) {
+            console.log('Invalid participants data:', data.participants);
+            continue;
+          }
+  
           // Get participant details
           const participantDetails: User[] = [];
           for (const participantId of data.participants) {
             if (participantId !== user.uid) {
-              try {
-                const userDoc = await getDoc(doc(db, 'users', participantId));
-                if (userDoc.exists()) {
-                  const userData = userDoc.data();
-                  participantDetails.push({
-                    id: participantId,
-                    name: userData?.name || 'Unknown User',
-                    avatar: userData?.avatar,
-                    role: userData?.role || 'customer'
-                  });
-                }
-              } catch (error) {
-                console.error('Error fetching user details:', error);
-                // Fallback user data
-                participantDetails.push({
-                  id: participantId,
-                  name: 'Unknown User',
-                  role: 'customer'
-                });
-              }
+              const userDetails = await fetchUserDetails(participantId);
+              participantDetails.push(userDetails);
             }
           }
 
+          // Handle case where all participants are the current user
+          if (participantDetails.length === 0) {
+            console.log('No other participants found, skipping conversation');
+            continue;
+          }
+  
           // Calculate unread count
           const unreadCount = data.lastMessage && 
                             data.lastMessage.senderId !== user.uid && 
                             !data.lastMessage.read ? 1 : 0;
-
+          
           conversationsData.push({
             id: docSnapshot.id,
             participants: participantDetails,
             lastMessage: {
-              id: 'last', // Placeholder for last message ID
+              id: 'last',
               text: data.lastMessage?.text || 'No messages yet',
               timestamp: data.lastMessage?.timestamp?.toDate() || data.updatedAt?.toDate() || new Date(),
               senderId: data.lastMessage?.senderId || '',
@@ -124,9 +201,12 @@ export default function MessagesScreen() {
             updatedAt: data.updatedAt?.toDate() || new Date()
           });
         }
-
+  
+        // Sort by updatedAt (newest first)
+        conversationsData.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
         setConversations(conversationsData);
         setLoading(false);
+        
       } catch (error) {
         console.error('Error processing conversations:', error);
         setLoading(false);
@@ -135,7 +215,7 @@ export default function MessagesScreen() {
       console.error('Error listening to conversations:', error);
       setLoading(false);
     });
-
+  
     return unsubscribe;
   }, [user]);
 
@@ -231,21 +311,31 @@ export default function MessagesScreen() {
   const renderConversation = ({ item }: { item: Conversation }) => {
     const otherParticipant = item.participants[0]; // The other user in the conversation
     
+    // Determine display name and avatar
+    const displayName = otherParticipant?.name || 'Unknown User';
+    const displayAvatar = otherParticipant?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face';
+    const roleText = otherParticipant?.role === 'shopkeeper' ? 'Shopkeeper' : 'Customer';
+    
     return (
       <TouchableOpacity 
         style={styles.conversationItem}
         onPress={() => router.push(`/chat/${item.id}`)}
       >
         <Image 
-          source={{ uri: otherParticipant?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face' }} 
+          source={{ uri: displayAvatar }} 
           style={styles.avatar}
           defaultSource={{ uri: 'https://via.placeholder.com/150' }}
         />
         <View style={styles.conversationContent}>
           <View style={styles.conversationHeader}>
-            <Text style={styles.conversationName}>
-              {otherParticipant?.name || 'Unknown User'}
-            </Text>
+            <View style={styles.nameContainer}>
+              <Text style={styles.conversationName}>
+                {displayName}
+              </Text>
+              <Text style={styles.roleBadge}>
+                {roleText}
+              </Text>
+            </View>
             <Text style={styles.timestamp}>
               {formatTime(item.lastMessage.timestamp)}
             </Text>
@@ -342,7 +432,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
-    paddingTop: 20, // Added padding on top
+    paddingTop: 20,
   },
   loadingContainer: {
     flex: 1,
@@ -357,7 +447,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    marginTop: 10, // Additional top margin
+    marginTop: 10,
   },
   headerTitle: {
     fontSize: 20,
@@ -372,7 +462,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     zIndex: 100,
     padding: 20,
-    paddingTop: 50, // Added padding for top safe area
+    paddingTop: 50,
     shadowColor: "#000",
     shadowOffset: {
       width: 2,
@@ -433,7 +523,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 16,
-    paddingTop: 8, // Reduced top padding since container has padding
+    paddingTop: 8,
   },
   conversationItem: {
     flexDirection: 'row',
@@ -459,17 +549,32 @@ const styles = StyleSheet.create({
   conversationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 4,
+  },
+  nameContainer: {
+    flex: 1,
+    marginRight: 8,
   },
   conversationName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    marginBottom: 2,
+  },
+  roleBadge: {
+    fontSize: 12,
+    color: '#666',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
   },
   timestamp: {
     fontSize: 12,
     color: '#666',
+    marginTop: 2,
   },
   conversationPreview: {
     flexDirection: 'row',
@@ -505,7 +610,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
-    paddingTop: 100, // Added more top padding for empty state
+    paddingTop: 100,
   },
   emptyStateText: {
     fontSize: 18,

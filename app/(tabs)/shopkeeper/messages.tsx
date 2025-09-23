@@ -26,7 +26,6 @@ import { useAuth } from '../../../hooks/useAuth';
 
 const { width } = Dimensions.get('window');
 
-// Define types for our messages
 type User = {
   id: string;
   name: string;
@@ -58,6 +57,80 @@ export default function ShopkeeperMessagesScreen() {
   const { user } = useAuth();
   const router = useRouter();
 
+  // Function to fetch user details from both users and shopkeepers collections
+  const fetchUserDetails = async (participantId: string): Promise<User> => {
+    try {
+      console.log('🔍 Fetching details for participant:', participantId);
+      
+      // First try the users collection
+      console.log('📁 Checking users collection...');
+      const userDoc = await getDoc(doc(db, 'users', participantId));
+      console.log('📄 Users doc exists:', userDoc.exists());
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        console.log('✅ Found in users collection - data:', userData);
+        
+        // Check if userData has name field, if not use email or fallback
+        let userName = userData?.name;
+        
+        if (!userName) {
+          // If no name field, try to use email username part or fallback
+          if (userData?.email) {
+            userName = userData.email.split('@')[0]; // Use part before @ from email
+            console.log('📧 Using email username as name:', userName);
+          } else {
+            userName = 'Customer';
+            console.log('❌ No name or email found, using fallback');
+          }
+        }
+        
+        return {
+          id: participantId,
+          name: userName,
+          avatar: userData?.avatar,
+          role: (userData?.role === 'shopkeeper' ? 'shopkeeper' : 'customer') as 'customer' | 'shopkeeper'
+        };
+      }
+      
+      // If not found in users, try the shopkeepers collection
+      console.log('📁 Checking shopkeepers collection...');
+      const shopkeeperDoc = await getDoc(doc(db, 'shopkeepers', participantId));
+      console.log('📄 Shopkeepers doc exists:', shopkeeperDoc.exists());
+      
+      if (shopkeeperDoc.exists()) {
+        const shopkeeperData = shopkeeperDoc.data();
+        console.log('✅ Found in shopkeepers collection - data:', shopkeeperData);
+        
+        // Use ownerName, shopName, or fallback
+        const userName = shopkeeperData?.ownerName || shopkeeperData?.shopName || 'Shopkeeper';
+        
+        return {
+          id: participantId,
+          name: userName,
+          avatar: shopkeeperData?.shopLogo,
+          role: 'shopkeeper'
+        };
+      }
+      
+      // If not found in either collection
+      console.log('❌ User not found in any collection for ID:', participantId);
+      return {
+        id: participantId,
+        name: 'Customer',
+        role: 'customer'
+      };
+      
+    } catch (error) {
+      console.error('❌ Error fetching user details:', error);
+      return {
+        id: participantId,
+        name: 'Customer',
+        role: 'customer'
+      };
+    }
+  };
+
   // Fetch real conversations from Firestore
   useEffect(() => {
     if (!user) return;
@@ -67,48 +140,46 @@ export default function ShopkeeperMessagesScreen() {
     // Query conversations where current shopkeeper is a participant
     const q = query(
       conversationsRef, 
-      where('participants', 'array-contains', user.uid),
-      orderBy('updatedAt', 'desc')
+      where('participants', 'array-contains', user.uid)
     );
+
+    console.log('Querying conversations for shopkeeper:', user.uid);
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       try {
+        console.log('Snapshot received, docs count:', snapshot.docs.length);
+        
+        if (snapshot.empty) {
+          console.log('No conversations found in the collection');
+          setConversations([]);
+          setLoading(false);
+          return;
+        }
+        
         const conversationsData: Conversation[] = [];
         
         for (const docSnapshot of snapshot.docs) {
           const data = docSnapshot.data();
+          console.log('Conversation data:', data);
+          
+          if (!data.participants || !Array.isArray(data.participants)) {
+            console.log('Invalid participants data:', data.participants);
+            continue;
+          }
           
           // Get participant details (find the customer)
           const participantDetails: User[] = [];
           for (const participantId of data.participants) {
             if (participantId !== user.uid) { // This is the customer
-              try {
-                const userDoc = await getDoc(doc(db, 'users', participantId));
-                if (userDoc.exists()) {
-                  const userData = userDoc.data();
-                  participantDetails.push({
-                    id: participantId,
-                    name: userData?.name || 'Customer',
-                    avatar: userData?.avatar,
-                    role: 'customer'
-                  });
-                } else {
-                  // Fallback if user not found
-                  participantDetails.push({
-                    id: participantId,
-                    name: 'Customer',
-                    role: 'customer'
-                  });
-                }
-              } catch (error) {
-                console.error('Error fetching user details:', error);
-                participantDetails.push({
-                  id: participantId,
-                  name: 'Customer',
-                  role: 'customer'
-                });
-              }
+              const userDetails = await fetchUserDetails(participantId);
+              participantDetails.push(userDetails);
             }
+          }
+
+          // Handle case where all participants are the current user
+          if (participantDetails.length === 0) {
+            console.log('No other participants found, skipping conversation');
+            continue;
           }
 
           // Calculate unread count for shopkeeper (messages sent by customer that are unread)
@@ -131,6 +202,8 @@ export default function ShopkeeperMessagesScreen() {
           });
         }
 
+        // Sort by updatedAt (newest first)
+        conversationsData.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
         setConversations(conversationsData);
         setLoading(false);
       } catch (error) {
@@ -144,6 +217,21 @@ export default function ShopkeeperMessagesScreen() {
 
     return unsubscribe;
   }, [user]);
+
+  // Debug conversations state
+  useEffect(() => {
+    if (conversations.length > 0) {
+      console.log('🎯 Current conversations state:', conversations);
+      conversations.forEach((conv, index) => {
+        console.log(`💬 Conversation ${index}:`, {
+          id: conv.id,
+          participantCount: conv.participants.length,
+          participantNames: conv.participants.map(p => p.name),
+          lastMessage: conv.lastMessage.text
+        });
+      });
+    }
+  }, [conversations]);
 
   const filteredConversations = conversations.filter(conv =>
     conv.participants.some(participant => 
@@ -237,21 +325,37 @@ export default function ShopkeeperMessagesScreen() {
   const renderConversation = ({ item }: { item: Conversation }) => {
     const customer = item.participants[0]; // The customer in the conversation
     
+    console.log('🎨 Rendering conversation with customer:', {
+      customer: customer,
+      hasName: !!customer?.name,
+      name: customer?.name
+    });
+    
+    // Determine display name and avatar
+    const displayName = customer?.name || 'Customer';
+    const displayAvatar = customer?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face';
+    const roleText = customer?.role === 'shopkeeper' ? 'Shopkeeper' : 'Customer';
+    
     return (
       <TouchableOpacity 
         style={styles.conversationItem}
         onPress={() => router.push(`/chat/${item.id}`)}
       >
         <Image 
-          source={{ uri: customer?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face' }} 
+          source={{ uri: displayAvatar }} 
           style={styles.avatar}
           defaultSource={{ uri: 'https://via.placeholder.com/150' }}
         />
         <View style={styles.conversationContent}>
           <View style={styles.conversationHeader}>
-            <Text style={styles.conversationName}>
-              {customer?.name || 'Customer'}
-            </Text>
+            <View style={styles.nameContainer}>
+              <Text style={styles.conversationName}>
+                {displayName}
+              </Text>
+              <Text style={styles.roleBadge}>
+                {roleText}
+              </Text>
+            </View>
             <Text style={styles.timestamp}>
               {formatTime(item.lastMessage.timestamp)}
             </Text>
@@ -465,17 +569,32 @@ const styles = StyleSheet.create({
   conversationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 4,
+  },
+  nameContainer: {
+    flex: 1,
+    marginRight: 8,
   },
   conversationName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    marginBottom: 2,
+  },
+  roleBadge: {
+    fontSize: 12,
+    color: '#666',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
   },
   timestamp: {
     fontSize: 12,
     color: '#666',
+    marginTop: 2,
   },
   conversationPreview: {
     flexDirection: 'row',
