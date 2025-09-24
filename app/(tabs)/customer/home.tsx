@@ -2,6 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { conversationService } from '@/utils/conversationService';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import { useRouter } from "expo-router";
 import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
@@ -157,11 +158,39 @@ const AnimatedProductCard = ({
       
       {/* Card Footer with Details */}
       <View style={styles.cardFooter}>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.orderButton}>
-            <Ionicons name="cart" size={20} color="white" />
-            <Text style={styles.orderButtonText}>Order Now</Text>
-          </TouchableOpacity>
+        <View style={styles.actionButtons}> 
+        <TouchableOpacity 
+  style={styles.orderButton}
+  onPress={() => {
+    
+    console.log('Product data:', item); // Debug log
+    console.log('Shopkeeper data:', shopkeeperData); // Debug log
+    
+    const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+
+// Add type guard to check if shopkeeperId exists in shopkeeperData
+
+    
+    router.push({
+      pathname: '../orders/order-now',
+      params: { 
+        product: JSON.stringify({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          imageUrl: item.imageUrl,
+          shopName: shopkeeper?.shopName || 'Local Store',
+          shopId: shopkeeperId || 'shop-001',
+          description: item.description,
+          stock: item.stock
+        })
+      }
+    });
+  }}
+>
+  <Ionicons name="cart" size={20} color="white" />
+  <Text style={styles.orderButtonText}>Order Now</Text>
+</TouchableOpacity>
           <TouchableOpacity 
             style={styles.messageButton}
             onPress={() => onMessagePress(item)}

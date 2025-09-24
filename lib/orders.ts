@@ -4,6 +4,7 @@ import {
     doc, 
     getDocs, 
     getDoc, 
+    addDoc,
     updateDoc, 
     onSnapshot,
     query,
@@ -32,7 +33,7 @@ import {
     createdAt: Date;
     updatedAt: Date;
     deliveryAddress?: string;
-    paymentMethod: 'cash' | 'card' | 'upi';
+    paymentMethod: 'cash' | 'card' | 'upi' | 'wallet';
     customerPhone?: string;
     specialInstructions?: string;
     shopId?: string; // Add shopId to filter by shop
@@ -112,3 +113,34 @@ import {
       callback(orders);
     });
   };
+
+  // Add to lib/orders.ts
+export type CreateOrderData = {
+  customerId: string;
+  customerName: string;
+  customerAvatar?: string;
+  items: OrderItem[];
+  totalAmount: number;
+  deliveryAddress?: string;
+  paymentMethod: 'cash' | 'card' | 'upi' | 'wallet';
+  customerPhone?: string;
+  specialInstructions?: string;
+  shopId: string; // Important: which shop this order is for
+};
+
+// Function to create a new order
+export const createOrder = async (orderData: CreateOrderData): Promise<string> => {
+  try {
+    const ordersRef = collection(db, 'orders');
+    const docRef = await addDoc(ordersRef, {
+      ...orderData,
+      status: 'pending' as const,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating order:', error);
+    throw error;
+  }
+};
