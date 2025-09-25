@@ -30,7 +30,7 @@ import {
     items: OrderItem[];
     totalAmount: number;
     status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
-    createdAt: Date;
+    createdAt: String;
     updatedAt: Date;
     deliveryAddress?: string;
     paymentMethod: 'cash' | 'card' | 'upi' | 'wallet';

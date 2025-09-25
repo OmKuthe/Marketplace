@@ -61,6 +61,7 @@ type Product = {
   imageUrl?: string;
   createdAt?: any;
   shopkeeperId?: string;
+  shopId?: string;
 };
 
 // Animated Product Card Component
@@ -168,8 +169,6 @@ const AnimatedProductCard = ({
     
     const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
 
-// Add type guard to check if shopkeeperId exists in shopkeeperData
-
     
     router.push({
       pathname: '../orders/order-now',
@@ -179,7 +178,7 @@ const AnimatedProductCard = ({
           name: item.name,
           price: item.price,
           imageUrl: item.imageUrl,
-          shopName: shopkeeper?.shopName || 'Local Store',
+          shopName: shopkeeperData?.shopName || 'Local Store',
           shopId: shopkeeperId || 'shop-001',
           description: item.description,
           stock: item.stock
@@ -291,7 +290,7 @@ export default function CustomerHome() {
           collection(db, "products"),
           orderBy("createdAt", "desc")
         );
-  
+    
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -300,19 +299,22 @@ export default function CustomerHome() {
         
         setPosts(data);
         setFilteredPosts(data);
-
+    
         // Fetch shopkeeper data for each product
         const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
         
         for (const product of data) {
-          // Check if product has a shopkeeperId field (might be named differently)
+          // Check multiple possible field names for shopkeeper ID
           const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
           
           if (shopkeeperId && !shopkeeperMap[shopkeeperId]) {
             try {
               const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
               if (shopkeeperDoc.exists()) {
-                shopkeeperMap[shopkeeperId] = shopkeeperDoc.data() as ShopkeeperData;
+                shopkeeperMap[shopkeeperId] = {
+                  uid: shopkeeperId,
+                  ...shopkeeperDoc.data()
+                } as ShopkeeperData;
               }
             } catch (error) {
               console.error("Error fetching shopkeeper:", error);

@@ -17,6 +17,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { createOrder } from '../../../lib/orders';
 import { useAuth } from '@/hooks/useAuth';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../../firebaseConfig';
 
 const colors = {
   primary: '#2874F0', // Flipkart blue
@@ -75,35 +77,54 @@ export default function OrderNowScreen() {
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
-  // Mock addresses - replace with actual data from your backend
-  useEffect(() => {
-    const mockAddresses: Address[] = [
-      {
-        id: '1',
-        name: 'John Doe',
-        phone: '+91 9876543210',
-        address: '123, Main Street, Koramangala',
-        city: 'Bangalore',
-        state: 'Karnataka',
-        pincode: '560034',
-        type: 'home',
-        isDefault: true
-      },
-      {
-        id: '2',
-        name: 'John Doe',
-        phone: '+91 9876543210',
-        address: '456, Tech Park, Whitefield',
-        city: 'Bangalore',
-        state: 'Karnataka',
-        pincode: '560066',
-        type: 'work',
-        isDefault: false
+// Update the useEffect to fetch customer address
+useEffect(() => {
+  const fetchCustomerData = async () => {
+    if (!user?.uid) return;
+
+    try {
+      // Fetch customer data from Firestore
+      const customerDoc = await getDoc(doc(db, 'customers', user.uid));
+      
+      if (customerDoc.exists()) {
+        const customerData = customerDoc.data();
+        console.log('Customer data:', customerData);
+        
+        // Set the address from customer data
+        if (customerData.address) {
+          setNewAddress(prev => ({
+            ...prev,
+            address: customerData.address,
+            name: customerData.fullName || user.displayName || '',
+            phone: customerData.phone || user.phoneNumber || ''
+          }));
+
+          // Create a default address object from customer data
+          const defaultAddress: Address = {
+            id: 'default',
+            name: customerData.fullName || user.displayName || 'Customer',
+            phone: customerData.phone || user.phoneNumber || '',
+            address: customerData.address || '',
+            city: '', // You might want to extract these from the address string
+            state: '', // Or add these fields to your customer collection
+            pincode: '', // Or add these fields to your customer collection
+            type: 'home',
+            isDefault: true
+          };
+
+          setAddresses([defaultAddress]);
+          setSelectedAddress(defaultAddress);
+        }
+      } else {
+        console.log('No customer data found');
       }
-    ];
-    setAddresses(mockAddresses);
-    setSelectedAddress(mockAddresses.find(addr => addr.isDefault) || mockAddresses[0]);
-  }, []);
+    } catch (error) {
+      console.error('Error fetching customer data:', error);
+    }
+  };
+
+  fetchCustomerData();
+}, [user?.uid]);
 
   if (!product) {
     return (
@@ -471,6 +492,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    paddingTop:20,
+    paddingBottom:36
   },
   header: {
     flexDirection: 'row',

@@ -34,7 +34,7 @@ export default function ShopkeeperOrdersScreen() {
   const router = useRouter();
 
   // Replace with your actual shop ID
-  const SHOP_ID = "shop-001";
+  const SHOP_ID = "hKckhDxbUwhh7wQRVoX8CW9j40f2"; // Using the shopId from your DB example
 
   // Fetch orders with real-time updates
   useEffect(() => {
@@ -95,7 +95,9 @@ export default function ShopkeeperOrdersScreen() {
     }
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
+    // Parse the date string from Firebase
+    const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
@@ -107,7 +109,6 @@ export default function ShopkeeperOrdersScreen() {
   const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
       await updateOrderStatusBackend(orderId, newStatus);
-      // No need to manually update local state - real-time listener will handle it
       Alert.alert("Success", `Order status updated to ${getStatusText(newStatus)}`);
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -223,13 +224,14 @@ export default function ShopkeeperOrdersScreen() {
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
         <View style={styles.customerInfo}>
-          <Image 
-            source={{ uri: item.customerAvatar || 'https://via.placeholder.com/150' }} 
-            style={styles.customerAvatar}
-          />
+          <View style={styles.customerAvatarPlaceholder}>
+            <Text style={styles.customerAvatarText}>
+              {item.customerName.charAt(0).toUpperCase()}
+            </Text>
+          </View>
           <View>
             <Text style={styles.customerName}>{item.customerName}</Text>
-            <Text style={styles.orderId}>Order #{item.id}</Text>
+            <Text style={styles.orderId}>Order #{item.id.substring(0, 8)}</Text>
             {item.customerPhone && (
               <Text style={styles.customerPhone}>{item.customerPhone}</Text>
             )}
@@ -266,14 +268,12 @@ export default function ShopkeeperOrdersScreen() {
           </Text>
         )}
 
-        {item.specialInstructions && (
-          <Text style={styles.instructionsText} numberOfLines={2}>
-            📝 {item.specialInstructions}
-          </Text>
-        )}
-
         <Text style={styles.dateText}>
-          Ordered on {formatDate(item.createdAt)}
+          Ordered on {formatDate(item.createdAt)} 
+        </Text>
+
+        <Text style={styles.paymentText}>
+          Payment: {item.paymentMethod === 'cash' ? 'Cash on Delivery' : item.paymentMethod}
         </Text>
       </View>
 
@@ -429,9 +429,7 @@ export default function ShopkeeperOrdersScreen() {
   );
 }
 
-// Keep all your existing styles the same...
 const styles = StyleSheet.create({
-  // ... (all your existing styles remain exactly the same)
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
@@ -590,11 +588,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  customerAvatar: {
+  customerAvatarPlaceholder: {
     width: 40,
     height: 40,
     borderRadius: 20,
     marginRight: 12,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customerAvatarText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   customerName: {
     fontSize: 16,
@@ -647,18 +653,16 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 4,
   },
-  instructionsText: {
+  paymentText: {
     fontSize: 12,
     color: '#666',
-    fontStyle: 'italic',
     marginBottom: 8,
-    backgroundColor: '#fff9c4',
-    padding: 6,
-    borderRadius: 4,
+    fontWeight: '500',
   },
   dateText: {
     fontSize: 12,
     color: '#999',
+    marginBottom: 4,
   },
   orderActions: {
     flexDirection: 'row',
