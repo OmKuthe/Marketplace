@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
-  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -14,134 +13,126 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { getAuth } from 'firebase/auth';
+import { 
+  Order, 
+  OrderStatus,
+  subscribeToCustomerOrders 
+} from '../../../lib/orders';
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
+import { db } from '../../../firebaseConfig';
 
 const { width } = Dimensions.get('window');
 
-// Define types for our orders
-type OrderItem = {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  image?: string;
-};
-
-type Order = {
-  id: string;
-  shopId: string;
-  shopName: string;
-  shopAvatar?: string;
-  items: OrderItem[];
-  totalAmount: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
-  createdAt: Date;
-  updatedAt: Date;
-  deliveryAddress?: string;
-  paymentMethod: 'cash' | 'card' | 'upi';
-};
-
-export default function myorders() {
+export default function MyOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [shopNames, setShopNames] = useState<{[key: string]: string}>({});
   const router = useRouter();
+  const auth = getAuth();
+  const user = auth.currentUser;
 
-  // Mock data - replace with actual data from your backend
-  useEffect(() => {
-    const mockOrders: Order[] = [
-      {
-        id: "ORD-001",
-        shopId: "2",
-        shopName: "Organic Grocery Store",
-        shopAvatar: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "1", name: "Organic Apples", price: 120, quantity: 2 },
-          { id: "2", name: "Fresh Spinach", price: 40, quantity: 1 },
-          { id: "3", name: "Carrots", price: 30, quantity: 3 }
-        ],
-        totalAmount: 120 * 2 + 40 + 30 * 3,
-        status: "completed",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1), // 1 day ago
-        deliveryAddress: "123 Main St, Apartment 4B",
-        paymentMethod: "card"
-      },
-      {
-        id: "ORD-002",
-        shopId: "3",
-        shopName: "Local Bakery",
-        shopAvatar: "https://images.unsplash.com/photo-1608190003443-86a6a5c6fcdc?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "4", name: "Whole Wheat Bread", price: 80, quantity: 2 },
-          { id: "5", name: "Croissant", price: 50, quantity: 4 }
-        ],
-        totalAmount: 80 * 2 + 50 * 4,
-        status: "ready",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12), // 12 hours ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 1), // 1 hour ago
-        deliveryAddress: "123 Main St, Apartment 4B",
-        paymentMethod: "upi"
-      },
-      {
-        id: "ORD-003",
-        shopId: "4",
-        shopName: "Dairy Farm",
-        shopAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "6", name: "Fresh Milk", price: 60, quantity: 2 },
-          { id: "7", name: "Butter", price: 90, quantity: 1 }
-        ],
-        totalAmount: 60 * 2 + 90,
-        status: "preparing",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6 hours ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        deliveryAddress: "123 Main St, Apartment 4B",
-        paymentMethod: "cash"
-      },
-      {
-        id: "ORD-004",
-        shopId: "5",
-        shopName: "Fruit Vendor",
-        shopAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "8", name: "Bananas", price: 40, quantity: 6 },
-          { id: "9", name: "Oranges", price: 70, quantity: 8 }
-        ],
-        totalAmount: 40 * 6 + 70 * 8,
-        status: "confirmed",
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        deliveryAddress: "123 Main St, Apartment 4B",
-        paymentMethod: "upi"
-      },
-      {
-        id: "ORD-005",
-        shopId: "6",
-        shopName: "Vegetable Market",
-        shopAvatar: "https://images.unsplash.com/photo-1566492031773-4f4e44671d66?w=150&h=150&fit=crop&crop=face",
-        items: [
-          { id: "10", name: "Tomatoes", price: 35, quantity: 10 },
-          { id: "11", name: "Potatoes", price: 25, quantity: 5 }
-        ],
-        totalAmount: 35 * 10 + 25 * 5,
-        status: "pending",
-        createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-        updatedAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-        deliveryAddress: "123 Main St, Apartment 4B",
-        paymentMethod: "card"
+  // Function to fetch shop name
+  const fetchShopName = async (shopId: string) => {
+    try {
+      if (!shopId) return 'Unknown Shop';
+      
+      const shopDoc = await getDoc(doc(db, 'shopkeepers', shopId));
+      if (shopDoc.exists()) {
+        const shopData = shopDoc.data();
+        return shopData.shopName || shopData.name || `Shop ${shopId.substring(0, 6)}`;
       }
-    ];
+      return `Shop ${shopId.substring(0, 6)}`;
+    } catch (error) {
+      console.error('Error fetching shop name:', error);
+      return `Shop ${shopId.substring(0, 6)}`;
+    }
+  };
 
-    setTimeout(() => {
-      setOrders(mockOrders);
-      setFilteredOrders(mockOrders);
+  // Function to get shop name with caching
+  const getShopName = (shopId: string | undefined) => {
+    if (!shopId) return 'Unknown Shop';
+    
+    // Check if we already have the shop name
+    if (shopNames[shopId]) {
+      return shopNames[shopId];
+    }
+    
+    // Check if the order itself has the shop name
+    const orderWithShopName = orders.find(order => order.shopId === shopId && order.shopName);
+    if (orderWithShopName?.shopName) {
+      return orderWithShopName.shopName;
+    }
+    
+    // Return temporary name until we fetch the actual one
+    return `Shop ${shopId.substring(0, 6)}`;
+  };
+
+  // Fetch shop names when orders are loaded
+  useEffect(() => {
+    const fetchAllShopNames = async () => {
+      if (orders.length === 0) return;
+      
+      const uniqueShopIds = [...new Set(orders.map(order => order.shopId).filter(Boolean))];
+      const newShopNames: {[key: string]: string} = {};
+      
+      // Fetch names for all unique shop IDs
+      for (const shopId of uniqueShopIds) {
+        if (shopId && !shopNames[shopId]) {
+          const name = await fetchShopName(shopId);
+          newShopNames[shopId] = name;
+        }
+      }
+      
+      // Update state with all new shop names at once
+      if (Object.keys(newShopNames).length > 0) {
+        setShopNames(prev => ({...prev, ...newShopNames}));
+      }
+    };
+
+    fetchAllShopNames();
+  }, [orders]);
+
+  const getShopAvatarColor = (shopId: string | undefined) => {
+    const colors = ['#007AFF', '#34C759', '#FF9500', '#5856D6', '#FF3B30'];
+    const defaultColor = '#8E8E93';
+    
+    if (!shopId) return defaultColor;
+    
+    const colorIndex = shopId.charCodeAt(0) % colors.length;
+    return colors[colorIndex];
+  };
+
+  const getShopInitial = (shopId: string | undefined) => {
+    return getShopName(shopId).charAt(0).toUpperCase();
+  };
+
+  // Fetch orders from Firebase for the current customer
+  useEffect(() => {
+    if (!user) {
       setIsLoading(false);
-    }, 1000); // Simulate loading
-  }, []);
+      return;
+    }
 
+    setIsLoading(true);
+    
+    const unsubscribe = subscribeToCustomerOrders(user.uid, (ordersData) => {
+      // Filter out any orders that might be missing critical data
+      const validOrders = ordersData.filter(order => 
+        order.id && order.shopId && order.customerId
+      );
+      setOrders(validOrders);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Apply filters whenever orders, activeFilter, or searchQuery change
   useEffect(() => {
     let filtered = orders;
     
@@ -153,15 +144,18 @@ export default function myorders() {
     // Apply search filter
     if (searchQuery) {
       filtered = filtered.filter(order =>
-        order.shopName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.id.toLowerCase().includes(searchQuery.toLowerCase())
+        getShopName(order.shopId).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.items.some(item => 
+          item.name?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
       );
     }
     
     setFilteredOrders(filtered);
-  }, [activeFilter, searchQuery, orders]);
+  }, [activeFilter, searchQuery, orders, shopNames]);
 
-  const getStatusColor = (status: Order['status']) => {
+  const getStatusColor = (status: OrderStatus) => {
     switch (status) {
       case 'pending': return '#FFA500';
       case 'confirmed': return '#007AFF';
@@ -173,11 +167,11 @@ export default function myorders() {
     }
   };
 
-  const getStatusText = (status: Order['status']) => {
+  const getStatusText = (status: OrderStatus) => {
     switch (status) {
-      case 'pending': return 'Pending';
-      case 'confirmed': return 'Confirmed';
-      case 'preparing': return 'Preparing';
+      case 'pending': return 'Pending Review';
+      case 'confirmed': return 'Order Confirmed';
+      case 'preparing': return 'Preparing Order';
       case 'ready': return 'Ready for Pickup';
       case 'completed': return 'Completed';
       case 'cancelled': return 'Cancelled';
@@ -185,12 +179,24 @@ export default function myorders() {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        const parts = dateString.split(' at ');
+        return parts[0] || dateString;
+      }
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch (error) {
+      return dateString;
+    }
   };
 
   const formatCurrency = (amount: number) => {
-    return `₹${amount.toFixed(2)}`;
+    return `₹${amount?.toFixed(2) || '0.00'}`;
   };
 
   const SidePanel = () => (
@@ -242,13 +248,13 @@ export default function myorders() {
       <TouchableOpacity 
         style={[styles.menuItem, styles.activeMenuItem]}
         onPress={() => {
-        setSidePanelVisible(false);
-        router.push("/customer/myorders");
+          setSidePanelVisible(false);
+          router.push("/customer/myorders");
         }}
-    >
+      >
         <Ionicons name="list" size={20} color="#007AFF" />
         <Text style={styles.menuItemText}>Orders</Text>
-        </TouchableOpacity>
+      </TouchableOpacity>
       
       <TouchableOpacity 
         style={styles.menuItem}
@@ -266,42 +272,65 @@ export default function myorders() {
   const renderOrderItem = ({ item }: { item: Order }) => (
     <TouchableOpacity 
       style={styles.orderCard}
-      onPress={() => router.push(`/orders/${item.id}`as any)}
+      onPress={() => router.push(`/customer/orders/${item.id}` as any)}
     >
       <View style={styles.orderHeader}>
         <View style={styles.shopInfo}>
-          <Image 
-            source={{ uri: item.shopAvatar || 'https://via.placeholder.com/150' }} 
-            style={styles.shopAvatar}
-          />
+          <View style={[styles.shopAvatar, { backgroundColor: getShopAvatarColor(item.shopId) }]}>
+            <Text style={styles.shopAvatarText}>
+              {getShopInitial(item.shopId)}
+            </Text>
+          </View>
           <View>
-            <Text style={styles.shopName}>{item.shopName}</Text>
-            <Text style={styles.orderId}>Order #{item.id}</Text>
+            <Text style={styles.shopName}>{getShopName(item.shopId)}</Text>
+            <Text style={styles.orderId}>Order #{item.id?.substring(0, 8) || 'N/A'}</Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {getStatusText(item.status)}
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status as OrderStatus) + '20' }]}>
+          <Text style={[styles.statusText, { color: getStatusColor(item.status as OrderStatus) }]}>
+            {getStatusText(item.status as OrderStatus)}
           </Text>
         </View>
       </View>
-
+  
       <View style={styles.orderDetails}>
         <Text style={styles.itemsText}>
-          {item.items.length} item{item.items.length !== 1 ? 's' : ''} • {formatCurrency(item.totalAmount)}
+          {item.items?.length || 0} item{(item.items?.length || 0) !== 1 ? 's' : ''} • {formatCurrency(item.totalAmount)}
         </Text>
+        
+        <View style={styles.itemsList}>
+          {item.items?.slice(0, 2).map((product, index) => (
+            <Text key={index} style={styles.productText} numberOfLines={1}>
+              {product.quantity}x {product.name}
+            </Text>
+          ))}
+          {(item.items?.length || 0) > 2 && (
+            <Text style={styles.moreItemsText}>
+              +{(item.items?.length || 0) - 2} more items
+            </Text>
+          )}
+        </View>
+  
+        <Text style={styles.addressText} numberOfLines={1}>
+          📍 {item.deliveryAddress || 'No address provided'}
+        </Text>
+  
         <Text style={styles.dateText}>
           Ordered on {formatDate(item.createdAt)}
         </Text>
+        
+        <Text style={styles.paymentText}>
+          Payment: {item.paymentMethod === 'cash' ? 'Cash on Delivery' : item.paymentMethod || 'Unknown'}
+        </Text>
       </View>
-
+  
       <View style={styles.orderActions}>
         {item.status === 'ready' && (
           <TouchableOpacity style={styles.actionButton}>
             <Text style={styles.actionButtonText}>Pick Up</Text>
           </TouchableOpacity>
         )}
-        {item.status === 'preparing' && (
+        {(item.status === 'preparing' || item.status === 'confirmed') && (
           <TouchableOpacity style={styles.actionButtonOutline}>
             <Text style={styles.actionButtonOutlineText}>Track Order</Text>
           </TouchableOpacity>
@@ -312,6 +341,23 @@ export default function myorders() {
       </View>
     </TouchableOpacity>
   );
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
+            <Ionicons name="menu" size={28} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>📦 My Orders</Text>
+          <View style={{ width: 28 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Please sign in to view your orders</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -330,7 +376,6 @@ export default function myorders() {
       </SafeAreaView>
     );
   }
-  
 
   return (
     <SafeAreaView style={styles.container}>
@@ -352,7 +397,7 @@ export default function myorders() {
           <Ionicons name="search" size={20} color="#777" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search orders or shops..."
+            placeholder="Search orders, shops, or items..."
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -425,12 +470,10 @@ export default function myorders() {
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
-    paddingTop: 20, // Added padding on top
   },
   header: {
     flexDirection: 'row',
@@ -440,7 +483,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    marginTop: 10, // Additional top margin
   },
   headerTitle: {
     fontSize: 20,
@@ -571,6 +613,13 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shopAvatarText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   shopName: {
     fontSize: 16,
@@ -597,11 +646,37 @@ const styles = StyleSheet.create({
   itemsText: {
     fontSize: 14,
     color: '#333',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  itemsList: {
+    marginBottom: 8,
+  },
+  productText: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 2,
+  },
+  moreItemsText: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  addressText: {
+    fontSize: 12,
+    color: '#666',
     marginBottom: 4,
+  },
+  paymentText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+    fontWeight: '500',
   },
   dateText: {
     fontSize: 12,
-    color: '#666',
+    color: '#999',
+    marginBottom: 4,
   },
   orderActions: {
     flexDirection: 'row',
