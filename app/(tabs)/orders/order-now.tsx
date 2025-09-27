@@ -21,8 +21,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 
 const colors = {
-  primary: '#2874F0', // Flipkart blue
-  secondary: '#FB641B', // Flipkart orange
+  primary: '#2874F0',
+  secondary: '#FB641B',
   background: '#F1F3F6',
   surface: '#FFFFFF',
   textPrimary: '#212121',
@@ -54,7 +54,6 @@ export default function OrderNowScreen() {
   console.log('Received params:', params);
   console.log('Product param:', params.product);
   
-  // Get product data from params (passed from product page)
   const product = params.product ? JSON.parse(params.product as string) : null;
   
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -62,6 +61,7 @@ export default function OrderNowScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [saveAddress, setSaveAddress] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   
   // Form state for new address
   const [newAddress, setNewAddress] = useState({
@@ -77,54 +77,265 @@ export default function OrderNowScreen() {
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
-// Update the useEffect to fetch customer address
-useEffect(() => {
-  const fetchCustomerData = async () => {
-    if (!user?.uid) return;
+  // Update the useEffect to fetch customer address
+  useEffect(() => {
+    const fetchCustomerData = async () => {
+      if (!user?.uid) return;
+
+      try {
+        const customerDoc = await getDoc(doc(db, 'customers', user.uid));
+        
+        if (customerDoc.exists()) {
+          const customerData = customerDoc.data();
+          console.log('Customer data:', customerData);
+          
+          // Set the address from customer data
+          if (customerData.address) {
+            setNewAddress(prev => ({
+              ...prev,
+              address: customerData.address,
+              name: customerData.fullName || user.displayName || '',
+              phone: customerData.phone || user.phoneNumber || '',
+              city: customerData.city || '',
+              state: customerData.state || '',
+              pincode: customerData.pincode || ''
+            }));
+
+            // Create a default address object from customer data
+            const defaultAddress: Address = {
+              id: 'default',
+              name: customerData.fullName || user.displayName || 'Customer',
+              phone: customerData.phone || user.phoneNumber || '',
+              address: customerData.address || '',
+              city: customerData.city || '',
+              state: customerData.state || '',
+              pincode: customerData.pincode || '',
+              type: 'home',
+              isDefault: true
+            };
+
+            setAddresses([defaultAddress]);
+            setSelectedAddress(defaultAddress);
+          }
+        } else {
+          console.log('No customer data found');
+        }
+      } catch (error) {
+        console.error('Error fetching customer data:', error);
+      }
+    };
+
+    fetchCustomerData();
+  }, [user?.uid]);
+
+  // Function to validate address
+  const validateAddress = (address: Address) => {
+    return address.name && 
+           address.phone && 
+           address.address && 
+           address.city && 
+           address.state && 
+           address.pincode;
+  };
+
+  // Function to handle editing an address
+  const handleEditAddress = (address: Address) => {
+    setEditingAddress(address);
+    setNewAddress({
+      name: address.name,
+      phone: address.phone,
+      address: address.address,
+      city: address.city,
+      state: address.state,
+      pincode: address.pincode,
+      type: address.type
+    });
+    setShowAddressForm(true);
+  };
+
+  // Function to update an existing address
+  const handleUpdateAddress = () => {
+    if (!editingAddress || !validateAddress({
+      id: 'temp',
+      ...newAddress,
+      isDefault: false
+    })) {
+      Alert.alert('Error', 'Please fill all address fields');
+      return;
+    }
+
+    const updatedAddresses = addresses.map(addr => 
+      addr.id === editingAddress.id 
+        ? { ...addr, ...newAddress }
+        : addr
+    );
+
+    setAddresses(updatedAddresses);
+    
+    // Update selected address if it was the one being edited
+    if (selectedAddress?.id === editingAddress.id) {
+      setSelectedAddress({ ...editingAddress, ...newAddress });
+    }
+    
+    setEditingAddress(null);
+    setShowAddressForm(false);
+    
+    // Reset form
+    setNewAddress({
+      name: user?.displayName || '',
+      phone: user?.phoneNumber || '',
+      address: '',
+      city: '',
+      state: '',
+      pincode: '',
+      type: 'home'
+    });
+    
+    Alert.alert('Success', 'Address updated successfully');
+  };
+
+  const handlePlaceOrder = async () => {
+    // Use the selected address if available, otherwise use the new address form data
+    const addressToUse = selectedAddress || {
+      id: 'new',
+      name: newAddress.name,
+      phone: newAddress.phone,
+      address: newAddress.address,
+      city: newAddress.city,
+      state: newAddress.state,
+      pincode: newAddress.pincode,
+      type: newAddress.type,
+      isDefault: false
+    };
+
+    // Validate the address
+    if (!validateAddress(addressToUse)) {
+      Alert.alert(
+        'Incomplete Address', 
+        'Please fill all address fields or select a complete saved address.',
+        [
+          {
+            text: 'Fill Address',
+            onPress: () => setShowAddressForm(true)
+          }
+        ]
+      );
+      return;
+    }
+
+    // Validate phone number
+    if (addressToUse.phone.length < 10) {
+      Alert.alert('Error', 'Please enter a valid phone number');
+      return;
+    }
+
+    // Validate pincode
+    if (addressToUse.pincode.length !== 6) {
+      Alert.alert('Error', 'Please enter a valid 6-digit pincode');
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      // Fetch customer data from Firestore
-      const customerDoc = await getDoc(doc(db, 'customers', user.uid));
+      const orderData = {
+        customerId: user?.uid || 'cust-001',
+        customerName: addressToUse.name,
+        customerPhone: addressToUse.phone,
+        items: [{
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: quantity,
+          image: product.imageUrl
+        }],
+        totalAmount: finalAmount,
+        deliveryAddress: `${addressToUse.address}, ${addressToUse.city}, ${addressToUse.state} - ${addressToUse.pincode}`,
+        paymentMethod: paymentMethod,
+        shopId: product.shopId || 'shop-001',
+        shopName: product.shopName || 'Local Store'
+      };
+
+      const orderId = await createOrder(orderData);
       
-      if (customerDoc.exists()) {
-        const customerData = customerDoc.data();
-        console.log('Customer data:', customerData);
-        
-        // Set the address from customer data
-        if (customerData.address) {
-          setNewAddress(prev => ({
-            ...prev,
-            address: customerData.address,
-            name: customerData.fullName || user.displayName || '',
-            phone: customerData.phone || user.phoneNumber || ''
-          }));
-
-          // Create a default address object from customer data
-          const defaultAddress: Address = {
-            id: 'default',
-            name: customerData.fullName || user.displayName || 'Customer',
-            phone: customerData.phone || user.phoneNumber || '',
-            address: customerData.address || '',
-            city: '', // You might want to extract these from the address string
-            state: '', // Or add these fields to your customer collection
-            pincode: '', // Or add these fields to your customer collection
-            type: 'home',
-            isDefault: true
-          };
-
-          setAddresses([defaultAddress]);
-          setSelectedAddress(defaultAddress);
-        }
-      } else {
-        console.log('No customer data found');
-      }
+      Alert.alert(
+        'Order Placed Successfully!',
+        `Your order #${orderId} has been confirmed.`,
+        [
+          {
+            text: 'View Order Details',
+            onPress: () => router.push(`./order_details?id=${orderId}`),
+          },
+          {
+            text: 'Continue Shopping',
+            onPress: () => router.push('/customer/home'),
+          }
+        ]
+      );
     } catch (error) {
-      console.error('Error fetching customer data:', error);
+      console.error('Error placing order:', error);
+      Alert.alert('Error', 'Failed to place order. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  fetchCustomerData();
-}, [user?.uid]);
+  // Function to save new address
+  const handleSaveAddress = () => {
+    if (!validateAddress({
+      id: 'new',
+      ...newAddress,
+      isDefault: false
+    })) {
+      Alert.alert('Error', 'Please fill all address fields');
+      return;
+    }
+
+    const newAddressObj: Address = {
+      id: `address-${Date.now()}`,
+      name: newAddress.name,
+      phone: newAddress.phone,
+      address: newAddress.address,
+      city: newAddress.city,
+      state: newAddress.state,
+      pincode: newAddress.pincode,
+      type: newAddress.type,
+      isDefault: addresses.length === 0 // Set as default if no addresses exist
+    };
+
+    setAddresses(prev => [...prev, newAddressObj]);
+    setSelectedAddress(newAddressObj);
+    setShowAddressForm(false);
+    
+    // Reset form if not saving for future
+    if (!saveAddress) {
+      setNewAddress({
+        name: user?.displayName || '',
+        phone: user?.phoneNumber || '',
+        address: '',
+        city: '',
+        state: '',
+        pincode: '',
+        type: 'home'
+      });
+    }
+    
+    Alert.alert('Success', 'Address saved successfully');
+  };
+
+  const resetAddressForm = () => {
+    setEditingAddress(null);
+    setShowAddressForm(false);
+    setNewAddress({
+      name: user?.displayName || '',
+      phone: user?.phoneNumber || '',
+      address: '',
+      city: '',
+      state: '',
+      pincode: '',
+      type: 'home'
+    });
+  };
 
   if (!product) {
     return (
@@ -147,61 +358,6 @@ useEffect(() => {
   const deliveryCharge = totalAmount > 500 ? 0 : 40;
   const finalAmount = totalAmount + deliveryCharge;
 
-  const handlePlaceOrder = async () => {
-    if (!selectedAddress) {
-      Alert.alert('Error', 'Please select a delivery address');
-      return;
-    }
-
-    if (!newAddress.phone || !newAddress.address || !newAddress.city || !newAddress.state || !newAddress.pincode) {
-      Alert.alert('Error', 'Please fill all address fields');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const orderData = {
-        customerId: user?.uid || 'cust-001',
-        customerName: selectedAddress.name,
-        customerPhone: selectedAddress.phone,
-        items: [{
-          id: product.id,
-          name: product.name,
-          price: product.price,
-          quantity: quantity,
-          image: product.imageUrl
-        }],
-        totalAmount: finalAmount,
-        deliveryAddress: `${selectedAddress.address}, ${selectedAddress.city}, ${selectedAddress.state} - ${selectedAddress.pincode}`,
-        paymentMethod: paymentMethod,
-        shopId: product.shopId || 'shop-001',
-      };
-
-      const orderId = await createOrder(orderData);
-      
-      Alert.alert(
-        'Order Placed Successfully!',
-        `Your order #${orderId} has been confirmed.`,
-        [
-          {
-            text: 'View Order Details',
-            onPress: () => router.push(`/orders/${orderId}`),
-          },
-          {
-            text: 'Continue Shopping',
-            onPress: () => router.push('/customer/home'),
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('Error placing order:', error);
-      Alert.alert('Error', 'Failed to place order. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const AddressCard = ({ address, isSelected }: { address: Address; isSelected: boolean }) => (
     <TouchableOpacity 
       style={[styles.addressCard, isSelected && styles.selectedAddressCard]}
@@ -211,7 +367,7 @@ useEffect(() => {
         <Text style={styles.addressType}>
           {address.type.toUpperCase()} {address.isDefault && '• DEFAULT'}
         </Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => handleEditAddress(address)}>
           <Text style={styles.editText}>EDIT</Text>
         </TouchableOpacity>
       </View>
@@ -304,7 +460,14 @@ useEffect(() => {
             <Text style={styles.sectionTitle}>Delivery Address</Text>
             <TouchableOpacity 
               style={styles.addButton}
-              onPress={() => setShowAddressForm(!showAddressForm)}
+              onPress={() => {
+                if (showAddressForm) {
+                  resetAddressForm();
+                } else {
+                  setShowAddressForm(true);
+                  setEditingAddress(null);
+                }
+              }}
             >
               <Text style={styles.addButtonText}>
                 {showAddressForm ? 'CANCEL' : '+ ADD NEW ADDRESS'}
@@ -315,45 +478,52 @@ useEffect(() => {
           {/* New Address Form */}
           {showAddressForm && (
             <View style={styles.addressForm}>
+              <Text style={styles.formTitle}>
+                {editingAddress ? 'Edit Address' : 'Add New Address'}
+              </Text>
+              
               <TextInput
                 style={styles.input}
-                placeholder="Full Name"
+                placeholder="Full Name *"
                 value={newAddress.name}
                 onChangeText={(text) => setNewAddress(prev => ({ ...prev, name: text }))}
               />
               <TextInput
                 style={styles.input}
-                placeholder="Phone Number"
+                placeholder="Phone Number *"
                 value={newAddress.phone}
                 onChangeText={(text) => setNewAddress(prev => ({ ...prev, phone: text }))}
                 keyboardType="phone-pad"
+                maxLength={10}
               />
               <TextInput
                 style={styles.input}
-                placeholder="Address (House No, Building, Street)"
+                placeholder="Address (House No, Building, Street) *"
                 value={newAddress.address}
                 onChangeText={(text) => setNewAddress(prev => ({ ...prev, address: text }))}
+                multiline
               />
               <View style={styles.rowInputs}>
                 <TextInput
                   style={[styles.input, styles.halfInput]}
-                  placeholder="City"
+                  placeholder="City *"
                   value={newAddress.city}
                   onChangeText={(text) => setNewAddress(prev => ({ ...prev, city: text }))}
                 />
                 <TextInput
                   style={[styles.input, styles.halfInput]}
-                  placeholder="State"
+                  placeholder="State *"
                   value={newAddress.state}
                   onChangeText={(text) => setNewAddress(prev => ({ ...prev, state: text }))}
                 />
               </View>
               <TextInput
                 style={styles.input}
-                placeholder="Pincode"
+                placeholder="Pincode *"
                 value={newAddress.pincode}
                 onChangeText={(text) => setNewAddress(prev => ({ ...prev, pincode: text }))}
                 keyboardType="number-pad"
+                maxLength={6}
               />
               
               <View style={styles.addressTypeSelector}>
@@ -371,18 +541,34 @@ useEffect(() => {
                 ))}
               </View>
 
-              <View style={styles.saveAddressOption}>
-                <Switch
-                  value={saveAddress}
-                  onValueChange={setSaveAddress}
-                  trackColor={{ false: '#767577', true: colors.primary }}
-                />
-                <Text style={styles.saveAddressText}>Save this address for future</Text>
-              </View>
+              {!editingAddress && (
+                <View style={styles.saveAddressOption}>
+                  <Switch
+                    value={saveAddress}
+                    onValueChange={setSaveAddress}
+                    trackColor={{ false: '#767577', true: colors.primary }}
+                  />
+                  <Text style={styles.saveAddressText}>Save this address for future</Text>
+                </View>
+              )}
 
-              <TouchableOpacity style={styles.saveAddressButton}>
-                <Text style={styles.saveAddressButtonText}>SAVE ADDRESS</Text>
+              <TouchableOpacity 
+                style={styles.saveAddressButton}
+                onPress={editingAddress ? handleUpdateAddress : handleSaveAddress}
+              >
+                <Text style={styles.saveAddressButtonText}>
+                  {editingAddress ? 'UPDATE ADDRESS' : 'SAVE ADDRESS'}
+                </Text>
               </TouchableOpacity>
+
+              {editingAddress && (
+                <TouchableOpacity 
+                  style={styles.cancelButton}
+                  onPress={resetAddressForm}
+                >
+                  <Text style={styles.cancelButtonText}>CANCEL</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -396,6 +582,13 @@ useEffect(() => {
                   isSelected={selectedAddress?.id === address.id}
                 />
               ))}
+              {addresses.length === 0 && !showAddressForm && (
+                <View style={styles.noAddressCard}>
+                  <Ionicons name="location-outline" size={32} color={colors.textSecondary} />
+                  <Text style={styles.noAddressText}>No saved addresses</Text>
+                  <Text style={styles.noAddressSubText}>Add a new address to continue</Text>
+                </View>
+              )}
             </View>
           </ScrollView>
         </View>
@@ -412,24 +605,24 @@ useEffect(() => {
           />
           
           <PaymentOption
-            method="upi"
-            icon="📱"
-            title="UPI"
-            description="Pay using UPI apps"
-          />
-          
-          <PaymentOption
             method="card"
             icon="💳"
             title="Credit/Debit Card"
-            description="Pay using your card"
+            description="Pay securely with your card"
+          />
+          
+          <PaymentOption
+            method="upi"
+            icon="📱"
+            title="UPI Payment"
+            description="Pay using UPI apps"
           />
           
           <PaymentOption
             method="wallet"
             icon="👛"
             title="Wallet"
-            description="Pay using your wallet"
+            description="Use your wallet balance"
           />
         </View>
 
@@ -492,8 +685,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingTop:20,
-    paddingBottom:36
+    paddingTop: 20,
+    paddingBottom: 36
   },
   header: {
     flexDirection: 'row',
@@ -603,6 +796,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
   },
+  formTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginBottom: 12,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -666,6 +865,16 @@ const styles = StyleSheet.create({
   },
   saveAddressButtonText: {
     color: colors.surface,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  cancelButton: {
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  cancelButtonText: {
+    color: colors.textSecondary,
     fontWeight: 'bold',
     fontSize: 14,
   },
@@ -734,6 +943,29 @@ const styles = StyleSheet.create({
     color: colors.success,
     marginLeft: 4,
     fontWeight: '500',
+  },
+  noAddressCard: {
+    width: 280,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 20,
+    marginRight: 12,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noAddressText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textPrimary,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  noAddressSubText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   paymentOption: {
     flexDirection: 'row',

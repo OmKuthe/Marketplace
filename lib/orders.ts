@@ -1,5 +1,5 @@
 // lib/orders.ts
-import { collection, onSnapshot, doc, updateDoc, Timestamp , getDoc} from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, Timestamp , getDoc,addDoc} from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 export interface OrderItem {
@@ -18,6 +18,7 @@ export interface Order {
   customerId: string;
   customerName: string;
   customerPhone: string;
+  customerAvatar?:string;
   deliveryAddress: string;
   items: OrderItem[];
   paymentMethod: string;
@@ -26,7 +27,23 @@ export interface Order {
   status: OrderStatus;
   totalAmount: number;
   updatedAt: string;
+  specialInstructions?: string;
+  
 }
+
+
+export type CreateOrderData = {
+  customerId: string;
+  customerName: string;
+  customerAvatar?: string;
+  items: OrderItem[];
+  totalAmount: number;
+  deliveryAddress?: string;
+  paymentMethod: 'cash' | 'card' | 'upi' | 'wallet';
+  customerPhone?: string;
+  specialInstructions?: string;
+  shopId: string; // Important: which shop this order is for
+};
 
 export const getShopName = async (shopId: string): Promise<string> => {
   try {
@@ -131,3 +148,35 @@ export const getOrders = async (shopId: string): Promise<Order[]> => {
   // Implementation for one-time fetch if needed
   return [];
 };
+
+export const createOrder = async (orderData: CreateOrderData): Promise<string> => {
+  try {
+    const ordersRef = collection(db, 'orders');
+    const docRef = await addDoc(ordersRef, {
+      ...orderData,
+      status: 'pending' as const,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating order:', error);
+    throw error;
+  }
+};
+
+export async function getOrderById(orderId: string): Promise<Order | null> {
+  try {
+    const docRef = doc(db, "orders", orderId);
+    const snap = await getDoc(docRef);
+
+    if (!snap.exists()) {
+      return null;
+    }
+
+    return { id: snap.id, ...snap.data() } as Order;
+  } catch (error) {
+    console.error("Error fetching order:", error);
+    throw error;
+  }
+}

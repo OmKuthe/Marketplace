@@ -1,4 +1,4 @@
-// app/shopkeeper/orders/[id].tsx
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -80,7 +80,8 @@ export default function OrderDetailsPage() {
     return `₹${amount.toFixed(2)}`;
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 

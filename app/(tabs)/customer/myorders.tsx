@@ -272,7 +272,7 @@ export default function MyOrders() {
   const renderOrderItem = ({ item }: { item: Order }) => (
     <TouchableOpacity 
       style={styles.orderCard}
-      onPress={() => router.push(`/customer/orders/${item.id}` as any)}
+      onPress={() => router.push(`../orders/order_details?id=${item.id}` as any)}
     >
       <View style={styles.orderHeader}>
         <View style={styles.shopInfo}>
@@ -322,22 +322,6 @@ export default function MyOrders() {
         <Text style={styles.paymentText}>
           Payment: {item.paymentMethod === 'cash' ? 'Cash on Delivery' : item.paymentMethod || 'Unknown'}
         </Text>
-      </View>
-  
-      <View style={styles.orderActions}>
-        {item.status === 'ready' && (
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>Pick Up</Text>
-          </TouchableOpacity>
-        )}
-        {(item.status === 'preparing' || item.status === 'confirmed') && (
-          <TouchableOpacity style={styles.actionButtonOutline}>
-            <Text style={styles.actionButtonOutlineText}>Track Order</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity style={styles.detailsButton}>
-          <Text style={styles.detailsButtonText}>View Details</Text>
-        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
