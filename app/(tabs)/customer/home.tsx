@@ -4,7 +4,21 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useRouter } from "expo-router";
-import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore";
+import { 
+  collection, 
+  doc, 
+  getDoc, 
+  getDocs, 
+  orderBy, 
+  query, 
+  addDoc,
+  updateDoc,
+  where,
+  limit,
+  startAfter,
+  Timestamp
+} from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -19,9 +33,11 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Alert,
+  ActivityIndicator
 } from "react-native";
-import { db } from "../../../firebaseConfig";
+import { db, storage } from "../../../firebaseConfig";
 
 const { width } = Dimensions.get('window');
 
@@ -64,6 +80,167 @@ type Product = {
   shopId?: string;
 };
 
+// Customer Post Types
+type PostType = 'NEED' | 'OFFER';
+type PostStatus = 'ACTIVE' | 'FULFILLED' | 'EXPIRED';
+type UrgencyLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+interface CustomerPost {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  title: string;
+  description: string;
+  price?: number;
+  category: string;
+  type: PostType;
+  imageUrl?: string;
+  location: string;
+  status: PostStatus;
+  createdAt: any;
+  updatedAt: any;
+  tags: string[];
+  contactInfo: {
+    phone?: string;
+    email: string;
+    preferredContact: 'phone' | 'email' | 'message';
+  };
+  urgency: UrgencyLevel;
+}
+
+interface PostFilter {
+  type?: PostType;
+  category?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  location?: string;
+  urgency?: string;
+  status?: string;
+  searchQuery?: string;
+}
+
+// Post API Functions
+const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  try {
+    const postWithTimestamps = {
+      ...postData,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      status: 'ACTIVE' as const
+    };
+
+    const docRef = await addDoc(collection(db, "customerPosts"), postWithTimestamps);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating post:', error);
+    throw new Error('Failed to create post');
+  }
+};
+
+const uploadPostImage = async (imageUri: string, postId: string): Promise<string> => {
+  try {
+    // Check if it's a local file URI (starts with file://)
+    let uri = imageUri;
+    if (imageUri.startsWith('file://')) {
+      // For React Native, we can use the file URI directly with fetch
+      uri = imageUri;
+    }
+
+    // Ensure the URI is valid
+    if (!uri) {
+      throw new Error('Invalid image URI');
+    }
+
+    const response = await fetch(uri);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status}`);
+    }
+    
+    const blob = await response.blob();
+    
+    // Create a more unique filename
+    const timestamp = Date.now();
+    const imageRef = ref(storage, `post-images/${postId}/image_${timestamp}`);
+    
+    const snapshot = await uploadBytes(imageRef, blob);
+    const downloadUrl = await getDownloadURL(snapshot.ref);
+    
+    return downloadUrl;
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    
+    // More specific error handling
+    if (error instanceof Error) {
+      if (error.message.includes('storage/unknown')) {
+        throw new Error('Network error or invalid image file');
+      } else if (error.message.includes('storage/unauthorized')) {
+        throw new Error('Permission denied for storage');
+      } else {
+        throw new Error(`Failed to upload image: ${error.message}`);
+      }
+    } else {
+      throw new Error('Failed to upload image: Unknown error');
+    }
+  }
+};
+
+const getCustomerPosts = async (
+  filters: PostFilter = {}, 
+  lastVisible: any = null,
+  pageSize: number = 10
+): Promise<{ posts: CustomerPost[]; lastVisible: any }> => {
+  try {
+    let q = query(collection(db, "customerPosts"), orderBy('createdAt', 'desc'));
+
+    if (filters.type) {
+      q = query(q, where('type', '==', filters.type));
+    }
+    
+    if (filters.status) {
+      q = query(q, where('status', '==', filters.status));
+    }
+
+    if (lastVisible) {
+      q = query(q, startAfter(lastVisible), limit(pageSize));
+    } else {
+      q = query(q, limit(pageSize));
+    }
+
+    const snapshot = await getDocs(q);
+    const posts: CustomerPost[] = [];
+    
+    snapshot.forEach((doc) => {
+      posts.push({
+        id: doc.id,
+        ...doc.data()
+      } as CustomerPost);
+    });
+
+    const newLastVisible = snapshot.docs[snapshot.docs.length - 1] || null;
+    
+    return { posts, lastVisible: newLastVisible };
+  } catch (error) {
+    console.error('Error fetching posts:', error);
+    // Return empty array if no posts found
+    return { posts: [], lastVisible: null };
+  }
+};
+
+const updateCustomerPost = async (postId: string, updates: Partial<CustomerPost>): Promise<void> => {
+  try {
+    const postRef = doc(db, "customerPosts", postId);
+    await updateDoc(postRef, {
+      ...updates,
+      updatedAt: Timestamp.now()
+    });
+  } catch (error) {
+    console.error('Error updating post:', error);
+    throw new Error('Failed to update post');
+  }
+};
+
 // Animated Product Card Component
 const AnimatedProductCard = ({ 
   item, 
@@ -81,7 +258,6 @@ const AnimatedProductCard = ({
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    // Staggered animation based on index
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -101,7 +277,6 @@ const AnimatedProductCard = ({
 
   const handleSave = () => {
     setSaved(!saved);
-    // Add save functionality here
   };
 
   const handleShare = async () => {
@@ -125,7 +300,6 @@ const AnimatedProductCard = ({
         }
       ]}
     >
-      {/* Card Header with Shopkeeper Info */}
       <View style={styles.cardHeader}>
         <View style={styles.userInfo}>
           <Image 
@@ -150,46 +324,38 @@ const AnimatedProductCard = ({
         </TouchableOpacity>
       </View>
       
-      {/* Product Image */}
       <Image 
         source={{ uri: item.imageUrl || 'https://via.placeholder.com/400x300' }} 
         style={styles.productImage}
         resizeMode="cover"
       />
       
-      {/* Card Footer with Details */}
       <View style={styles.cardFooter}>
         <View style={styles.actionButtons}> 
-        <TouchableOpacity 
-  style={styles.orderButton}
-  onPress={() => {
-    
-    console.log('Product data:', item); // Debug log
-    console.log('Shopkeeper data:', shopkeeperData); // Debug log
-    
-    const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-
-    
-    router.push({
-      pathname: '../orders/order-now',
-      params: { 
-        product: JSON.stringify({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          imageUrl: item.imageUrl,
-          shopName: shopkeeperData?.shopName || 'Local Store',
-          shopId: shopkeeperId || 'shop-001',
-          description: item.description,
-          stock: item.stock
-        })
-      }
-    });
-  }}
->
-  <Ionicons name="cart" size={20} color="white" />
-  <Text style={styles.orderButtonText}>Order Now</Text>
-</TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.orderButton}
+            onPress={() => {
+              const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+              router.push({
+                pathname: '../orders/order-now',
+                params: { 
+                  product: JSON.stringify({
+                    id: item.id,
+                    name: item.name,
+                    price: item.price,
+                    imageUrl: item.imageUrl,
+                    shopName: shopkeeperData?.shopName || 'Local Store',
+                    shopId: shopkeeperId || 'shop-001',
+                    description: item.description,
+                    stock: item.stock
+                  })
+                }
+              });
+            }}
+          >
+            <Ionicons name="cart" size={20} color="white" />
+            <Text style={styles.orderButtonText}>Order Now</Text>
+          </TouchableOpacity>
           <TouchableOpacity 
             style={styles.messageButton}
             onPress={() => onMessagePress(item)}
@@ -224,28 +390,248 @@ const AnimatedProductCard = ({
   );
 };
 
+// Customer Post Card Component
+const CustomerPostCard = ({ 
+  item, 
+  index 
+}: { 
+  item: CustomerPost; 
+  index: number; 
+}) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        delay: index * 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 7,
+        tension: 40,
+        delay: index * 100,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  const getPostColor = () => {
+    return item.type === 'NEED' ? colors.needCard : colors.offerCard;
+  };
+
+  const getTypeIcon = () => {
+    return item.type === 'NEED' ? 'help-circle' : 'gift';
+  };
+
+  return (
+    <Animated.View 
+      style={[
+        styles.postCard,
+        {
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
+          backgroundColor: getPostColor()
+        }
+      ]}
+    >
+      <View style={styles.postHeader}>
+        <View style={styles.postUserInfo}>
+          <View style={styles.postAvatar}>
+            <Ionicons name="person" size={20} color={colors.primary} />
+          </View>
+          <View>
+            <Text style={styles.postUsername}>{item.customerName}</Text>
+            <Text style={styles.postType}>
+              <Ionicons name={getTypeIcon()} size={12} /> {item.type}
+            </Text>
+          </View>
+        </View>
+        <View style={[styles.urgencyBadge, { backgroundColor: item.urgency === 'HIGH' ? '#FF6B6B' : item.urgency === 'MEDIUM' ? '#FFD93D' : '#6BCF7F' }]}>
+          <Text style={styles.urgencyText}>{item.urgency}</Text>
+        </View>
+      </View>
+
+      {item.imageUrl && (
+        <Image 
+          source={{ uri: item.imageUrl }} 
+          style={styles.postImage}
+          resizeMode="cover"
+        />
+      )}
+
+      <View style={styles.postContent}>
+        <Text style={styles.postTitle}>{item.title}</Text>
+        <Text style={styles.postDescription}>{item.description}</Text>
+        
+        <View style={styles.postDetails}>
+          {item.price && (
+            <Text style={styles.postPrice}>💰 ₹{item.price}</Text>
+          )}
+          <Text style={styles.postCategory}>#{item.category}</Text>
+        </View>
+        
+        <View style={styles.postMeta}>
+          <Text style={styles.postLocation}>📍 {item.location}</Text>
+          <Text style={styles.postDate}>
+            {item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString() : 'Recent'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.postActions}>
+        <TouchableOpacity style={styles.contactButton}>
+          <Ionicons name="chatbubble-ellipses" size={16} color={colors.primary} />
+          <Text style={styles.contactButtonText}>Contact</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.saveButton}>
+          <Ionicons name="bookmark-outline" size={16} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+};
+
 export default function CustomerHome() {
-  const [posts, setPosts] = useState<Product[]>([]);
-  const [filteredPosts, setFilteredPosts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [customerPosts, setCustomerPosts] = useState<CustomerPost[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [shopkeeperData, setShopkeeperData] = useState<{[key: string]: ShopkeeperData}>({});
   const [activeTab, setActiveTab] = useState("all");
   const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [createPostModalVisible, setCreatePostModalVisible] = useState(false);
-  const [postType, setPostType] = useState("NEED");
   const router = useRouter();
   const { user } = useAuth();
   
-  // New state for enhanced create post form
   const [newPost, setNewPost] = useState({
-    name: "",
+    title: "",
     description: "",
     price: "",
-    stock: "",
     category: "",
-    type: "NEED",
+    type: "NEED" as PostType,
     image: null as string | null,
+    location: "",
+    urgency: "MEDIUM" as UrgencyLevel,
   });
   
+  const [activeFilter, setActiveFilter] = useState<PostFilter>({});
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [creatingPost, setCreatingPost] = useState(false);
+
+  // Fetch customer posts
+  const fetchCustomerPosts = async (filters: PostFilter = {}, reset: boolean = false) => {
+    try {
+      setLoadingPosts(true);
+      const result = await getCustomerPosts(filters, reset ? null : lastVisible);
+      
+      if (reset) {
+        setCustomerPosts(result.posts);
+      } else {
+        setCustomerPosts(prev => [...prev, ...result.posts]);
+      }
+      
+      setLastVisible(result.lastVisible);
+    } catch (error) {
+      console.error('Error fetching customer posts:', error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  // Enhanced create post function
+  const handleCreatePost = async () => {
+    if (!user) {
+      Alert.alert('Error', 'Please log in to create a post');
+      return;
+    }
+  
+    if (!newPost.title.trim() || !newPost.description.trim()) {
+      Alert.alert('Error', 'Please fill in title and description');
+      return;
+    }
+  
+    try {
+      setCreatingPost(true);
+      
+      const postData = {
+        customerId: user.uid,
+        customerName: user.displayName || 'Anonymous Customer',
+        customerEmail: user.email || '',
+        title: newPost.title,
+        description: newPost.description,
+        price: newPost.price ? parseFloat(newPost.price) : undefined,
+        category: newPost.category || 'General',
+        type: newPost.type,
+        location: newPost.location || 'Unknown Location',
+        urgency: newPost.urgency,
+        status: 'ACTIVE' as PostStatus,
+        contactInfo: {
+          email: user.email || '',
+          preferredContact: 'message' as const
+        },
+        tags: newPost.category ? [newPost.category.toLowerCase()] : ['general'],
+      };
+  
+      const postId = await createCustomerPost(postData);
+  
+      // Upload image if it exists, but don't fail the entire post if image upload fails
+      if (newPost.image) {
+        try {
+          const imageUrl = await uploadPostImage(newPost.image, postId);
+          await updateCustomerPost(postId, { imageUrl });
+        } catch (imageError) {
+          console.warn('Image upload failed, but post was created:', imageError);
+          // Continue without the image - the post is already created
+        }
+      }
+  
+      Alert.alert('Success', 'Post created successfully!');
+      
+      setCreatePostModalVisible(false);
+      setNewPost({
+        title: "",
+        description: "",
+        price: "",
+        category: "",
+        type: "NEED",
+        image: null,
+        location: "",
+        urgency: "MEDIUM",
+      });
+      
+      fetchCustomerPosts(activeFilter, true);
+      
+    } catch (error) {
+      console.error('Error creating post:', error);
+      Alert.alert('Error', 'Failed to create post. Please try again.');
+    } finally {
+      setCreatingPost(false);
+    }
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setNewPost({...newPost, image: result.assets[0].uri});
+    }
+  };
+
   const handleMessageButton = async (product: Product) => {
     if (!user) {
       alert('Please log in to send messages');
@@ -253,7 +639,6 @@ export default function CustomerHome() {
     }
 
     try {
-      // Get the shopkeeper ID from the product
       const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
       
       if (!shopkeeperId) {
@@ -261,19 +646,9 @@ export default function CustomerHome() {
         return;
       }
 
-      // Show loading indicator
       alert('Starting conversation...');
-
-      // Find or create conversation
-      const conversationId = await conversationService.findOrCreateConversation(
-        user.uid, 
-        shopkeeperId
-      );
-
-      // Send initial message with product info
+      const conversationId = await conversationService.findOrCreateConversation(user.uid, shopkeeperId);
       await conversationService.sendInitialMessage(conversationId, user.uid, product);
-
-      // Navigate to the chat screen
       router.push(`/chat/${conversationId}`);
       
     } catch (error) {
@@ -281,32 +656,24 @@ export default function CustomerHome() {
       alert('Failed to start conversation. Please try again.');
     }
   };
-  
+
+  // Fetch products and shopkeepers
   useEffect(() => {
     const fetchProductsAndShopkeepers = async () => {
       try {
-        // Fetch products
-        const q = query(
-          collection(db, "products"),
-          orderBy("createdAt", "desc")
-        );
-    
+        const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         })) as Product[];
         
-        setPosts(data);
-        setFilteredPosts(data);
-    
-        // Fetch shopkeeper data for each product
+        setProducts(data);
+        setFilteredProducts(data);
+
         const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
-        
         for (const product of data) {
-          // Check multiple possible field names for shopkeeper ID
           const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
-          
           if (shopkeeperId && !shopkeeperMap[shopkeeperId]) {
             try {
               const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
@@ -326,62 +693,51 @@ export default function CustomerHome() {
         console.log("Error fetching products:", err);
       }
     };
-  
+
     fetchProductsAndShopkeepers();
+    fetchCustomerPosts(); // Load customer posts on mount
   }, []);
-  
+
   useEffect(() => {
     if (activeTab === "all") {
-      setFilteredPosts(posts);
+      setFilteredProducts(products);
     } else {
-      setFilteredPosts(posts.filter(post => post.type === activeTab.toUpperCase()));
+      setFilteredProducts(products.filter(product => product.type === activeTab.toUpperCase()));
     }
-  }, [activeTab, posts]);
+  }, [activeTab, products]);
 
-  const handleCreatePost = async () => {
-    // Add your Firebase logic to save the post here
-    console.log("Creating post:", newPost);
-    
-    // For now, just close the modal and reset the form
-    setCreatePostModalVisible(false);
-    setNewPost({
-      name: "",
-      description: "",
-      price: "",
-      stock: "",
-      category: "",
-      type: "NEED",
-      image: null,
-    });
+  const applyFilter = (filter: PostFilter) => {
+    const newFilter = { ...activeFilter, ...filter };
+    setActiveFilter(newFilter);
+    fetchCustomerPosts(newFilter, true);
   };
 
-  const pickImage = async () => {
-    // Request permissions
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      alert('Sorry, we need camera roll permissions to make this work!');
-      return;
-    }
-
-    // Launch image picker
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setNewPost({...newPost, image: result.assets[0].uri});
-    }
-  };
+  const FilterBar = () => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
+      <TouchableOpacity 
+        style={[styles.filterButton, activeFilter.type === undefined && styles.activeFilterButton]}
+        onPress={() => applyFilter({ type: undefined })}
+      >
+        <Text style={styles.filterButtonText}>All Posts</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={[styles.filterButton, activeFilter.type === 'NEED' && styles.activeFilterButton]}
+        onPress={() => applyFilter({ type: 'NEED' })}
+      >
+        <Text style={styles.filterButtonText}>Needs</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={[styles.filterButton, activeFilter.type === 'OFFER' && styles.activeFilterButton]}
+        onPress={() => applyFilter({ type: 'OFFER' })}
+      >
+        <Text style={styles.filterButtonText}>Offers</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
 
   const SidePanel = () => (
     <View style={styles.sidePanel}>
-      <TouchableOpacity 
-        style={styles.sidePanelClose} 
-        onPress={() => setSidePanelVisible(false)}
-      >
+      <TouchableOpacity style={styles.sidePanelClose} onPress={() => setSidePanelVisible(false)}>
         <Ionicons name="close" size={24} color={colors.textPrimary} />
       </TouchableOpacity>
       
@@ -389,89 +745,85 @@ export default function CustomerHome() {
         <Text style={styles.sidePanelTitle}>Menu</Text>
       </View>
       
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/home");
-        }}
-      >
-        <Ionicons name="home" size={22} color={colors.primary} />
-        <Text style={styles.menuItemText}>Home</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/search");
-        }}
-      >
-        <Ionicons name="search" size={22} color={colors.primary} />
-        <Text style={styles.menuItemText}>Search</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/messages");
-        }}
-      >
-        <Ionicons name="chatbubbles" size={22} color={colors.primary} />
-        <Text style={styles.menuItemText}>Messages</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/myorders");
-        }}
-      >
-        <Ionicons name="list" size={22} color={colors.primary} />
-        <Text style={styles.menuItemText}>Orders</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/profile");
-        }}
-      >
-        <Ionicons name="person" size={22} color={colors.primary} />
-        <Text style={styles.menuItemText}>Profile</Text>
-      </TouchableOpacity>
+      {['Home', 'Search', 'Messages', 'Orders', 'Profile'].map((item) => (
+        <TouchableOpacity key={item} style={styles.menuItem} onPress={() => setSidePanelVisible(false)}>
+          <Ionicons name={
+            item === 'Home' ? 'home' : 
+            item === 'Search' ? 'search' : 
+            item === 'Messages' ? 'chatbubbles' : 
+            item === 'Orders' ? 'list' : 'person'
+          } size={22} color={colors.primary} />
+          <Text style={styles.menuItemText}>{item}</Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 
+  const renderContent = () => {
+    if (activeTab === 'customer-posts') {
+      return (
+        <FlatList
+          data={customerPosts}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 25 }}
+          renderItem={({ item, index }) => (
+            <CustomerPostCard item={item} index={index} />
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="document-text-outline" size={64} color={colors.textSecondary} />
+              <Text style={styles.emptyStateText}>No posts yet</Text>
+              <Text style={styles.emptyStateSubtext}>Be the first to create a post!</Text>
+            </View>
+          }
+        />
+      );
+    }
+
+    return (
+      <FlatList
+        data={filteredProducts}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 25 }}
+        renderItem={({ item, index }) => {
+          const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+          const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+          
+          return (
+            <AnimatedProductCard 
+              item={item} 
+              index={index} 
+              shopkeeperData={shopkeeper}
+              onMessagePress={handleMessageButton}
+            />
+          );
+        }}
+      />
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with menu button and create post button */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
           <Ionicons name="menu" size={28} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>🛒 Customer Dashboard</Text>
-        <TouchableOpacity 
-          style={styles.createButton}
-          onPress={() => setCreatePostModalVisible(true)}
-        >
+        <TouchableOpacity style={styles.createButton} onPress={() => setCreatePostModalVisible(true)}>
           <Ionicons name="add-circle" size={26} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* Side Panel */}
       {sidePanelVisible && <SidePanel />}
 
-      {/* Post Type Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity 
           style={[styles.tab, activeTab === "all" && styles.activeTab]}
           onPress={() => setActiveTab("all")}
         >
-          <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>All Posts</Text>
+          <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>All Products</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === "need" && styles.activeTab]}
@@ -487,44 +839,17 @@ export default function CustomerHome() {
         </TouchableOpacity>
       </View>
 
-      {/* Posts List with Instagram-style cards */}
-      <FlatList
-        data={filteredPosts}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 25 }}
-        renderItem={({ item, index }) => {
-          // Get the shopkeeper ID from the product (checking multiple possible field names)
-          const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-          const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
-          
-          return (
-            <AnimatedProductCard 
-              item={item} 
-              index={index} 
-              shopkeeperData={shopkeeper}
-              onMessagePress={handleMessageButton}
-            />
-          );
-        }}
-      />
+      {activeTab === "customer-posts" && <FilterBar />}
 
-      {/* Enhanced Create Post Modal */}
-      <Modal
-        visible={createPostModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setCreatePostModalVisible(false)}
-      >
+      {renderContent()}
+
+      <Modal visible={createPostModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalContainer}>
           <ScrollView contentContainerStyle={styles.modalScrollContent}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Create New Post</Text>
-                <TouchableOpacity 
-                  onPress={() => setCreatePostModalVisible(false)}
-                  style={styles.modalCloseButton}
-                >
+                <TouchableOpacity onPress={() => setCreatePostModalVisible(false)}>
                   <Ionicons name="close" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
@@ -534,41 +859,38 @@ export default function CustomerHome() {
                   style={[styles.typeButton, newPost.type === "NEED" && styles.activeTypeButton]}
                   onPress={() => setNewPost({...newPost, type: "NEED"})}
                 >
-                  <Text style={[styles.typeButtonText, newPost.type === "NEED" && styles.activeTypeButtonText]}>Need</Text>
+                  <Text style={[styles.typeButtonText, newPost.type === "NEED" && styles.activeTypeButtonText]}>I Need</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.typeButton, newPost.type === "OFFER" && styles.activeTypeButton]}
                   onPress={() => setNewPost({...newPost, type: "OFFER"})}
                 >
-                  <Text style={[styles.typeButtonText, newPost.type === "OFFER" && styles.activeTypeButtonText]}>Offer</Text>
+                  <Text style={[styles.typeButtonText, newPost.type === "OFFER" && styles.activeTypeButtonText]}>I Offer</Text>
                 </TouchableOpacity>
               </View>
               
-              {/* Image Upload Section */}
               <TouchableOpacity style={styles.imageUploadSection} onPress={pickImage}>
                 {newPost.image ? (
                   <Image source={{ uri: newPost.image }} style={styles.selectedImage} />
                 ) : (
                   <View style={styles.imagePlaceholder}>
                     <Ionicons name="image-outline" size={40} color={colors.textSecondary} />
-                    <Text style={styles.imagePlaceholderText}>Tap to add an image</Text>
+                    <Text style={styles.imagePlaceholderText}>Add Image</Text>
                   </View>
                 )}
               </TouchableOpacity>
               
-              {/* Form Fields */}
               <TextInput
                 style={styles.formInput}
-                placeholder="Product Name"
-                value={newPost.name}
-                onChangeText={(text) => setNewPost({...newPost, name: text})}
+                placeholder="Post Title *"
+                value={newPost.title}
+                onChangeText={(text) => setNewPost({...newPost, title: text})}
               />
               
               <TextInput
                 style={[styles.formInput, styles.textArea]}
                 multiline
-                numberOfLines={3}
-                placeholder="Description"
+                placeholder="Description *"
                 value={newPost.description}
                 onChangeText={(text) => setNewPost({...newPost, description: text})}
               />
@@ -576,40 +898,40 @@ export default function CustomerHome() {
               <View style={styles.rowInputs}>
                 <TextInput
                   style={[styles.formInput, styles.halfInput]}
-                  placeholder="Price ($)"
+                  placeholder="Price (₹)"
                   keyboardType="numeric"
                   value={newPost.price}
                   onChangeText={(text) => setNewPost({...newPost, price: text})}
                 />
                 <TextInput
                   style={[styles.formInput, styles.halfInput]}
-                  placeholder="Stock"
-                  keyboardType="numeric"
-                  value={newPost.stock}
-                  onChangeText={(text) => setNewPost({...newPost, stock: text})}
+                  placeholder="Category"
+                  value={newPost.category}
+                  onChangeText={(text) => setNewPost({...newPost, category: text})}
                 />
               </View>
               
               <TextInput
                 style={styles.formInput}
-                placeholder="Category"
-                value={newPost.category}
-                onChangeText={(text) => setNewPost({...newPost, category: text})}
+                placeholder="Location"
+                value={newPost.location}
+                onChangeText={(text) => setNewPost({...newPost, location: text})}
               />
               
               <View style={styles.modalButtons}>
-                <TouchableOpacity 
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => setCreatePostModalVisible(false)}
-                >
+                <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setCreatePostModalVisible(false)}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[styles.modalButton, styles.submitButton]}
+                  style={[styles.modalButton, styles.submitButton, creatingPost && styles.disabledButton]}
                   onPress={handleCreatePost}
-                  disabled={!newPost.name.trim() || !newPost.description.trim()}
+                  disabled={creatingPost}
                 >
-                  <Text style={styles.submitButtonText}>Create Post</Text>
+                  {creatingPost ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Create Post</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -619,7 +941,6 @@ export default function CustomerHome() {
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1004,4 +1325,198 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
   },
+  postCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    marginHorizontal: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  postHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    paddingBottom: 12,
+  },
+  postUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  postAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  postUsername: {
+    fontWeight: '600',
+    color: colors.textPrimary,
+    fontSize: 14,
+  },
+  postType: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  urgencyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  urgencyText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+  },
+  postContent: {
+    padding: 16,
+    paddingTop: 12,
+  },
+  postTitle: {
+    fontWeight: '700',
+    fontSize: 16,
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  postDescription: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  postDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  postPrice: {
+    color: colors.textPrimary,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  postCategory: {
+    color: colors.primary,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  postMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  postLocation: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  postDate: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  postActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    paddingTop: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  contactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flex: 1,
+    marginRight: 10,
+    justifyContent: 'center',
+  },
+  contactButtonText: {
+    color: colors.primary,
+    fontWeight: '600',
+    marginLeft: 6,
+    fontSize: 14,
+  },
+  saveButton: {
+    padding: 8,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+  },
+  
+  // Filter Bar Styles
+  filterBar: {
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  filterButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  activeFilterButton: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activeFilterButtonText: {
+    color: 'white',
+  },
+  
+  // Empty State Styles
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  
+  // Modal Styles
+  disabledButton: {
+    opacity: 0.6,
+  },
+  
 });
