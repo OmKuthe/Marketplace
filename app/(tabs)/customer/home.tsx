@@ -35,7 +35,8 @@ import {
   TouchableOpacity,
   View,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from "react-native";
 import { db, storage } from "../../../firebaseConfig";
 
@@ -137,17 +138,13 @@ const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt
     throw new Error('Failed to create post');
   }
 };
-
 const uploadPostImage = async (imageUri: string, postId: string): Promise<string> => {
   try {
-    // Check if it's a local file URI (starts with file://)
     let uri = imageUri;
     if (imageUri.startsWith('file://')) {
-      // For React Native, we can use the file URI directly with fetch
       uri = imageUri;
     }
 
-    // Ensure the URI is valid
     if (!uri) {
       throw new Error('Invalid image URI');
     }
@@ -160,7 +157,6 @@ const uploadPostImage = async (imageUri: string, postId: string): Promise<string
     
     const blob = await response.blob();
     
-    // Create a more unique filename
     const timestamp = Date.now();
     const imageRef = ref(storage, `post-images/${postId}/image_${timestamp}`);
     
@@ -170,60 +166,76 @@ const uploadPostImage = async (imageUri: string, postId: string): Promise<string
     return downloadUrl;
   } catch (error) {
     console.error('Error uploading image:', error);
-    
-    // More specific error handling
-    if (error instanceof Error) {
-      if (error.message.includes('storage/unknown')) {
-        throw new Error('Network error or invalid image file');
-      } else if (error.message.includes('storage/unauthorized')) {
-        throw new Error('Permission denied for storage');
-      } else {
-        throw new Error(`Failed to upload image: ${error.message}`);
-      }
-    } else {
-      throw new Error('Failed to upload image: Unknown error');
-    }
+    throw new Error('Failed to upload image');
   }
 };
 
+// Enhanced function to fetch customer posts with better error handling
 const getCustomerPosts = async (
-  filters: PostFilter = {}, 
-  lastVisible: any = null,
-  pageSize: number = 10
+  filters: PostFilter = {}
 ): Promise<{ posts: CustomerPost[]; lastVisible: any }> => {
   try {
+    console.log('🔍 Fetching customer posts with filters:', filters);
+    
     let q = query(collection(db, "customerPosts"), orderBy('createdAt', 'desc'));
 
-    if (filters.type) {
-      q = query(q, where('type', '==', filters.type));
-    }
-    
-    if (filters.status) {
-      q = query(q, where('status', '==', filters.status));
-    }
-
-    if (lastVisible) {
-      q = query(q, startAfter(lastVisible), limit(pageSize));
-    } else {
-      q = query(q, limit(pageSize));
-    }
+    console.log('📝 Query created, executing...');
 
     const snapshot = await getDocs(q);
+    console.log('✅ Query executed, found documents:', snapshot.size);
+
     const posts: CustomerPost[] = [];
     
-    snapshot.forEach((doc) => {
+    for (const postDoc of snapshot.docs) { // Renamed to postDoc
+      const data = postDoc.data();
+      
+      // If the post shows "Anonymous Customer", try to fetch the actual user name
+      let customerName = data.customerName;
+      let customerEmail = data.customerEmail;
+      
+      if (customerName === 'Anonymous Customer' && data.customerId) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", data.customerId)); // Now doc function is available
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as {
+              name?: string;
+              displayName?: string;
+              email?: string;
+            };
+            customerName = userData.name || userData.displayName || customerName;
+            customerEmail = userData.email || customerEmail;
+          }
+        } catch (userError) {
+          console.log('Could not fetch user data for post:', postDoc.id, userError);
+        }
+      }
+      
       posts.push({
-        id: doc.id,
-        ...doc.data()
+        id: postDoc.id, // Updated to postDoc.id
+        customerId: data.customerId || '',
+        customerName: customerName,
+        customerEmail: customerEmail,
+        title: data.title || '',
+        description: data.description || '',
+        price: data.price,
+        category: data.category || 'General',
+        type: data.type || 'NEED',
+        imageUrl: data.imageUrl,
+        location: data.location || 'Unknown Location',
+        status: data.status || 'ACTIVE',
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        tags: data.tags || [],
+        contactInfo: data.contactInfo || { email: customerEmail, preferredContact: 'message' },
+        urgency: data.urgency || 'MEDIUM'
       } as CustomerPost);
-    });
+    }
 
-    const newLastVisible = snapshot.docs[snapshot.docs.length - 1] || null;
+    console.log('📦 Final posts array:', posts);
     
-    return { posts, lastVisible: newLastVisible };
+    return { posts, lastVisible: null };
   } catch (error) {
-    console.error('Error fetching posts:', error);
-    // Return empty array if no posts found
+    console.error('❌ Error fetching posts:', error);
     return { posts: [], lastVisible: null };
   }
 };
@@ -256,7 +268,7 @@ const AnimatedProductCard = ({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const [saved, setSaved] = useState(false);
-
+  
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -393,13 +405,16 @@ const AnimatedProductCard = ({
 // Customer Post Card Component
 const CustomerPostCard = ({ 
   item, 
-  index 
+  index,
+  onContactPress
 }: { 
   item: CustomerPost; 
-  index: number; 
+  index: number;
+  onContactPress: (post: CustomerPost) => void;
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     Animated.parallel([
@@ -427,6 +442,39 @@ const CustomerPostCard = ({
     return item.type === 'NEED' ? 'help-circle' : 'gift';
   };
 
+  const getTypeColor = () => {
+    return item.type === 'NEED' ? '#FF6B35' : '#405DE6';
+  };
+
+  const handleSave = () => {
+    setSaved(!saved);
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `${item.type === 'NEED' ? 'Looking for' : 'Offering'}: ${item.title} - ${item.description} | Price: ${item.price ? `₹${item.price}` : 'Negotiable'} | Location: ${item.location}`,
+        title: item.title,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
+  };
+
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return 'Recent';
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      return date.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (error) {
+      return 'Recent';
+    }
+  };
+
   return (
     <Animated.View 
       style={[
@@ -440,18 +488,36 @@ const CustomerPostCard = ({
     >
       <View style={styles.postHeader}>
         <View style={styles.postUserInfo}>
-          <View style={styles.postAvatar}>
-            <Ionicons name="person" size={20} color={colors.primary} />
+          <View style={[styles.postAvatar, { backgroundColor: getTypeColor() }]}>
+            <Ionicons name={getTypeIcon()} size={16} color="white" />
           </View>
           <View>
             <Text style={styles.postUsername}>{item.customerName}</Text>
-            <Text style={styles.postType}>
-              <Ionicons name={getTypeIcon()} size={12} /> {item.type}
+            <Text style={[styles.postType, { color: getTypeColor() }]}>
+              {item.type} • {item.category}
             </Text>
           </View>
         </View>
-        <View style={[styles.urgencyBadge, { backgroundColor: item.urgency === 'HIGH' ? '#FF6B6B' : item.urgency === 'MEDIUM' ? '#FFD93D' : '#6BCF7F' }]}>
-          <Text style={styles.urgencyText}>{item.urgency}</Text>
+        <View style={styles.postHeaderActions}>
+          <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+            <Ionicons 
+              name={saved ? "bookmark" : "bookmark-outline"} 
+              size={20} 
+              color={saved ? colors.primary : colors.textSecondary} 
+            />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleShare} style={styles.shareButton}>
+            <Ionicons name="share-outline" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.urgencyContainer}>
+        <View style={[styles.urgencyBadge, { 
+          backgroundColor: item.urgency === 'HIGH' ? '#FF6B6B' : 
+                          item.urgency === 'MEDIUM' ? '#FFD93D' : '#6BCF7F' 
+        }]}>
+          <Text style={styles.urgencyText}>{item.urgency} URGENCY</Text>
         </View>
       </View>
 
@@ -471,24 +537,44 @@ const CustomerPostCard = ({
           {item.price && (
             <Text style={styles.postPrice}>💰 ₹{item.price}</Text>
           )}
-          <Text style={styles.postCategory}>#{item.category}</Text>
+          <Text style={styles.postLocation}>📍 {item.location}</Text>
         </View>
         
+        {item.tags && item.tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {item.tags.slice(0, 3).map((tag, index) => (
+              <View key={index} style={styles.tag}>
+                <Text style={styles.tagText}>#{tag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        
         <View style={styles.postMeta}>
-          <Text style={styles.postLocation}>📍 {item.location}</Text>
           <Text style={styles.postDate}>
-            {item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString() : 'Recent'}
+            {formatDate(item.createdAt)}
+          </Text>
+          <Text style={styles.postStatus}>
+            • {item.status}
           </Text>
         </View>
       </View>
 
       <View style={styles.postActions}>
-        <TouchableOpacity style={styles.contactButton}>
-          <Ionicons name="chatbubble-ellipses" size={16} color={colors.primary} />
+        <TouchableOpacity 
+          style={styles.contactButton}
+          onPress={() => onContactPress(item)}
+        >
+          <Ionicons 
+            name="chatbubble-ellipses" 
+            size={18} 
+            color={colors.primary} 
+          />
           <Text style={styles.contactButtonText}>Contact</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.saveButton}>
-          <Ionicons name="bookmark-outline" size={16} color={colors.textSecondary} />
+        
+        <TouchableOpacity style={styles.moreButton}>
+          <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
     </Animated.View>
@@ -500,7 +586,7 @@ export default function CustomerHome() {
   const [customerPosts, setCustomerPosts] = useState<CustomerPost[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [shopkeeperData, setShopkeeperData] = useState<{[key: string]: ShopkeeperData}>({});
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState<"all" | "need" | "offer" | "customer-posts">("all");
   const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [createPostModalVisible, setCreatePostModalVisible] = useState(false);
   const router = useRouter();
@@ -521,25 +607,33 @@ export default function CustomerHome() {
   const [lastVisible, setLastVisible] = useState<any>(null);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [creatingPost, setCreatingPost] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch customer posts
-  const fetchCustomerPosts = async (filters: PostFilter = {}, reset: boolean = false) => {
+  const fetchCustomerPosts = async (filters: PostFilter = {}) => {
     try {
+      console.log('🚀 Starting to fetch customer posts...');
       setLoadingPosts(true);
-      const result = await getCustomerPosts(filters, reset ? null : lastVisible);
+      const result = await getCustomerPosts(filters);
       
-      if (reset) {
-        setCustomerPosts(result.posts);
-      } else {
-        setCustomerPosts(prev => [...prev, ...result.posts]);
-      }
+      console.log('📊 Fetch result:', result);
       
-      setLastVisible(result.lastVisible);
+      setCustomerPosts(result.posts);
+      setLastVisible(null); // No pagination
+      
+      console.log('✅ Posts set to state, count:', result.posts.length);
     } catch (error) {
-      console.error('Error fetching customer posts:', error);
+      console.error('❌ Error in fetchCustomerPosts:', error);
+      Alert.alert('Error', 'Failed to load posts');
     } finally {
       setLoadingPosts(false);
     }
+  };
+
+  // Refresh function for pull-to-refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchCustomerPosts(activeFilter);
+    setRefreshing(false);
   };
 
   // Enhanced create post function
@@ -557,10 +651,31 @@ export default function CustomerHome() {
     try {
       setCreatingPost(true);
       
+      // Fetch user data from Firestore users collection
+      let customerName = user.displayName || 'Anonymous Customer';
+      let customerEmail = user.email || '';
+      
+      try {
+  const userDocRef = doc(db, "users", user.uid); // Use explicit variable name
+  const userDoc = await getDoc(userDocRef);
+  if (userDoc.exists()) {
+    const userData = userDoc.data() as { 
+      name?: string; 
+      displayName?: string; 
+      email?: string;
+    };
+    // Use the name from users collection if available
+    customerName = userData.name || userData.displayName || user.displayName || 'Anonymous Customer';
+    customerEmail = userData.email || user.email || '';
+  }
+} catch (userError) {
+  console.log('Could not fetch user data, using auth data:', userError);
+}
+  
       const postData = {
         customerId: user.uid,
-        customerName: user.displayName || 'Anonymous Customer',
-        customerEmail: user.email || '',
+        customerName: customerName, // Use actual name instead of "Anonymous Customer"
+        customerEmail: customerEmail,
         title: newPost.title,
         description: newPost.description,
         price: newPost.price ? parseFloat(newPost.price) : undefined,
@@ -570,7 +685,7 @@ export default function CustomerHome() {
         urgency: newPost.urgency,
         status: 'ACTIVE' as PostStatus,
         contactInfo: {
-          email: user.email || '',
+          email: customerEmail,
           preferredContact: 'message' as const
         },
         tags: newPost.category ? [newPost.category.toLowerCase()] : ['general'],
@@ -578,14 +693,13 @@ export default function CustomerHome() {
   
       const postId = await createCustomerPost(postData);
   
-      // Upload image if it exists, but don't fail the entire post if image upload fails
+      // Upload image if it exists
       if (newPost.image) {
         try {
           const imageUrl = await uploadPostImage(newPost.image, postId);
           await updateCustomerPost(postId, { imageUrl });
         } catch (imageError) {
           console.warn('Image upload failed, but post was created:', imageError);
-          // Continue without the image - the post is already created
         }
       }
   
@@ -603,7 +717,8 @@ export default function CustomerHome() {
         urgency: "MEDIUM",
       });
       
-      fetchCustomerPosts(activeFilter, true);
+      // Refresh posts
+      fetchCustomerPosts(activeFilter);
       
     } catch (error) {
       console.error('Error creating post:', error);
@@ -630,6 +745,28 @@ export default function CustomerHome() {
     if (!result.canceled) {
       setNewPost({...newPost, image: result.assets[0].uri});
     }
+  };
+
+  const handleContactPost = (post: CustomerPost) => {
+    if (!user) {
+      Alert.alert('Error', 'Please log in to contact the poster');
+      return;
+    }
+
+    Alert.alert(
+      'Contact Poster',
+      `Would you like to contact ${post.customerName} about their ${post.type.toLowerCase()}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Message', 
+          onPress: () => {
+            // Navigate to chat or show contact options
+            Alert.alert('Contact', `Email: ${post.contactInfo.email}\nPreferred contact: ${post.contactInfo.preferredContact}`);
+          }
+        }
+      ]
+    );
   };
 
   const handleMessageButton = async (product: Product) => {
@@ -701,6 +838,8 @@ export default function CustomerHome() {
   useEffect(() => {
     if (activeTab === "all") {
       setFilteredProducts(products);
+    } else if (activeTab === "customer-posts") {
+      // Customer posts are handled separately
     } else {
       setFilteredProducts(products.filter(product => product.type === activeTab.toUpperCase()));
     }
@@ -709,7 +848,7 @@ export default function CustomerHome() {
   const applyFilter = (filter: PostFilter) => {
     const newFilter = { ...activeFilter, ...filter };
     setActiveFilter(newFilter);
-    fetchCustomerPosts(newFilter, true);
+    fetchCustomerPosts(newFilter);
   };
 
   const FilterBar = () => (
@@ -731,6 +870,12 @@ export default function CustomerHome() {
         onPress={() => applyFilter({ type: 'OFFER' })}
       >
         <Text style={styles.filterButtonText}>Offers</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={[styles.filterButton, activeFilter.urgency === 'HIGH' && styles.activeFilterButton]}
+        onPress={() => applyFilter({ urgency: 'HIGH' })}
+      >
+        <Text style={styles.filterButtonText}>Urgent</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -760,27 +905,69 @@ export default function CustomerHome() {
   );
 
   const renderContent = () => {
-    if (activeTab === 'customer-posts') {
+    console.log('🎯 Active Tab:', activeTab);
+    console.log('📋 Customer Posts Count:', customerPosts.length);
+    console.log('📦 Filtered Products Count:', filteredProducts.length);
+  
+    if (activeTab === "need") {
+      // Show customer posts in needs section
+      console.log('🔄 Rendering customer posts in needs section');
       return (
         <FlatList
           data={customerPosts}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 25 }}
-          renderItem={({ item, index }) => (
-            <CustomerPostCard item={item} index={index} />
-          )}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+            />
+          }
+          renderItem={({ item, index }) => {
+            console.log('🎨 Rendering post:', item.id, item.title);
+            return (
+              <CustomerPostCard 
+                item={item} 
+                index={index} 
+                onContactPress={handleContactPost}
+              />
+            );
+          }}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="document-text-outline" size={64} color={colors.textSecondary} />
-              <Text style={styles.emptyStateText}>No posts yet</Text>
-              <Text style={styles.emptyStateSubtext}>Be the first to create a post!</Text>
+              <Text style={styles.emptyStateText}>No needs posted yet</Text>
+              <Text style={styles.emptyStateSubtext}>Be the first to post what you need!</Text>
+              <TouchableOpacity 
+                style={styles.createFirstPostButton}
+                onPress={() => setCreatePostModalVisible(true)}
+              >
+                <Text style={styles.createFirstPostText}>Post Your Need</Text>
+              </TouchableOpacity>
             </View>
           }
+          ListFooterComponent={
+            loadingPosts ? (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.loadingText}>Loading more posts...</Text>
+              </View>
+            ) : null
+          }
+          onEndReached={() => {
+            if (lastVisible && !loadingPosts) {
+              fetchCustomerPosts(activeFilter);
+            }
+          }}
+          onEndReachedThreshold={0.5}
         />
       );
     }
-
+  
+    // For other tabs, show products as before
+    console.log('🔄 Rendering products for tab:', activeTab);
     return (
       <FlatList
         data={filteredProducts}
@@ -918,6 +1105,21 @@ export default function CustomerHome() {
                 onChangeText={(text) => setNewPost({...newPost, location: text})}
               />
               
+              <View style={styles.urgencySelector}>
+                <Text style={styles.urgencyLabel}>Urgency:</Text>
+                {(['LOW', 'MEDIUM', 'HIGH'] as UrgencyLevel[]).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[styles.urgencyOption, newPost.urgency === level && styles.activeUrgencyOption]}
+                    onPress={() => setNewPost({...newPost, urgency: level})}
+                  >
+                    <Text style={[styles.urgencyOptionText, newPost.urgency === level && styles.activeUrgencyOptionText]}>
+                      {level}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
               <View style={styles.modalButtons}>
                 <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setCreatePostModalVisible(false)}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -941,6 +1143,7 @@ export default function CustomerHome() {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -948,85 +1151,27 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 20,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: 'bold',
     color: colors.textPrimary,
   },
   createButton: {
-    padding: 6,
-  },
-  sidePanel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: width * 0.75,
-    height: '100%',
-    backgroundColor: colors.surface,
-    zIndex: 100,
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 2,
-      height: 0,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sidePanelClose: {
-    alignSelf: 'flex-end',
-    marginBottom: 30,
-  },
-  sidePanelHeader: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 20,
-    marginBottom: 25,
-  },
-  sidePanelTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  menuItemText: {
-    fontSize: 16,
-    marginLeft: 15,
-    color: colors.textPrimary,
+    padding: 4,
   },
   tabContainer: {
     flexDirection: 'row',
-    marginHorizontal: 16,
-    marginVertical: 16,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   tab: {
     flex: 1,
@@ -1034,190 +1179,219 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activeTab: {
-    backgroundColor: colors.primary,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.primary,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '500',
     color: colors.textSecondary,
+    fontWeight: '500',
   },
   activeTabText: {
-    color: 'white',
+    color: colors.primary,
+    fontWeight: 'bold',
   },
-  instagramCard: {
+  filterBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    marginHorizontal: 12,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  cardHeader: {
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    marginRight: 8,
+  },
+  activeFilterButton: {
+    backgroundColor: colors.primary,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  // Post Card Styles
+  postCard: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 12,
+    marginVertical: 6,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  postHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
-  userInfo: {
+  postUserInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
+  postAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
-  username: {
-    fontWeight: '600',
-    color: colors.textPrimary,
+  postUsername: {
     fontSize: 14,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
   },
-  userLocation: {
+  postType: {
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: 2,
   },
-  productImage: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  cardFooter: {
-    padding: 16,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  orderButton: {
+  postHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.success,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flex: 2,
-    marginRight: 10,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
   },
-  orderButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    marginLeft: 6,
-    fontSize: 14,
-  },
-  messageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flex: 2,
-    marginRight: 10,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  messageButtonText: {
-    color: colors.textPrimary,
-    fontWeight: '600',
-    marginLeft: 6,
-    fontSize: 14,
+  saveButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   shareButton: {
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    padding: 4,
+    marginLeft: 4,
   },
-  productDetails: {
+  urgencyContainer: {
     marginBottom: 12,
   },
-  productName: {
-    fontWeight: '700',
+  urgencyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  urgencyText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  postContent: {
+    marginBottom: 12,
+  },
+  postTitle: {
     fontSize: 16,
+    fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 6,
   },
-  productDescription: {
-    color: colors.textPrimary,
-    marginBottom: 10,
-    lineHeight: 20,
+  postDescription: {
     fontSize: 14,
+    color: colors.textPrimary,
+    lineHeight: 20,
+    marginBottom: 8,
   },
-  priceStockContainer: {
+  postDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  productPrice: {
-    color: colors.textPrimary,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  productStock: {
-    color: colors.textPrimary,
+  postPrice: {
     fontSize: 14,
+    fontWeight: 'bold',
+    color: colors.success,
   },
-  productCategory: {
-    color: colors.primary,
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  timestamp: {
+  postLocation: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginTop: 4,
   },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+  },
+  tag: {
+    backgroundColor: colors.background,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  tagText: {
+    fontSize: 10,
+    color: colors.textSecondary,
+  },
+  postMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  postDate: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  postStatus: {
+    fontSize: 11,
+    color: colors.success,
+    fontWeight: '500',
+  },
+  postActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 12,
+  },
+  contactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: colors.background,
+    borderRadius: 20,
+    flex: 1,
+    marginRight: 8,
+    justifyContent: 'center',
+  },
+  contactButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.primary,
+    marginLeft: 6,
+  },
+  moreButton: {
+    padding: 8,
+  },
+  // Modal Styles
   modalContainer: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalScrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingVertical: 20,
   },
   modalContent: {
-    width: width * 0.9,
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
     borderRadius: 16,
     padding: 20,
-    alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1226,70 +1400,77 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: 'bold',
     color: colors.textPrimary,
-  },
-  modalCloseButton: {
-    padding: 4,
   },
   postTypeSelector: {
     flexDirection: 'row',
-    marginBottom: 20,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    overflow: 'hidden',
+    marginBottom: 16,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    padding: 4,
   },
   typeButton: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
+    borderRadius: 8,
   },
   activeTypeButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   typeButtonText: {
     fontSize: 14,
     fontWeight: '500',
+    color: colors.textSecondary,
   },
   activeTypeButtonText: {
-    color: 'white',
+    color: colors.primary,
+    fontWeight: 'bold',
   },
   imageUploadSection: {
-    height: 200,
+    height: 120,
+    backgroundColor: colors.background,
     borderRadius: 12,
+    marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     borderStyle: 'dashed',
-    marginBottom: 20,
-    overflow: 'hidden',
   },
   selectedImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    borderRadius: 12,
   },
   imagePlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9f9f9',
   },
   imagePlaceholderText: {
-    marginTop: 10,
+    fontSize: 14,
     color: colors.textSecondary,
+    marginTop: 8,
   },
   formInput: {
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.textPrimary,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 15,
-    fontSize: 16,
-    backgroundColor: '#f9f9f9',
   },
   textArea: {
-    minHeight: 100,
+    height: 80,
     textAlignVertical: 'top',
   },
   rowInputs: {
@@ -1299,200 +1480,65 @@ const styles = StyleSheet.create({
   halfInput: {
     width: '48%',
   },
+  urgencySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  urgencyLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textPrimary,
+    marginRight: 12,
+  },
+  urgencyOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    marginRight: 8,
+  },
+  activeUrgencyOption: {
+    backgroundColor: colors.primary,
+  },
+  urgencyOptionText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activeUrgencyOptionText: {
+    color: colors.surface,
+  },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
   },
   modalButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
-    marginHorizontal: 5,
+    marginHorizontal: 6,
   },
   cancelButton: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.background,
   },
   submitButton: {
     backgroundColor: colors.primary,
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
   cancelButtonText: {
-    color: colors.textPrimary,
-    fontWeight: '600',
-  },
-  submitButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  postCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    marginHorizontal: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  postHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    paddingBottom: 12,
-  },
-  postUserInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  postAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  postUsername: {
-    fontWeight: '600',
-    color: colors.textPrimary,
-    fontSize: 14,
-  },
-  postType: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  urgencyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  urgencyText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  postImage: {
-    width: '100%',
-    height: 200,
-  },
-  postContent: {
-    padding: 16,
-    paddingTop: 12,
-  },
-  postTitle: {
-    fontWeight: '700',
     fontSize: 16,
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  postDescription: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  postDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  postPrice: {
-    color: colors.textPrimary,
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  postCategory: {
-    color: colors.primary,
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  postMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  postLocation: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  postDate: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  postActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    paddingTop: 0,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  contactButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flex: 1,
-    marginRight: 10,
-    justifyContent: 'center',
-  },
-  contactButtonText: {
-    color: colors.primary,
-    fontWeight: '600',
-    marginLeft: 6,
-    fontSize: 14,
-  },
-  saveButton: {
-    padding: 8,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
-  },
-  
-  // Filter Bar Styles
-  filterBar: {
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  filterButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  activeFilterButton: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  filterButtonText: {
-    fontSize: 14,
     fontWeight: '500',
     color: colors.textSecondary,
   },
-  activeFilterButtonText: {
-    color: 'white',
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.surface,
   },
-  
   // Empty State Styles
   emptyState: {
     alignItems: 'center',
@@ -1502,21 +1548,200 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: colors.textPrimary,
     marginTop: 16,
-    textAlign: 'center',
+    marginBottom: 8,
   },
   emptyStateSubtext: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 8,
     textAlign: 'center',
+    marginBottom: 24,
   },
-  
-  // Modal Styles
-  disabledButton: {
-    opacity: 0.6,
+  createFirstPostButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
   },
-  
+  createFirstPostText: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  loadingMore: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+  },
+  // Side Panel Styles (keep your existing styles)
+  sidePanel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: width * 0.75,
+    backgroundColor: colors.surface,
+    zIndex: 1000,
+    paddingTop: 60,
+    paddingHorizontal: 20,
+  },
+  sidePanelClose: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+  },
+  sidePanelHeader: {
+    marginBottom: 30,
+  },
+  sidePanelTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: colors.textPrimary,
+    marginLeft: 12,
+  },
+  // Instagram Card Styles (keep your existing styles)
+  instagramCard: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 12,
+    marginVertical: 6,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  username: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  userLocation: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  productImage: {
+    width: '100%',
+    height: 300,
+  },
+  cardFooter: {
+    padding: 12,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  orderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flex: 2,
+    marginRight: 8,
+    justifyContent: 'center',
+  },
+  orderButtonText: {
+    color: colors.surface,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  messageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flex: 2,
+    marginRight: 8,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  messageButtonText: {
+    color: colors.primary,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  // shareButton: {
+  //   padding: 8,
+  //   backgroundColor: colors.background,
+  //   borderRadius: 20,
+  //   borderWidth: 1,
+  //   borderColor: colors.border,
+  // },
+  productDetails: {
+    marginBottom: 8,
+  },
+  productName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  productDescription: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  priceStockContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  productPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.success,
+  },
+  productStock: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  productCategory: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  timestamp: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
 });

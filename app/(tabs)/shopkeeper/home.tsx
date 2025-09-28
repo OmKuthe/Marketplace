@@ -72,12 +72,8 @@ export default function ShopkeeperHome() {
         
         setPosts(data);
         setFilteredPosts(data);
-
-        // Fetch shopkeeper data for each product
         const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
         const shopkeeperIds = new Set<string>();
-        
-        // Collect all unique shopkeeper IDs from products
         for (const product of data) {
           // Try different possible field names for shopkeeper ID
           const shopkeeperId = product.shopkeeperId || product.shopId || product.shopkeeper;
