@@ -15,9 +15,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { auth, db } from "../../../firebaseConfig";
+import { db } from "../../../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { useAuth } from "../../../hooks/useAuth"; // Import your useAuth hook
 
 const { width } = Dimensions.get('window');
 
@@ -40,33 +40,42 @@ export default function ShopkeeperProfileScreen() {
   const [orderAlertsEnabled, setOrderAlertsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const router = useRouter();
+  
+  // Use your useAuth hook
+  const { user: authUser, role, logout } = useAuth();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!currentUser) {
-        router.replace("/"); // if logged out, go to login
-        return;
-      }
-  
-      try {
-        const docRef = doc(db, "shopkeepers", currentUser.uid);
-        const snap = await getDoc(docRef);
+    // If user is not authenticated, redirect to login
+    if (!authUser && !isLoading) {
+      router.replace("/");
+      return;
+    }
 
-        if (snap.exists()) {
-          setUser(snap.data() as ShopkeeperData);
-        } else {
-          console.log("No shopkeeper profile found");
-        }
-      } catch (error) {
-        console.error("Error fetching shopkeeper:", error);
-        Alert.alert("Error", "Failed to fetch profile.");
-      } finally {
-        setIsLoading(false);
+    // If user is authenticated, fetch their profile data
+    if (authUser) {
+      fetchShopkeeperProfile();
+    }
+  }, [authUser, isLoading]);
+
+  const fetchShopkeeperProfile = async () => {
+    if (!authUser) return;
+
+    try {
+      const docRef = doc(db, "shopkeepers", authUser.uid);
+      const snap = await getDoc(docRef);
+
+      if (snap.exists()) {
+        setUser(snap.data() as ShopkeeperData);
+      } else {
+        console.log("No shopkeeper profile found");
       }
-    });
-  
-    return () => unsubscribe();
-  }, []);
+    } catch (error) {
+      console.error("Error fetching shopkeeper:", error);
+      Alert.alert("Error", "Failed to fetch profile.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -81,8 +90,17 @@ export default function ShopkeeperProfileScreen() {
           text: "Logout",
           style: "destructive",
           onPress: async () => {
-            await AsyncStorage.clear();
-            router.replace("/");
+            try {
+              // Use the logout function from useAuth hook
+              await logout();
+              // Clear any stored data
+              await AsyncStorage.clear();
+              // The auth state change will handle navigation automatically
+              console.log("Logout successful");
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Logout Failed", "There was an error logging out");
+            }
           }
         }
       ]
@@ -180,6 +198,7 @@ export default function ShopkeeperProfileScreen() {
     </View>
   );
 
+  // Show loading state while useAuth is loading
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -198,6 +217,12 @@ export default function ShopkeeperProfileScreen() {
     );
   }
 
+  // If no auth user, show nothing (will redirect)
+  if (!authUser) {
+    return null;
+  }
+
+  // If auth user exists but no shopkeeper profile data
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -210,6 +235,12 @@ export default function ShopkeeperProfileScreen() {
         </View>
         <View style={styles.centered}>
           <Text>No shopkeeper profile found</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={fetchShopkeeperProfile}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -301,8 +332,8 @@ export default function ShopkeeperProfileScreen() {
 
           <TouchableOpacity style={styles.menuItemCard} onPress={handleEditProfile}>
             <View style={styles.menuItemLeft}>
-            <Ionicons name="create-outline" size={22} color="#007AFF" />
-            <Text style={styles.menuItemText}>Edit Profile</Text>
+              <Ionicons name="create-outline" size={22} color="#007AFF" />
+              <Text style={styles.menuItemText}>Edit Profile</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
@@ -478,6 +509,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '500',
+  },
   profileHeader: {
     backgroundColor: '#fff',
     padding: 24,
@@ -563,7 +605,7 @@ const styles = StyleSheet.create({
   menuItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between', // Fixed the typo here
+    justifyContent: 'space-between',
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
@@ -603,4 +645,3 @@ const styles = StyleSheet.create({
     color: '#999',
   },
 } as const);
-

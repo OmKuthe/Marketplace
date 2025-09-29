@@ -1,7 +1,7 @@
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { auth, db } from "../firebaseConfig"; // adjust import path to your firebase config
+import { auth, db } from "../firebaseConfig";
 
 type Role = "customer" | "shopkeeper" | null;
 
@@ -33,5 +33,15 @@ export function useAuth() {
     return () => unsubscribe();
   }, []);
 
-  return { user, role, loading };
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      // The state will automatically update via onAuthStateChanged
+    } catch (error) {
+      console.error("Logout error:", error);
+      throw error;
+    }
+  };
+
+  return { user, role, loading, logout };
 }

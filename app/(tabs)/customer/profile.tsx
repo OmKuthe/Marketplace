@@ -17,7 +17,7 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth, db } from "../../../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { useAuth } from "../../../hooks/useAuth"; // Import your useAuth hook
 
 const { width } = Dimensions.get('window');
 
@@ -38,33 +38,42 @@ export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const router = useRouter();
+  
+  // Use your useAuth hook
+  const { user: authUser, role, logout } = useAuth();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!currentUser) {
-        router.replace("/"); // if logged out, go to login
-        return;
-      }
-  
-      try {
-        const docRef = doc(db, "customers", currentUser.uid);
-        const snap = await getDoc(docRef);
+    // If user is not authenticated, redirect to login
+    if (!authUser && !isLoading) {
+      router.replace("/");
+      return;
+    }
 
-        if (snap.exists()) {
-          setUser(snap.data() as CustomerProfile);
-        } else {
-          console.log("No customer profile found");
-        }
-      } catch (error) {
-        console.error("Error fetching customer:", error);
-        Alert.alert("Error", "Failed to fetch profile.");
-      } finally {
-        setIsLoading(false);
+    // If user is authenticated, fetch their profile data
+    if (authUser) {
+      fetchCustomerProfile();
+    }
+  }, [authUser, isLoading]);
+
+  const fetchCustomerProfile = async () => {
+    if (!authUser) return;
+
+    try {
+      const docRef = doc(db, "customers", authUser.uid);
+      const snap = await getDoc(docRef);
+
+      if (snap.exists()) {
+        setUser(snap.data() as CustomerProfile);
+      } else {
+        console.log("No customer profile found");
       }
-    });
-  
-    return () => unsubscribe();
-  }, []);
+    } catch (error) {
+      console.error("Error fetching customer:", error);
+      Alert.alert("Error", "Failed to fetch profile.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -79,10 +88,17 @@ export default function ProfileScreen() {
           text: "Logout",
           style: "destructive",
           onPress: async () => {
-            // Clear any stored data
-            await AsyncStorage.clear();
-            // Navigate to login screen
-            router.replace("/");
+            try {
+              // Use the logout function from useAuth hook
+              await logout();
+              // Clear any stored data
+              await AsyncStorage.clear();
+              // The auth state change will handle navigation automatically
+              console.log("Logout successful");
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Logout Failed", "There was an error logging out");
+            }
           }
         }
       ]
@@ -90,19 +106,19 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    router.push("/profile/edit-profile" as any);
+    router.push("/customer/edit-profile" as any);
   };
 
   const handleOrderHistory = () => {
-    router.push("/profile/orders" as any);
+    router.push("/customer/myorders" as any);
   };
 
   const handlePaymentMethods = () => {
-    router.push("/profile/payment" as any);
+    router.push("/customer/payment" as any);
   };
 
   const handleSupport = () => {
-    router.push("/profile/support" as any);
+    router.push("/customer/support" as any);
   };
 
   const SidePanel = () => (
@@ -172,6 +188,7 @@ export default function ProfileScreen() {
     </View>
   );
 
+  // Show loading state while useAuth is loading
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -190,6 +207,12 @@ export default function ProfileScreen() {
     );
   }
 
+  // If no auth user, show nothing (will redirect)
+  if (!authUser) {
+    return null;
+  }
+
+  // If auth user exists but no customer profile data
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -202,6 +225,12 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.centered}>
           <Text>No customer profile found</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={fetchCustomerProfile}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -251,7 +280,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Stats Section - Using placeholder data since not in Firebase */}
+        {/* Stats Section */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>0</Text>
@@ -452,6 +481,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '500',
   },
   profileHeader: {
     backgroundColor: '#fff',
