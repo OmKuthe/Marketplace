@@ -1,3 +1,4 @@
+
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
@@ -23,12 +24,14 @@ type Product = {
   id: string;
   name: string;
   description: string;
-  image?: string;
-  category?: string;
-  price?: number;
+  price: number;
+  stock: number;
+  category: string;
+  type: string;
+  imageUrl?: string;
   createdAt?: any;
+  shopkeeperId?: string;
   shopId?: string;
-  shopName?: string;
 };
 
 type Shop = {
@@ -124,11 +127,15 @@ export default function ShopScreen() {
 
   const renderProductItem = ({ item }: { item: Product }) => (
     <TouchableOpacity style={styles.productCard}>
-      {item.image ? (
-        <Image source={{ uri: item.image }} style={styles.productImage} />
+      {item.imageUrl ? (
+        <Image 
+          source={{ uri: item.imageUrl }} 
+          style={styles.productImage}
+          resizeMode="cover"
+        />
       ) : (
         <View style={styles.productImagePlaceholder}>
-          <Ionicons name="cube" size={32} color="#007AFF" />
+          <Ionicons name="cube" size={32} color="rgba(23, 104, 217, 1)" />
         </View>
       )}
       <View style={styles.productInfo}>
@@ -136,12 +143,29 @@ export default function ShopScreen() {
         <Text style={styles.productDescription} numberOfLines={2}>
           {item.description}
         </Text>
-        {item.category && (
-          <Text style={styles.productCategory}>Category: {item.category}</Text>
-        )}
-        {item.price && item.price > 0 && (
-          <Text style={styles.productPrice}>${item.price}</Text>
-        )}
+        
+        <View style={styles.productMetaContainer}>
+          {item.category && (
+            <Text style={styles.productCategory}>{item.category}</Text>
+          )}
+          {item.type && (
+            <Text style={styles.productType}>{item.type}</Text>
+          )}
+        </View>
+        
+        <View style={styles.productFooter}>
+          {item.price && item.price > 0 && (
+            <Text style={styles.productPrice}>${item.price}</Text>
+          )}
+          {item.stock !== undefined && (
+            <Text style={[
+              styles.productStock,
+              item.stock === 0 && styles.outOfStock
+            ]}>
+              {item.stock === 0 ? 'Out of Stock' : `${item.stock} in stock`}
+            </Text>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -152,19 +176,19 @@ export default function ShopScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Shop Information</Text>
         <View style={styles.infoRow}>
-          <Ionicons name="person" size={20} color="#007AFF" />
+          <Ionicons name="person" size={20} color="rgba(23, 104, 217, 1)" />
           <Text style={styles.infoText}>Owner: {shop.ownerName}</Text>
         </View>
         <View style={styles.infoRow}>
-          <Ionicons name="call" size={20} color="#007AFF" />
+          <Ionicons name="call" size={20} color="rgba(23, 104, 217, 1)" />
           <Text style={styles.infoText}>Phone: {shop.phone}</Text>
         </View>
         <View style={styles.infoRow}>
-          <Ionicons name="mail" size={20} color="#007AFF" />
+          <Ionicons name="mail" size={20} color="rgba(23, 104, 217, 1)" />
           <Text style={styles.infoText}>Email: {shop.email}</Text>
         </View>
         <View style={styles.infoRow}>
-          <Ionicons name="location" size={20} color="#007AFF" />
+          <Ionicons name="location" size={20} color="rgba(23, 104, 217, 1)" />
           <Text style={styles.infoText}>Address: {shop.location}</Text>
         </View>
       </View>
@@ -225,7 +249,7 @@ export default function ShopScreen() {
     <View style={styles.tabContent}>
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="rgba(23, 104, 217, 1)" />
           <Text style={styles.loadingText}>Loading products...</Text>
         </View>
       ) : products.length > 0 ? (
@@ -238,7 +262,7 @@ export default function ShopScreen() {
         />
       ) : (
         <View style={styles.noProductsContainer}>
-          <Ionicons name="cube-outline" size={60} color="#ccc" />
+          <Ionicons name="cube-outline" size={60} color="rgba(144, 186, 242, 1)" />
           <Text style={styles.noProductsText}>No products available</Text>
           <Text style={styles.noProductsSubText}>
             This shop hasn't added any products yet.
@@ -253,7 +277,7 @@ export default function ShopScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color="rgba(4, 18, 36, 1)" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {shop.shopName}
@@ -267,7 +291,7 @@ export default function ShopScreen() {
           <Image source={{ uri: shop.shopLogo }} style={styles.shopLogo} />
         ) : (
           <View style={styles.shopLogoPlaceholder}>
-            <Ionicons name="storefront" size={40} color="#007AFF" />
+            <Ionicons name="storefront" size={40} color="rgba(23, 104, 217, 1)" />
           </View>
         )}
         <View style={styles.shopHeaderInfo}>
@@ -318,7 +342,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: 'rgba(144, 186, 242, 0.3)',
   },
   backButton: {
     padding: 4,
@@ -326,7 +350,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: 'rgba(4, 18, 36, 1)',
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 8,
@@ -338,9 +362,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(208, 226, 250, 0.3)',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: 'rgba(144, 186, 242, 0.3)',
   },
   shopLogo: {
     width: 80,
@@ -352,12 +376,12 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 12,
-    backgroundColor: '#e9ecef',
+    backgroundColor: 'rgba(208, 226, 250, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
     borderWidth: 2,
-    borderColor: '#dee2e6',
+    borderColor: 'rgba(144, 186, 242, 0.3)',
   },
   shopHeaderInfo: {
     flex: 1,
@@ -365,12 +389,12 @@ const styles = StyleSheet.create({
   shopName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#333',
+    color: 'rgba(4, 18, 36, 1)',
     marginBottom: 4,
   },
   ownerName: {
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(4, 18, 36, 0.7)',
     marginBottom: 6,
   },
   ratingContainer: {
@@ -379,13 +403,13 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 14,
-    color: '#666',
+    color: 'rgba(4, 18, 36, 0.6)',
     marginLeft: 4,
   },
   tabContainer: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: 'rgba(144, 186, 242, 0.3)',
   },
   tab: {
     flex: 1,
@@ -394,15 +418,15 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomWidth: 3,
-    borderBottomColor: '#007AFF',
+    borderBottomColor: 'rgba(23, 104, 217, 1)',
   },
   tabText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: 'rgba(4, 18, 36, 0.6)',
   },
   activeTabText: {
-    color: '#007AFF',
+    color: 'rgba(23, 104, 217, 1)',
   },
   tabContent: {
     flex: 1,
@@ -410,12 +434,12 @@ const styles = StyleSheet.create({
   section: {
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: 'rgba(144, 186, 242, 0.2)',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#333',
+    color: 'rgba(4, 18, 36, 1)',
     marginBottom: 16,
   },
   infoRow: {
@@ -425,7 +449,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 16,
-    color: '#333',
+    color: 'rgba(4, 18, 36, 0.8)',
     marginLeft: 12,
   },
   actionButtonsContainer: {
@@ -443,10 +467,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   callButton: {
-    backgroundColor: '#28a745',
+    backgroundColor: 'rgba(23, 104, 217, 1)',
   },
   emailButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: 'rgba(144, 186, 242, 1)',
   },
   actionButtonText: {
     color: '#fff',
@@ -463,7 +487,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   mapMarker: {
-    backgroundColor: '#007AFF',
+    backgroundColor: 'rgba(23, 104, 217, 1)',
     padding: 8,
     borderRadius: 20,
     borderWidth: 3,
@@ -476,32 +500,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#fff',
     marginBottom: 12,
-    padding: 12,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: 'rgba(4, 18, 36, 0.15)',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 12,
+    elevation: 5,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: 'rgba(144, 186, 242, 0.2)',
   },
   productImage: {
     width: 80,
     height: 80,
-    borderRadius: 8,
-    marginRight: 12,
+    borderRadius: 12,
+    marginRight: 16,
   },
   productImagePlaceholder: {
     width: 80,
     height: 80,
-    borderRadius: 8,
-    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    backgroundColor: 'rgba(208, 226, 250, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    marginRight: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(144, 186, 242, 0.3)',
   },
   productInfo: {
     flex: 1,
@@ -510,26 +534,56 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#333',
-    marginBottom: 4,
+    color: 'rgba(4, 18, 36, 1)',
+    marginBottom: 6,
   },
   productDescription: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+    color: 'rgba(4, 18, 36, 0.7)',
+    marginBottom: 8,
     lineHeight: 18,
+  },
+  productMetaContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
   },
   productCategory: {
     fontSize: 12,
-    color: '#888',
-    marginBottom: 4,
+    color: 'rgba(23, 104, 217, 1)',
+    fontWeight: '600',
+    backgroundColor: 'rgba(144, 186, 242, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  productType: {
+    fontSize: 12,
+    color: 'rgba(144, 186, 242, 1)',
     fontWeight: '500',
+    backgroundColor: 'rgba(208, 226, 250, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  productFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   productPrice: {
     fontSize: 16,
-    color: '#007AFF',
+    color: 'rgba(23, 104, 217, 1)',
+    fontWeight: '700',
+  },
+  productStock: {
+    fontSize: 12,
+    color: 'rgba(23, 104, 217, 1)',
     fontWeight: '600',
-    marginTop: 4,
+  },
+  outOfStock: {
+    color: '#ff6b6b',
   },
   loadingContainer: {
     flex: 1,
@@ -540,7 +594,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(4, 18, 36, 0.6)',
   },
   noProductsContainer: {
     flex: 1,
@@ -551,13 +605,13 @@ const styles = StyleSheet.create({
   noProductsText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: 'rgba(4, 18, 36, 0.8)',
     marginTop: 16,
     textAlign: 'center',
   },
   noProductsSubText: {
     fontSize: 14,
-    color: '#999',
+    color: 'rgba(144, 186, 242, 1)',
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 20,
