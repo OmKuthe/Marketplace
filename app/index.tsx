@@ -45,7 +45,7 @@ export default function LoginScreen() {
           }
         }
       } else {
-        // User document doesn't exist (shouldn't happen for existing users)
+        // User document doesn't exist
         Alert.alert("Error", "User data not found. Please contact support.");
       }
     } catch (err: any) {

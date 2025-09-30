@@ -5,6 +5,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -13,7 +14,7 @@ import {
   updateDoc,
   where
 } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   FlatList,
   Image,
@@ -24,7 +25,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Keyboard
 } from 'react-native';
 import { db } from '../../../firebaseConfig';
 import { useAuth } from '../../../hooks/useAuth';
@@ -37,11 +39,15 @@ interface Message {
   read?: boolean;
 }
 
-interface User {
-  id: string;
-  name: string;
-  avatar?: string;
-  role: 'customer' | 'shopkeeper';
+interface CustomerData {
+  fullName: string;
+  email?: string;
+}
+
+interface ShopkeeperData {
+  businessName?: string;
+  ownerName?: string;
+  email?: string;
 }
 
 export default function ChatScreen() {
@@ -52,30 +58,83 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [otherUser, setOtherUser] = useState<User | null>(null);
+  const [otherUserName, setOtherUserName] = useState<string>('Loading...');
+  const [otherUserRole, setOtherUserRole] = useState<'customer' | 'shopkeeper' | null>(null);
   const [conversationData, setConversationData] = useState<any>(null);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
 
-  // Fetch conversation details and other user info
+  const flatListRef = useRef<FlatList>(null);
+  const textInputRef = useRef<TextInput>(null);
+
+  // Get avatar image based on user role
+  const getAvatarImage = () => {
+    if (otherUserRole === 'shopkeeper') {
+      return require('../../../assets/images/shopkeeper.png');
+    } else{
+      return require('../../../assets/images/customer.png');
+    }
+  };
+
+  // Identify and fetch other user's data
+  const fetchOtherUserData = async (otherUserId: string) => {
+    try {
+      // Try to fetch from customers collection first
+      const customerDoc = await getDoc(doc(db, 'customers', otherUserId));
+      if (customerDoc.exists()) {
+        const customerData = customerDoc.data() as CustomerData;
+        setOtherUserName(customerData.fullName || 'Customer');
+        setOtherUserRole('customer');
+        return;
+      }
+
+      // If not found in customers, try shopkeepers collection
+      const shopkeeperDoc = await getDoc(doc(db, 'shopkeepers', otherUserId));
+      if (shopkeeperDoc.exists()) {
+        const shopkeeperData = shopkeeperDoc.data() as ShopkeeperData;
+        setOtherUserName(shopkeeperData.businessName || shopkeeperData.ownerName || 'Shopkeeper');
+        setOtherUserRole('shopkeeper');
+        return;
+      }
+
+      // If not found in either, use default
+      setOtherUserName('User');
+      setOtherUserRole(null);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setOtherUserName('User');
+      setOtherUserRole(null);
+    }
+  };
+
+  // Fetch conversation details and identify the other user
   useEffect(() => {
     if (!conversationId || !user) return;
 
     const fetchConversationDetails = async () => {
       try {
-        const conversationRef = doc(db, 'conversations', conversationId as string);
-        const conversationDoc = await getDocs(query(collection(db, 'conversations'), where('__name__', '==', conversationId)));
+        const conversationDoc = await getDocs(
+          query(collection(db, 'conversations'), where('__name__', '==', conversationId))
+        );
         
         if (!conversationDoc.empty) {
           const data = conversationDoc.docs[0].data();
           setConversationData(data);
           
           // Find the other participant (not the current user)
-          const otherParticipant = data.participants.find((p: User) => p.id !== user.uid);
-          if (otherParticipant) {
-            setOtherUser(otherParticipant);
+          const participants = data.participants || [];
+          const otherParticipantId = participants.find((id: string) => id !== user.uid);
+          
+          if (otherParticipantId) {
+            await fetchOtherUserData(otherParticipantId);
+          } else {
+            setOtherUserName('User');
           }
         }
       } catch (error) {
         console.error('Error fetching conversation details:', error);
+        setOtherUserName('User');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -87,7 +146,7 @@ export default function ChatScreen() {
     if (!conversationId || !user) return;
 
     const messagesRef = collection(db, 'conversations', conversationId as string, 'messages');
-    const q = query(messagesRef, orderBy('createdAt', 'asc'));
+    const q = query(messagesRef, orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
@@ -97,16 +156,45 @@ export default function ChatScreen() {
         })) as Message[];
         
         setMessages(messagesData);
-        setLoading(false);
       },
       (error) => {
         console.error('Error listening to messages:', error);
-        setLoading(false);
       }
     );
 
     return unsubscribe;
   }, [conversationId, user]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0 && flatListRef.current) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
+    }
+  }, [messages]);
+
+  // Keyboard handling
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardOffset(e.endCoordinates.height);
+      }
+    );
+
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardOffset(0);
+      }
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !user || !conversationId) return;
@@ -122,7 +210,6 @@ export default function ChatScreen() {
         read: false
       });
 
-      // Update conversation's last message and timestamp
       const conversationRef = doc(db, 'conversations', conversationId as string);
       await updateDoc(conversationRef, {
         lastMessage: {
@@ -180,39 +267,45 @@ export default function ChatScreen() {
           <Ionicons name="arrow-back" size={24} color="#007AFF" />
         </TouchableOpacity>
         
-        {otherUser && (
-          <View style={styles.headerUserInfo}>
-            <Image 
-              source={{ uri: otherUser.avatar || 'https://via.placeholder.com/150' }} 
-              style={styles.headerAvatar}
-            />
-            <View style={styles.headerText}>
-              <Text style={styles.headerName}>{otherUser.name}</Text>
-              <Text style={styles.headerStatus}>
-                {otherUser.role === 'shopkeeper' ? 'Shopkeeper' : 'Customer'}
-              </Text>
-            </View>
+        <View style={styles.headerUserInfo}>
+          <Image 
+            source={getAvatarImage()} 
+            style={styles.headerAvatar}
+          />
+          <View style={styles.headerText}>
+            <Text style={styles.headerName}>{otherUserName}</Text>
+            <Text style={styles.headerStatus}>
+              {otherUserRole === 'shopkeeper' ? 'Shopkeeper' : 
+               otherUserRole === 'customer' ? 'Customer' : 'User'}
+            </Text>
           </View>
-        )}
+        </View>
         
         <View style={styles.headerSpacer} />
       </View>
 
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
+      {/* Main content */}
+      <View style={styles.content}>
         {/* Messages List */}
         {messages.length > 0 ? (
           <FlatList
+            ref={flatListRef}
             data={messages}
             renderItem={renderMessage}
             keyExtractor={(item) => item.id}
             style={styles.messagesList}
-            contentContainerStyle={styles.messagesContainer}
-            inverted={false}
+            contentContainerStyle={[
+              styles.messagesContainer,
+              { 
+                paddingBottom: keyboardOffset > 0 ? keyboardOffset + 100 : 100 
+              }
+            ]}
+            inverted={true}
             showsVerticalScrollIndicator={false}
+            automaticallyAdjustContentInsets={false}
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 0,
+            }}
           />
         ) : (
           <View style={styles.emptyChat}>
@@ -221,32 +314,56 @@ export default function ChatScreen() {
             <Text style={styles.emptyChatSubText}>Start the conversation!</Text>
           </View>
         )}
+      </View>
 
-        {/* Message Input */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.textInput}
-            value={newMessage}
-            onChangeText={setNewMessage}
-            placeholder="Type a message..."
-            multiline
-            maxLength={500}
-            placeholderTextColor="#999"
-          />
-          <TouchableOpacity 
-            style={[
-              styles.sendButton, 
-              !newMessage.trim() && styles.sendButtonDisabled
-            ]} 
-            onPress={sendMessage}
-            disabled={!newMessage.trim()}
-          >
-            <Ionicons 
-              name="send" 
-              size={20} 
-              color={newMessage.trim() ? "white" : "#ccc"} 
+      {/* Message Input - Fixed positioning with proper keyboard offset */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        style={styles.keyboardAvoidingView}
+      >
+        <View style={[styles.inputWrapper, { 
+          marginBottom: keyboardOffset > 0 ? keyboardOffset : 0 
+        }]}>
+          <View style={styles.inputContainer}>
+            <TextInput
+              ref={textInputRef}
+              style={styles.textInput}
+              value={newMessage}
+              onChangeText={setNewMessage}
+              placeholder="Type a message..."
+              multiline
+              maxLength={500}
+              placeholderTextColor="#999"
+              onFocus={() => {
+                setTimeout(() => {
+                  flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+                }, 300);
+              }}
             />
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={[
+                styles.sendButton, 
+                !newMessage.trim() && styles.sendButtonDisabled
+              ]} 
+              onPress={sendMessage}
+              disabled={!newMessage.trim()}
+            >
+              {newMessage.trim() ? (
+                <Ionicons 
+                  name="arrow-up" 
+                  size={20} 
+                  color="white" 
+                />
+              ) : (
+                <Ionicons 
+                  name="ellipse-outline" 
+                  size={20} 
+                  color="#ccc" 
+                />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -257,11 +374,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
-    paddingTop:20,
-    paddingBottom:20,
+  },
+  content: {
+    flex: 1,
   },
   keyboardAvoidingView: {
-    flex: 1,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  inputWrapper: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  bottomSpacer: {
+    height: 80,
   },
   centerContainer: {
     flex: 1,
@@ -277,6 +411,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   backButton: {
     padding: 4,
@@ -285,6 +424,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    justifyContent: 'center',
     marginLeft: 12,
   },
   headerAvatar: {
@@ -295,19 +435,22 @@ const styles = StyleSheet.create({
   },
   headerText: {
     flex: 1,
+    alignItems: 'center',
   },
   headerName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    textAlign: 'center',
   },
   headerStatus: {
     fontSize: 12,
     color: '#666',
     marginTop: 2,
+    textAlign: 'center',
   },
   headerSpacer: {
-    width: 36, // Balance the layout
+    width: 36,
   },
   messagesList: {
     flex: 1,
@@ -357,9 +500,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 16,
     backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
     alignItems: 'flex-end',
+    minHeight: 70,
   },
   textInput: {
     flex: 1,
@@ -374,15 +516,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
   },
   sendButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#000',
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   sendButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#f0f0f0',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   emptyChat: {
     flex: 1,
