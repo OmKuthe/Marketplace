@@ -3383,7 +3383,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: '500',
   },
-  // Post Card Styles
   postCard: {
     backgroundColor: colors.surface,
     marginHorizontal: 12,

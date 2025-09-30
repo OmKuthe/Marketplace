@@ -1,5 +1,4 @@
-// lib/imgbb-storage.ts
-const IMGBB_API_KEY = '2e6117c9d92bf16f23690049db98971d'; // Get from https://api.imgbb.com/
+const IMGBB_API_KEY = '2e6117c9d92bf16f23690049db98971d'; 
 
 export const uploadToImgBB = async (imageUri: string): Promise<string | null> => {
   try {
