@@ -336,35 +336,46 @@ export default function CustomerOrderDetails() {
           <Text style={styles.sectionTitle}>Order Timeline</Text>
           <View style={styles.timeline}>
             {['pending', 'confirmed', 'preparing', 'ready', 'completed'].map((status, index) => {
+              const currentStatusIndex = ['pending', 'confirmed', 'preparing', 'ready', 'completed'].indexOf(order.status);
+              const statusIndex = ['pending', 'confirmed', 'preparing', 'ready', 'completed'].indexOf(status);
+              
               const isActive = order.status === status;
-              const isCompleted = ['completed', 'cancelled'].includes(order.status) || 
-                                ['pending', 'confirmed', 'preparing', 'ready'].indexOf(status) < 
-                                ['pending', 'confirmed', 'preparing', 'ready', 'completed'].indexOf(order.status);
+              const isCompleted = statusIndex < currentStatusIndex;
+              const isCancelled = order.status === 'cancelled';
               
               return (
                 <View key={status} style={styles.timelineItem}>
                   <View style={[
                     styles.timelineDot,
-                    isCompleted && styles.timelineDotCompleted,
-                    isActive && styles.timelineDotActive
+                    isCompleted && !isCancelled && styles.timelineDotCompleted,
+                    isActive && !isCancelled && styles.timelineDotActive,
+                    isCancelled && styles.timelineDotCancelled
                   ]}>
-                    {isCompleted && <Ionicons name="checkmark" size={12} color="#fff" />}
+                    {isCompleted && !isCancelled && <Ionicons name="checkmark" size={12} color="#fff" />}
+                    {isCancelled && <Ionicons name="close" size={12} color="#fff" />}
                   </View>
                   <View style={styles.timelineContent}>
                     <Text style={[
                       styles.timelineStatus,
-                      (isCompleted || isActive) && styles.timelineStatusActive
+                      (isCompleted || isActive) && styles.timelineStatusActive,
+                      isCancelled && styles.timelineStatusCancelled
                     ]}>
                       {getStatusText(status as Order['status'])}
                     </Text>
-                    {isActive && (
+                    {isActive && !isCancelled && (
                       <Text style={styles.timelineTime}>In progress</Text>
                     )}
+                    {isCancelled && status === 'pending' && (
+                      <Text style={styles.timelineTime}>Order was cancelled</Text>
+                    )}
                   </View>
-                  {index < 4 && <View style={[
-                    styles.timelineLine,
-                    isCompleted && styles.timelineLineCompleted
-                  ]} />}
+                  {index < 4 && (
+                    <View style={[
+                      styles.timelineLine,
+                      isCompleted && !isCancelled && styles.timelineLineCompleted,
+                      isCancelled && styles.timelineLineCancelled
+                    ]} />
+                  )}
                 </View>
               );
             })}
@@ -753,5 +764,15 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '600',
     marginLeft: 6,
+  },
+  timelineDotCancelled: {
+    backgroundColor: colors.error,
+    borderColor: colors.error,
+  },
+  timelineStatusCancelled: {
+    color: colors.error,
+  },
+  timelineLineCancelled: {
+    backgroundColor: colors.error,
   },
 });

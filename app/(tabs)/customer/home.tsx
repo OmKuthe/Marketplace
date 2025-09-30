@@ -18,7 +18,6 @@ import {
   startAfter,
   Timestamp
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -122,6 +121,8 @@ interface PostFilter {
 }
 
 // Post API Functions
+
+// Post API Functions - Make sure imageUrl is included in the type
 const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
     const postWithTimestamps = {
@@ -131,46 +132,62 @@ const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt
       status: 'ACTIVE' as const
     };
 
+    console.log('📤 Saving post to Firestore with imageUrl:', postWithTimestamps.imageUrl);
+    
     const docRef = await addDoc(collection(db, "customerPosts"), postWithTimestamps);
+    
+    console.log('✅ Post saved with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Error creating post:', error);
     throw new Error('Failed to create post');
   }
 };
-const uploadPostImage = async (imageUri: string, postId: string): Promise<string> => {
+// Replace the current uploadPostImage function with this:
+const uploadPostImage = async (imageUri: string): Promise<string | undefined> => {
   try {
-    let uri = imageUri;
-    if (imageUri.startsWith('file://')) {
-      uri = imageUri;
-    }
+    console.log('Starting ImgBB upload for post image:', imageUri);
+    
+    const IMGBB_API_KEY = '2e6117c9d92bf16f23690049db98971d';
+    
+    // Create form data
+    const formData = new FormData();
+    
+    // @ts-ignore - React Native FormData handling
+    formData.append('image', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'post_image.jpg',
+    });
 
-    if (!uri) {
-      throw new Error('Invalid image URI');
-    }
+    console.log('Sending request to ImgBB...');
+    
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
 
-    const response = await fetch(uri);
+    const data = await response.json();
+    console.log('ImgBB response for post:', data);
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.status}`);
+    if (data.success) {
+      console.log('✅ Post image uploaded to ImgBB:', data.data.url);
+      return data.data.url; // Returns string
+    } else {
+      console.error('❌ ImgBB upload failed for post:', data);
+      return undefined; // Returns undefined instead of null
     }
-    
-    const blob = await response.blob();
-    
-    const timestamp = Date.now();
-    const imageRef = ref(storage, `post-images/${postId}/image_${timestamp}`);
-    
-    const snapshot = await uploadBytes(imageRef, blob);
-    const downloadUrl = await getDownloadURL(snapshot.ref);
-    
-    return downloadUrl;
   } catch (error) {
-    console.error('Error uploading image:', error);
-    throw new Error('Failed to upload image');
+    console.error('❌ Error uploading post image to ImgBB:', error);
+    return undefined; // Returns undefined instead of null
   }
 };
 
 // Enhanced function to fetch customer posts with better error handling
+// Enhanced function to fetch customer posts with better user data fetching
 const getCustomerPosts = async (
   filters: PostFilter = {}
 ): Promise<{ posts: CustomerPost[]; lastVisible: any }> => {
@@ -186,32 +203,57 @@ const getCustomerPosts = async (
 
     const posts: CustomerPost[] = [];
     
-    for (const postDoc of snapshot.docs) { // Renamed to postDoc
+    for (const postDoc of snapshot.docs) {
       const data = postDoc.data();
       
-      // If the post shows "Anonymous Customer", try to fetch the actual user name
+      console.log('📄 Processing post:', postDoc.id, 'Customer ID:', data.customerId);
+      console.log('📄 Current customerName from post:', data.customerName);
+      
       let customerName = data.customerName;
       let customerEmail = data.customerEmail;
       
-      if (customerName === 'Anonymous Customer' && data.customerId) {
+      // Fetch customer data from the "customers" collection
+      if (data.customerId) {
         try {
-          const userDoc = await getDoc(doc(db, "users", data.customerId)); // Now doc function is available
-          if (userDoc.exists()) {
-            const userData = userDoc.data() as {
-              name?: string;
-              displayName?: string;
-              email?: string;
-            };
-            customerName = userData.name || userData.displayName || customerName;
-            customerEmail = userData.email || customerEmail;
+          console.log('👤 Fetching customer data from customers collection for customerId:', data.customerId);
+          const customerDocRef = doc(db, "customers", data.customerId);
+          const customerDoc = await getDoc(customerDocRef);
+          
+          if (customerDoc.exists()) {
+            const customerData = customerDoc.data();
+            console.log('✅ Customer data found:', customerData);
+            
+            // Try different possible field names for customer name
+            customerName = customerData.fullName || 
+                          customerData.name || 
+                          customerData.displayName || 
+                          customerData.username || 
+                          customerData.firstName || 
+                          data.customerName || 
+                          'Anonymous Customer';
+            
+            customerEmail = customerData.email || data.customerEmail || '';
+            
+            console.log('👤 Final customerName from customers collection:', customerName);
+            console.log('📧 Final customerEmail:', customerEmail);
+          } else {
+            console.log('❌ Customer document not found in customers collection for customerId:', data.customerId);
+            // If customer document doesn't exist, use what's in the post or fallback
+            customerName = data.customerName || 'Anonymous Customer';
           }
-        } catch (userError) {
-          console.log('Could not fetch user data for post:', postDoc.id, userError);
+        } catch (customerError) {
+          console.log('⚠️ Could not fetch customer data for post:', postDoc.id, customerError);
+          // If there's an error, use what's already in the post data
+          customerName = data.customerName || 'Anonymous Customer';
         }
+      } else {
+        console.log('❌ No customerId found in post data');
+        customerName = data.customerName || 'Anonymous Customer';
       }
       
-      posts.push({
-        id: postDoc.id, // Updated to postDoc.id
+      // Create the post object
+      const post: CustomerPost = {
+        id: postDoc.id,
         customerId: data.customerId || '',
         customerName: customerName,
         customerEmail: customerEmail,
@@ -226,12 +268,19 @@ const getCustomerPosts = async (
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
         tags: data.tags || [],
-        contactInfo: data.contactInfo || { email: customerEmail, preferredContact: 'message' },
+        contactInfo: data.contactInfo || { 
+          email: customerEmail, 
+          preferredContact: 'message' as const 
+        },
         urgency: data.urgency || 'MEDIUM'
-      } as CustomerPost);
+      };
+
+      posts.push(post);
+      console.log('✅ Added post to array. Customer:', post.customerName);
     }
 
-    console.log('📦 Final posts array:', posts);
+    console.log('📦 Final posts array length:', posts.length);
+    console.log('👥 Customer names in posts:', posts.map(p => p.customerName));
     
     return { posts, lastVisible: null };
   } catch (error) {
@@ -239,6 +288,8 @@ const getCustomerPosts = async (
     return { posts: [], lastVisible: null };
   }
 };
+
+
 
 const updateCustomerPost = async (postId: string, updates: Partial<CustomerPost>): Promise<void> => {
   try {
@@ -521,12 +572,19 @@ const CustomerPostCard = ({
         </View>
       </View>
 
-      {item.imageUrl && (
+      {/* Improved Image Display */}
+      {item.imageUrl ? (
         <Image 
           source={{ uri: item.imageUrl }} 
           style={styles.postImage}
           resizeMode="cover"
+          onError={(error) => console.log('❌ Image load error:', error.nativeEvent.error)}
         />
+      ) : (
+        <View style={styles.noImagePlaceholder}>
+          <Ionicons name="image-outline" size={40} color={colors.textSecondary} />
+          <Text style={styles.noImageText}>No Image</Text>
+        </View>
       )}
 
       <View style={styles.postContent}>
@@ -609,6 +667,46 @@ export default function CustomerHome() {
   const [creatingPost, setCreatingPost] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Extract products fetching logic into a separate function
+// Extract products fetching logic into a separate function
+const fetchProductsAndShopkeepers = async () => {
+  try {
+    console.log('🔄 Refreshing products...');
+    const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Product[];
+    
+    setProducts(data);
+    setFilteredProducts(data);
+
+    const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
+    for (const product of data) {
+      const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
+      if (shopkeeperId && !shopkeeperMap[shopkeeperId]) {
+        try {
+          const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
+          if (shopkeeperDoc.exists()) {
+            shopkeeperMap[shopkeeperId] = {
+              uid: shopkeeperId,
+              ...shopkeeperDoc.data()
+            } as ShopkeeperData;
+          }
+        } catch (error) {
+          console.error("Error fetching shopkeeper:", error);
+        }
+      }
+    }
+    setShopkeeperData(shopkeeperMap);
+    
+    console.log('✅ Products refreshed successfully');
+  } catch (err) {
+    console.log("Error refreshing products:", err);
+  }
+};
+
   const fetchCustomerPosts = async (filters: PostFilter = {}) => {
     try {
       console.log('🚀 Starting to fetch customer posts...');
@@ -636,7 +734,6 @@ export default function CustomerHome() {
     setRefreshing(false);
   };
 
-  // Enhanced create post function
   const handleCreatePost = async () => {
     if (!user) {
       Alert.alert('Error', 'Please log in to create a post');
@@ -652,35 +749,66 @@ export default function CustomerHome() {
       setCreatingPost(true);
       
       // Fetch user data from Firestore users collection
-      let customerName = user.displayName || 'Anonymous Customer';
+      let customerName = 'Anonymous Customer';
       let customerEmail = user.email || '';
-      
-      try {
-  const userDocRef = doc(db, "users", user.uid); // Use explicit variable name
-  const userDoc = await getDoc(userDocRef);
-  if (userDoc.exists()) {
-    const userData = userDoc.data() as { 
-      name?: string; 
-      displayName?: string; 
-      email?: string;
-    };
-    // Use the name from users collection if available
-    customerName = userData.name || userData.displayName || user.displayName || 'Anonymous Customer';
-    customerEmail = userData.email || user.email || '';
-  }
-} catch (userError) {
-  console.log('Could not fetch user data, using auth data:', userError);
-}
   
+      try {
+        console.log('👤 Fetching customer data for:', user.uid);
+        const customerDocRef = doc(db, "customers", user.uid);
+        const customerDoc = await getDoc(customerDocRef);
+        
+        if (customerDoc.exists()) {
+          const customerData = customerDoc.data();
+          console.log('✅ Customer data found:', customerData);
+          
+          // Try all possible name fields in customers collection
+          customerName = customerData.fullName || 
+                        customerData.customerName || 
+                        user.displayName || 
+                        'Anonymous Customer';
+          
+          customerEmail = customerData.email || user.email || '';
+          
+          console.log('✅ Customer data fetched - Name:', customerName, 'Email:', customerEmail);
+        } else {
+          console.log('❌ Customer document not found in customers collection, using displayName');
+          customerName = user.displayName || 'Anonymous Customer';
+        }
+      } catch (customerError) {
+        console.log('⚠️ Could not fetch customer data:', customerError);
+        customerName = user.displayName || 'Anonymous Customer';
+      }
+  
+      let imageUrl: string | undefined = undefined; // Change to undefined instead of null
+  
+      // Upload image to ImgBB FIRST, before creating the post
+      if (newPost.image) {
+        try {
+          console.log('🖼️ Uploading post image to ImgBB...');
+          const uploadedUrl = await uploadPostImage(newPost.image);
+          
+          if (uploadedUrl) {
+            imageUrl = uploadedUrl; // This is now string | undefined
+            console.log('✅ Post image uploaded successfully:', imageUrl);
+          } else {
+            console.warn('⚠️ Image upload failed, creating post without image');
+          }
+        } catch (imageError) {
+          console.warn('⚠️ Image upload failed, but post will be created:', imageError);
+        }
+      }
+  
+      // Create the post data WITH the image URL
       const postData = {
         customerId: user.uid,
-        customerName: customerName, // Use actual name instead of "Anonymous Customer"
+        customerName: customerName,
         customerEmail: customerEmail,
         title: newPost.title,
         description: newPost.description,
         price: newPost.price ? parseFloat(newPost.price) : undefined,
         category: newPost.category || 'General',
         type: newPost.type,
+        imageUrl: imageUrl, // This matches the CustomerPost interface (string | undefined)
         location: newPost.location || 'Unknown Location',
         urgency: newPost.urgency,
         status: 'ACTIVE' as PostStatus,
@@ -691,17 +819,9 @@ export default function CustomerHome() {
         tags: newPost.category ? [newPost.category.toLowerCase()] : ['general'],
       };
   
+      console.log('📝 Creating post with data (including imageUrl):', postData);
       const postId = await createCustomerPost(postData);
-  
-      // Upload image if it exists
-      if (newPost.image) {
-        try {
-          const imageUrl = await uploadPostImage(newPost.image, postId);
-          await updateCustomerPost(postId, { imageUrl });
-        } catch (imageError) {
-          console.warn('Image upload failed, but post was created:', imageError);
-        }
-      }
+      console.log('✅ Post created with ID:', postId);
   
       Alert.alert('Success', 'Post created successfully!');
       
@@ -904,93 +1024,185 @@ export default function CustomerHome() {
     </View>
   );
 
-  const renderContent = () => {
-    console.log('🎯 Active Tab:', activeTab);
-    console.log('📋 Customer Posts Count:', customerPosts.length);
-    console.log('📦 Filtered Products Count:', filteredProducts.length);
-  
-    if (activeTab === "need") {
-      // Show customer posts in needs section
-      console.log('🔄 Rendering customer posts in needs section');
-      return (
-        <FlatList
-          data={customerPosts}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 25 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-            />
-          }
-          renderItem={({ item, index }) => {
-            console.log('🎨 Rendering post:', item.id, item.title);
-            return (
-              <CustomerPostCard 
-                item={item} 
-                index={index} 
-                onContactPress={handleContactPost}
-              />
-            );
-          }}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={64} color={colors.textSecondary} />
-              <Text style={styles.emptyStateText}>No needs posted yet</Text>
-              <Text style={styles.emptyStateSubtext}>Be the first to post what you need!</Text>
-              <TouchableOpacity 
-                style={styles.createFirstPostButton}
-                onPress={() => setCreatePostModalVisible(true)}
-              >
-                <Text style={styles.createFirstPostText}>Post Your Need</Text>
-              </TouchableOpacity>
-            </View>
-          }
-          ListFooterComponent={
-            loadingPosts ? (
-              <View style={styles.loadingMore}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.loadingText}>Loading more posts...</Text>
-              </View>
-            ) : null
-          }
-          onEndReached={() => {
-            if (lastVisible && !loadingPosts) {
-              fetchCustomerPosts(activeFilter);
-            }
-          }}
-          onEndReachedThreshold={0.5}
-        />
-      );
+const renderContent = () => {
+  console.log('🎯 Active Tab:', activeTab);
+  console.log('📋 All Customer Posts Count:', customerPosts.length);
+  console.log('📦 Filtered Products Count:', filteredProducts.length);
+
+  // Common refresh function for all tabs
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    
+    if (activeTab === "need" || activeTab === "offer") {
+      // Refresh customer posts
+      await fetchCustomerPosts(activeFilter);
+    } else {
+      // Refresh products
+      await fetchProductsAndShopkeepers();
     }
-  
-    // For other tabs, show products as before
-    console.log('🔄 Rendering products for tab:', activeTab);
+    
+    setRefreshing(false);
+  };
+
+  if (activeTab === "need") {
+    // Filter and show only NEED posts
+    const needPosts = customerPosts.filter(post => post.type === 'NEED');
+    console.log('🔄 Rendering NEED posts:', needPosts.length);
+    
     return (
       <FlatList
-        data={filteredProducts}
+        data={needPosts}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 25 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+          />
+        }
         renderItem={({ item, index }) => {
-          const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-          const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
-          
+          console.log('🎨 Rendering NEED post:', item.id, item.title);
           return (
-            <AnimatedProductCard 
+            <CustomerPostCard 
               item={item} 
               index={index} 
-              shopkeeperData={shopkeeper}
-              onMessagePress={handleMessageButton}
+              onContactPress={handleContactPost}
             />
           );
         }}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Ionicons name="document-text-outline" size={64} color={colors.textSecondary} />
+            <Text style={styles.emptyStateText}>No needs posted yet</Text>
+            <Text style={styles.emptyStateSubtext}>Be the first to post what you need!</Text>
+            <TouchableOpacity 
+              style={styles.createFirstPostButton}
+              onPress={() => setCreatePostModalVisible(true)}
+            >
+              <Text style={styles.createFirstPostText}>Post Your Need</Text>
+            </TouchableOpacity>
+          </View>
+        }
+        ListFooterComponent={
+          loadingPosts ? (
+            <View style={styles.loadingMore}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.loadingText}>Loading more posts...</Text>
+            </View>
+          ) : null
+        }
+        onEndReached={() => {
+          if (lastVisible && !loadingPosts) {
+            fetchCustomerPosts(activeFilter);
+          }
+        }}
+        onEndReachedThreshold={0.5}
       />
     );
-  };
+  }
 
+  if (activeTab === "offer") {
+    // Filter and show only OFFER posts
+    const offerPosts = customerPosts.filter(post => post.type === 'OFFER');
+    console.log('🔄 Rendering OFFER posts:', offerPosts.length);
+    
+    return (
+      <FlatList
+        data={offerPosts}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 25 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+          />
+        }
+        renderItem={({ item, index }) => {
+          console.log('🎨 Rendering OFFER post:', item.id, item.title);
+          return (
+            <CustomerPostCard 
+              item={item} 
+              index={index} 
+              onContactPress={handleContactPost}
+            />
+          );
+        }}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Ionicons name="gift-outline" size={64} color={colors.textSecondary} />
+            <Text style={styles.emptyStateText}>No offers posted yet</Text>
+            <Text style={styles.emptyStateSubtext}>Be the first to offer something!</Text>
+            <TouchableOpacity 
+              style={styles.createFirstPostButton}
+              onPress={() => {
+                setNewPost(prev => ({ ...prev, type: "OFFER" }));
+                setCreatePostModalVisible(true);
+              }}
+            >
+              <Text style={styles.createFirstPostText}>Post Your Offer</Text>
+            </TouchableOpacity>
+          </View>
+        }
+        ListFooterComponent={
+          loadingPosts ? (
+            <View style={styles.loadingMore}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.loadingText}>Loading more posts...</Text>
+            </View>
+          ) : null
+        }
+        onEndReached={() => {
+          if (lastVisible && !loadingPosts) {
+            fetchCustomerPosts(activeFilter);
+          }
+        }}
+        onEndReachedThreshold={0.5}
+      />
+    );
+  }
+
+  // For "all" tab, show products with refresh control
+  console.log('🔄 Rendering products for ALL tab:', activeTab);
+  return (
+    <FlatList
+      data={filteredProducts}
+      keyExtractor={(item) => item.id}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 25 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[colors.primary]}
+        />
+      }
+      renderItem={({ item, index }) => {
+        const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+        const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+        
+        return (
+          <AnimatedProductCard 
+            item={item} 
+            index={index} 
+            shopkeeperData={shopkeeper}
+            onMessagePress={handleMessageButton}
+          />
+        );
+      }}
+      ListEmptyComponent={
+        <View style={styles.emptyState}>
+          <Ionicons name="cube-outline" size={64} color={colors.textSecondary} />
+          <Text style={styles.emptyStateText}>No products available</Text>
+          <Text style={styles.emptyStateSubtext}>Check back later for new products</Text>
+        </View>
+      }
+    />
+  );
+};
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -1281,6 +1493,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  noImagePlaceholder: {
+    width: '100%',
+    height: 150,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    marginBottom: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+  },
+  noImageText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
   },
   postImage: {
     width: '100%',

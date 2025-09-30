@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { collection, getDocs, orderBy, query, doc, getDoc, where } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState , useCallback} from "react";
 import {
   Dimensions,
   FlatList,
@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  RefreshControl,
   View
 } from "react-native";
 import { db } from "../../../firebaseConfig";
@@ -83,9 +84,11 @@ export default function ShopkeeperHome() {
     totalRevenue: 0
   });
   const [shopkeeperData, setShopkeeperData] = useState<{[key: string]: ShopkeeperData}>({});
+  const [refreshing, setRefreshing] = useState(false);
 
   const router = useRouter();
-
+  
+  
   // Function to fetch customer posts
   const fetchCustomerPosts = async () => {
     try {
@@ -132,50 +135,67 @@ export default function ShopkeeperHome() {
     }
   };
 
-  useEffect(() => {
-    const fetchProductsAndShopkeepers = async () => {
-      try {
-        // Fetch products
-        const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Product[];
-        
-        setPosts(data);
-        setFilteredPosts(data);
-        
-        const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
-        const shopkeeperIds = new Set<string>();
-        for (const product of data) {
-          const shopkeeperId = product.shopkeeperId || product.shopId || product.shopkeeper;
-          if (shopkeeperId) {
-            shopkeeperIds.add(shopkeeperId);
-          }
+  const fetchProductsAndShopkeepers = async () => {
+    try {
+      // Fetch products
+      const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Product[];
+      
+      setPosts(data);
+      setFilteredPosts(data);
+      
+      const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
+      const shopkeeperIds = new Set<string>();
+      for (const product of data) {
+        const shopkeeperId = product.shopkeeperId || product.shopId || product.shopkeeper;
+        if (shopkeeperId) {
+          shopkeeperIds.add(shopkeeperId);
         }
-
-        // Fetch all shopkeeper data
-        for (const shopkeeperId of Array.from(shopkeeperIds)) {
-          try {
-            const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
-            if (shopkeeperDoc.exists()) {
-              shopkeeperMap[shopkeeperId] = shopkeeperDoc.data() as ShopkeeperData;
-            }
-          } catch (error) {
-            console.error("Error fetching shopkeeper:", error);
-          }
-        }
-        
-        setShopkeeperData(shopkeeperMap);
-      } catch (err) {
-        console.log("Error fetching products:", err);
       }
-    };
+
+      // Fetch all shopkeeper data
+      for (const shopkeeperId of Array.from(shopkeeperIds)) {
+        try {
+          const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
+          if (shopkeeperDoc.exists()) {
+            shopkeeperMap[shopkeeperId] = shopkeeperDoc.data() as ShopkeeperData;
+          }
+        } catch (error) {
+          console.error("Error fetching shopkeeper:", error);
+        }
+      }
+      
+      setShopkeeperData(shopkeeperMap);
+    } catch (err) {
+      console.log("Error fetching products:", err);
+    }
+  };
+
+  useEffect(() => {
+
 
     fetchProductsAndShopkeepers();
     fetchCustomerPosts(); // Fetch customer posts when component mounts
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (activeTab === "need") {
+        await fetchCustomerPosts();
+      } else {
+        await fetchProductsAndShopkeepers();
+      }
+    } catch (error) {
+      console.error('Error during refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === "all") {
@@ -208,56 +228,83 @@ export default function ShopkeeperHome() {
     return "Unknown Location";
   };
 
-  // Customer Post Card Component
-  const CustomerPostCard = ({ item }: { item: CustomerPost }) => (
-    <View style={styles.customerPostCard}>
-      {/* Customer Info Header */}
-      <View style={styles.cardHeader}>
-        <View style={styles.userInfo}>
-          <View style={[styles.avatar, { backgroundColor: '#FF6B35' }]}></View>
-          <View>
-            <Text style={styles.username}>{item.customerName}</Text>
-            <Text style={styles.userLocation}>📍 {item.location}</Text>
-          </View>
+// Customer Post Card Component with Image Support
+const CustomerPostCard = ({ item }: { item: CustomerPost }) => (
+  <View style={styles.customerPostCard}>
+    {/* Customer Info Header */}
+    <View style={styles.cardHeader}>
+      <View style={styles.userInfo}>
+        <View style={[styles.avatar, { backgroundColor: '#FF6B35' }]}>
+          <Ionicons name="person" size={16} color="white" />
         </View>
-        <View style={[styles.urgencyBadge, { 
-          backgroundColor: item.urgency === 'HIGH' ? '#FF6B6B' : 
-                          item.urgency === 'MEDIUM' ? '#FFD93D' : '#6BCF7F' 
-        }]}>
-          <Text style={styles.urgencyText}>{item.urgency}</Text>
+        <View>
+          <Text style={styles.username}>{item.customerName}</Text>
+          <Text style={styles.userLocation}>📍 {item.location}</Text>
         </View>
       </View>
-
-      {/* Post Content */}
-      <View style={styles.customerPostContent}>
-        <Text style={styles.customerPostTitle}>{item.title}</Text>
-        <Text style={styles.customerPostDescription}>{item.description}</Text>
-        
-        <View style={styles.detailsRow}>
-          {item.price && (
-            <Text style={styles.customerPostPrice}>💰 ₹{item.price}</Text>
-          )}
-          <Text style={styles.customerPostCategory}>#{item.category}</Text>
-        </View>
-        
-        <View style={styles.detailsRow}>
-          <Text style={styles.customerPostType}>Looking for: {item.type}</Text>
-          <Text style={styles.postDate}>
-            {item.createdAt ? 
-              new Date(item.createdAt.seconds * 1000).toLocaleDateString() : 
-              'Recent'
-            }
-          </Text>
-        </View>
-
-        {/* Contact Button */}
-        <TouchableOpacity style={styles.contactButton}>
-          <Ionicons name="chatbubble-ellipses" size={16} color="#2874F0" />
-          <Text style={styles.contactButtonText}>Contact Customer</Text>
-        </TouchableOpacity>
+      <View style={[styles.urgencyBadge, { 
+        backgroundColor: item.urgency === 'HIGH' ? '#FF6B6B' : 
+                        item.urgency === 'MEDIUM' ? '#FFD93D' : '#6BCF7F' 
+      }]}>
+        <Text style={styles.urgencyText}>{item.urgency}</Text>
       </View>
     </View>
-  );
+
+    {/* Post Image */}
+    {item.imageUrl ? (
+      <Image
+        source={{ uri: item.imageUrl }}
+        style={styles.customerPostImage}
+        resizeMode="cover"
+      />
+    ) : (
+      <View style={styles.noImagePlaceholder}>
+        <Ionicons name="image-outline" size={40} color="#ccc" />
+        <Text style={styles.noImageText}>No Image</Text>
+      </View>
+    )}
+
+    {/* Post Content */}
+    <View style={styles.customerPostContent}>
+      <Text style={styles.customerPostTitle}>{item.title}</Text>
+      <Text style={styles.customerPostDescription}>{item.description}</Text>
+      
+      <View style={styles.detailsRow}>
+        {item.price && (
+          <Text style={styles.customerPostPrice}>💰 ₹{item.price}</Text>
+        )}
+        <Text style={styles.customerPostCategory}>#{item.category}</Text>
+      </View>
+      
+      <View style={styles.detailsRow}>
+        <Text style={styles.customerPostType}>Looking for: {item.type}</Text>
+        <Text style={styles.postDate}>
+          {item.createdAt ? 
+            new Date(item.createdAt.seconds * 1000).toLocaleDateString() : 
+            'Recent'
+          }
+        </Text>
+      </View>
+
+      {/* Tags */}
+      {item.tags && item.tags.length > 0 && (
+        <View style={styles.tagsContainer}>
+          {item.tags.slice(0, 3).map((tag, index) => (
+            <View key={index} style={styles.tag}>
+              <Text style={styles.tagText}>#{tag}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Contact Button */}
+      <TouchableOpacity style={styles.contactButton}>
+        <Ionicons name="chatbubble-ellipses" size={16} color="#2874F0" />
+        <Text style={styles.contactButtonText}>Contact Customer</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+);
 
   const SidePanel = () => (
     <View style={styles.sidePanel}>
@@ -381,9 +428,9 @@ export default function ShopkeeperHome() {
         </TouchableOpacity>
       </View>
 
-     {/* Posts List */}
+{/* Posts List */}
 {activeTab === "need" ? (
-  // Customer Posts List
+  // Customer Posts List with Refresh
   <FlatList
     data={filteredCustomerPosts}
     keyExtractor={(item) => item.id}
@@ -391,10 +438,18 @@ export default function ShopkeeperHome() {
       <CustomerPostCard item={item} />
     )}
     contentContainerStyle={styles.listContent}
+    refreshControl={
+      <RefreshControl
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        colors={['#2874F0']}
+      />
+    }
     ListEmptyComponent={
       <View style={styles.emptyState}>
         <Ionicons name="document-text-outline" size={64} color="#ccc" />
         <Text style={styles.emptyStateText}>No customer needs found</Text>
+        <Text style={styles.emptyStateSubtext}>Customer needs will appear here</Text>
       </View>
     }
   />
@@ -460,6 +515,13 @@ export default function ShopkeeperHome() {
       </View>
     )}
     contentContainerStyle={styles.listContent}
+    refreshControl={
+      <RefreshControl
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        colors={['#2874F0']}
+      />
+    }
     ListEmptyComponent={
       <View style={styles.emptyState}>
         <Ionicons name="document-text-outline" size={64} color="#ccc" />
@@ -668,21 +730,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#2874F0',
-    marginRight: 12,
-    shadowColor: "#2874F0",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
   username: {
     fontSize: 16,
     fontWeight: '600',
@@ -841,5 +888,70 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginTop: 16,
+  },
+  customerPostImage: {
+    width: '100%',
+    height: 200,
+  },
+  noImagePlaceholder: {
+    width: '100%',
+    height: 150,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  noImageText: {
+    marginTop: 8,
+    color: '#999',
+    fontSize: 14,
+  },
+
+  // Tags Styles
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 12,
+  },
+  tag: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  tagText: {
+    fontSize: 10,
+    color: '#1976D2',
+    fontWeight: '500',
+  },
+
+  // Empty State Improvements
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+
+  // Avatar with icon
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2874F0',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: "#2874F0",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
 } as const);

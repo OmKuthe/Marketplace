@@ -1,3 +1,4 @@
+// Update your existing useAuth hook
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
@@ -36,7 +37,6 @@ export function useAuth() {
   const logout = async () => {
     try {
       await signOut(auth);
-      // The state will automatically update via onAuthStateChanged
     } catch (error) {
       console.error("Logout error:", error);
       throw error;

@@ -2,10 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from "expo-router";
 import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
-import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { auth, db } from "../../../firebaseConfig";
+import { uploadToImgBB } from '../../../lib/storage';
 
 type Product = {
   id: string;
@@ -118,62 +118,66 @@ export default function ProductsScreen() {
   };
 
   const handleAddProduct = async (productData: ProductFormData) => {
-    const storage = getStorage();
-    
     if (!productData.name || !productData.price || !productData.category) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
-
+  
     try {
       const user = auth.currentUser;
       if (!user) {
         Alert.alert("Error", "You must be logged in to add products");
         return;
       }
-
+  
       setUploading(true);
-
+  
+      let imageUrl = productData.imageUrl;
+  
+      // Upload to ImgBB if it's a local image
+      if (productData.imageUrl && (productData.imageUrl.startsWith('file:') || productData.imageUrl.startsWith('content:'))) {
+        console.log('Uploading local image to ImgBB:', productData.imageUrl);
+        
+        const imgbbUrl = await uploadToImgBB(productData.imageUrl);
+        if (imgbbUrl) {
+          imageUrl = imgbbUrl;
+          console.log('✅ Image uploaded to ImgBB:', imgbbUrl);
+        } else {
+          Alert.alert('Error', 'Failed to upload image to ImgBB. Please try again.');
+          setUploading(false);
+          return;
+        }
+      } else if (productData.imageUrl) {
+        console.log('Image is already a URL:', productData.imageUrl);
+      }
+  
       const productToAdd = {
         name: productData.name,
         description: productData.description,
         price: parseFloat(productData.price),
         category: productData.category,
         stock: parseInt(productData.stock) || 0,
-        imageUrl: productData.imageUrl,
+        imageUrl: imageUrl, // This should now be the ImgBB URL
         shopId: user.uid,
         createdAt: serverTimestamp()
       };
-
-      let downloadURL = productData.imageUrl;
-      
-      if (productData.imageUrl && (productData.imageUrl.startsWith('file:') || productData.imageUrl.startsWith('content:'))) {
-        try {
-          const response = await fetch(productData.imageUrl);
-          const blob = await response.blob();
-          const storageRef = ref(storage, `products/${Date.now()}_${user.uid}.jpg`);
-          const uploadResult = await uploadBytes(storageRef, blob);
-          downloadURL = await getDownloadURL(uploadResult.ref);
-        } catch (uploadError) {
-          console.log("Error uploading image:", uploadError);
-        }
-      }
-      
-      productToAdd.imageUrl = downloadURL;
-
+  
+      console.log('Saving product to Firestore with imageUrl:', imageUrl);
+  
       const docRef = await addDoc(collection(db, "products"), productToAdd);
-
+  
       setProducts(prevProducts => [
         { id: docRef.id, ...productToAdd, createdAt: new Date() },
         ...prevProducts
       ]);
-
+  
       Alert.alert("Success", "Product added successfully");
       setAddModalVisible(false);
       resetForm();
       Keyboard.dismiss();
     } catch (err) {
       console.log("Error adding product:", err);
+      Alert.alert("Error", "Failed to add product");
     } finally {
       setUploading(false);
     }
@@ -181,30 +185,32 @@ export default function ProductsScreen() {
 
   const handleUpdateProduct = async (productData: ProductFormData) => {
     if (!selectedProduct) return;
-
+  
     try {
       setUploading(true);
       const productRef = doc(db, "products", selectedProduct.id);
       
-      let imageUrl = productData.imageUrl||"";
+      let imageUrl = productData.imageUrl || "";
       
+      // Upload to ImgBB if it's a new local image
       if (productData.imageUrl && (productData.imageUrl.startsWith('file:') || productData.imageUrl.startsWith('content:'))) {
-        try {
-          const storage = getStorage();
-          const user = auth.currentUser;
-          const response = await fetch(productData.imageUrl);
-          const blob = await response.blob();
-          const storageRef = ref(storage, `products/${Date.now()}_${user?.uid}.jpg`);
-          const uploadResult = await uploadBytes(storageRef, blob);
-          imageUrl = await getDownloadURL(uploadResult.ref);
-        } catch (uploadError) {
-          console.log("Error uploading image:", uploadError);
-          if (selectedProduct.imageUrl) {
-            imageUrl = selectedProduct.imageUrl;
-          } else {
-            imageUrl = "";
-          }
+        console.log('Uploading new local image to ImgBB:', productData.imageUrl);
+        
+        const imgbbUrl = await uploadToImgBB(productData.imageUrl);
+        if (imgbbUrl) {
+          imageUrl = imgbbUrl;
+          console.log('✅ Image uploaded to ImgBB:', imgbbUrl);
+        } else {
+          // If ImgBB upload fails, keep the old image
+          imageUrl = selectedProduct.imageUrl || "";
+          Alert.alert('Warning', 'Failed to upload new image, keeping previous image');
         }
+      } else if (productData.imageUrl && productData.imageUrl.startsWith('https://i.ibb.co')) {
+        console.log('Image is already ImgBB URL, keeping it');
+        imageUrl = productData.imageUrl;
+      } else {
+        // No image or keeping existing
+        imageUrl = selectedProduct.imageUrl || "";
       }
       
       const updatedProduct = {
@@ -215,9 +221,11 @@ export default function ProductsScreen() {
         stock: parseInt(productData.stock),
         imageUrl: imageUrl
       };
-
+  
+      console.log('Updating product with imageUrl:', imageUrl);
+  
       await updateDoc(productRef, updatedProduct);
-
+  
       setProducts(prevProducts =>
         prevProducts.map(product =>
           product.id === selectedProduct.id
@@ -225,7 +233,7 @@ export default function ProductsScreen() {
             : product
         )
       );
-
+  
       Alert.alert("Success", "Product updated successfully");
       setEditModalVisible(false);
       resetForm();

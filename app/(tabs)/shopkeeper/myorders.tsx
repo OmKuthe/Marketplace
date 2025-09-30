@@ -21,10 +21,12 @@ import {
   updateOrderStatus as updateOrderStatusBackend,
   subscribeToOrders 
 } from '../../../lib/orders';
+import { useAuth } from '../../../hooks/useAuth';
 
 const { width } = Dimensions.get('window');
 
 export default function ShopkeeperOrdersScreen() {
+  const { user, role, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -34,13 +36,18 @@ export default function ShopkeeperOrdersScreen() {
   const router = useRouter();
 
   // Replace with your actual shop ID
-  const SHOP_ID = "hKckhDxbUwhh7wQRVoX8CW9j40f2"; // Using the shopId from your DB example
+  const SHOP_ID = user?.uid; // Using the shopId from your DB example
 
   // Fetch orders with real-time updates
   useEffect(() => {
+    if (!SHOP_ID) {
+      setIsLoading(false);
+      return; // Don't fetch orders if no shopId
+    }
+    
     setIsLoading(true);
     
-    // Set up real-time listener
+    // Set up real-time listener with dynamic shop ID
     const unsubscribe = subscribeToOrders(SHOP_ID, (ordersData) => {
       setOrders(ordersData);
       setIsLoading(false);
@@ -48,7 +55,8 @@ export default function ShopkeeperOrdersScreen() {
 
     // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, []);
+  }, [SHOP_ID]); 
+
 
   // Apply filters whenever orders, activeFilter, or searchQuery change
   useEffect(() => {
@@ -70,6 +78,27 @@ export default function ShopkeeperOrdersScreen() {
     
     setFilteredOrders(filtered);
   }, [activeFilter, searchQuery, orders]);
+
+
+  if (authLoading || !SHOP_ID) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
+            <Ionicons name="menu" size={28} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>📋 Customer Orders</Text>
+          <View style={{ width: 28 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>
+            {authLoading ? "Loading..." : "No shop associated with your account"}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const getStatusColor = (status: Order['status']) => {
     switch (status) {

@@ -57,16 +57,16 @@ export default function Layout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="signup" />
-      <Stack.Screen name="customer/home" />
-      <Stack.Screen name="customer/search" />
-      <Stack.Screen name="customer/messages" />
-      <Stack.Screen name="customer/myorders" />
-      <Stack.Screen name="customer/profile" />
-      <Stack.Screen name="shopkeeper/home" />
-      <Stack.Screen name="shopkeeper/search" />
-      <Stack.Screen name="shopkeeper/messages" />
-      <Stack.Screen name="shopkeeper/myorders" />
-      <Stack.Screen name="shopkeeper/profile" />
+      <Stack.Screen name="/customer/home" />
+      <Stack.Screen name="/customer/search" />
+      <Stack.Screen name="/customer/messages" />
+      <Stack.Screen name="/customer/myorders" />
+      <Stack.Screen name="/customer/profile" />
+      <Stack.Screen name="/shopkeeper/home" />
+      <Stack.Screen name="/shopkeeper/search" />
+      <Stack.Screen name="/shopkeeper/messages" />
+      <Stack.Screen name="/shopkeeper/myorders" />
+      <Stack.Screen name="/shopkeeper/profile" />
     </Stack>
   );
 }

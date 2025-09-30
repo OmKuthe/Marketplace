@@ -37,9 +37,6 @@ type Address = {
   name: string;
   phone: string;
   address: string;
-  city: string;
-  state: string;
-  pincode: string;
   type: 'home' | 'work' | 'other';
   isDefault: boolean;
 };
@@ -63,14 +60,11 @@ export default function OrderNowScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   
-  // Form state for new address
+  // Form state for new address (removed city, state, pincode)
   const [newAddress, setNewAddress] = useState({
     name: user?.displayName || '',
     phone: user?.phoneNumber || '',
     address: '',
-    city: '',
-    state: '',
-    pincode: '',
     type: 'home' as 'home' | 'work' | 'other'
   });
 
@@ -95,10 +89,7 @@ export default function OrderNowScreen() {
               ...prev,
               address: customerData.address,
               name: customerData.fullName || user.displayName || '',
-              phone: customerData.phone || user.phoneNumber || '',
-              city: customerData.city || '',
-              state: customerData.state || '',
-              pincode: customerData.pincode || ''
+              phone: customerData.phone || user.phoneNumber || ''
             }));
 
             // Create a default address object from customer data
@@ -107,9 +98,6 @@ export default function OrderNowScreen() {
               name: customerData.fullName || user.displayName || 'Customer',
               phone: customerData.phone || user.phoneNumber || '',
               address: customerData.address || '',
-              city: customerData.city || '',
-              state: customerData.state || '',
-              pincode: customerData.pincode || '',
               type: 'home',
               isDefault: true
             };
@@ -128,14 +116,11 @@ export default function OrderNowScreen() {
     fetchCustomerData();
   }, [user?.uid]);
 
-  // Function to validate address
+  // Function to validate address (removed city, state, pincode validation)
   const validateAddress = (address: Address) => {
     return address.name && 
            address.phone && 
-           address.address && 
-           address.city && 
-           address.state && 
-           address.pincode;
+           address.address; // Only validate essential fields
   };
 
   // Function to handle editing an address
@@ -145,9 +130,6 @@ export default function OrderNowScreen() {
       name: address.name,
       phone: address.phone,
       address: address.address,
-      city: address.city,
-      state: address.state,
-      pincode: address.pincode,
       type: address.type
     });
     setShowAddressForm(true);
@@ -160,7 +142,7 @@ export default function OrderNowScreen() {
       ...newAddress,
       isDefault: false
     })) {
-      Alert.alert('Error', 'Please fill all address fields');
+      Alert.alert('Error', 'Please fill all required fields');
       return;
     }
 
@@ -185,9 +167,6 @@ export default function OrderNowScreen() {
       name: user?.displayName || '',
       phone: user?.phoneNumber || '',
       address: '',
-      city: '',
-      state: '',
-      pincode: '',
       type: 'home'
     });
     
@@ -201,18 +180,15 @@ export default function OrderNowScreen() {
       name: newAddress.name,
       phone: newAddress.phone,
       address: newAddress.address,
-      city: newAddress.city,
-      state: newAddress.state,
-      pincode: newAddress.pincode,
       type: newAddress.type,
       isDefault: false
     };
 
-    // Validate the address
+    // Validate the address (simplified validation)
     if (!validateAddress(addressToUse)) {
       Alert.alert(
         'Incomplete Address', 
-        'Please fill all address fields or select a complete saved address.',
+        'Please fill all required fields or select a complete saved address.',
         [
           {
             text: 'Fill Address',
@@ -226,12 +202,6 @@ export default function OrderNowScreen() {
     // Validate phone number
     if (addressToUse.phone.length < 10) {
       Alert.alert('Error', 'Please enter a valid phone number');
-      return;
-    }
-
-    // Validate pincode
-    if (addressToUse.pincode.length !== 6) {
-      Alert.alert('Error', 'Please enter a valid 6-digit pincode');
       return;
     }
 
@@ -250,7 +220,7 @@ export default function OrderNowScreen() {
           image: product.imageUrl
         }],
         totalAmount: finalAmount,
-        deliveryAddress: `${addressToUse.address}, ${addressToUse.city}, ${addressToUse.state} - ${addressToUse.pincode}`,
+        deliveryAddress: addressToUse.address, // Just use the address string directly
         paymentMethod: paymentMethod,
         shopId: product.shopId || 'shop-001',
         shopName: product.shopName || 'Local Store'
@@ -287,7 +257,7 @@ export default function OrderNowScreen() {
       ...newAddress,
       isDefault: false
     })) {
-      Alert.alert('Error', 'Please fill all address fields');
+      Alert.alert('Error', 'Please fill all required fields');
       return;
     }
 
@@ -296,9 +266,6 @@ export default function OrderNowScreen() {
       name: newAddress.name,
       phone: newAddress.phone,
       address: newAddress.address,
-      city: newAddress.city,
-      state: newAddress.state,
-      pincode: newAddress.pincode,
       type: newAddress.type,
       isDefault: addresses.length === 0 // Set as default if no addresses exist
     };
@@ -313,9 +280,6 @@ export default function OrderNowScreen() {
         name: user?.displayName || '',
         phone: user?.phoneNumber || '',
         address: '',
-        city: '',
-        state: '',
-        pincode: '',
         type: 'home'
       });
     }
@@ -330,9 +294,6 @@ export default function OrderNowScreen() {
       name: user?.displayName || '',
       phone: user?.phoneNumber || '',
       address: '',
-      city: '',
-      state: '',
-      pincode: '',
       type: 'home'
     });
   };
@@ -373,7 +334,6 @@ export default function OrderNowScreen() {
       </View>
       <Text style={styles.addressName}>{address.name}</Text>
       <Text style={styles.addressText}>{address.address}</Text>
-      <Text style={styles.addressText}>{address.city}, {address.state} - {address.pincode}</Text>
       <Text style={styles.addressPhone}>Phone: {address.phone}</Text>
       
       {isSelected && (
@@ -497,33 +457,12 @@ export default function OrderNowScreen() {
                 maxLength={10}
               />
               <TextInput
-                style={styles.input}
-                placeholder="Address (House No, Building, Street) *"
+                style={[styles.input, styles.textArea]}
+                placeholder="Complete Address (House No, Building, Street, Area) *"
                 value={newAddress.address}
                 onChangeText={(text) => setNewAddress(prev => ({ ...prev, address: text }))}
                 multiline
-              />
-              <View style={styles.rowInputs}>
-                <TextInput
-                  style={[styles.input, styles.halfInput]}
-                  placeholder="City *"
-                  value={newAddress.city}
-                  onChangeText={(text) => setNewAddress(prev => ({ ...prev, city: text }))}
-                />
-                <TextInput
-                  style={[styles.input, styles.halfInput]}
-                  placeholder="State *"
-                  value={newAddress.state}
-                  onChangeText={(text) => setNewAddress(prev => ({ ...prev, state: text }))}
-                />
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="Pincode *"
-                value={newAddress.pincode}
-                onChangeText={(text) => setNewAddress(prev => ({ ...prev, pincode: text }))}
-                keyboardType="number-pad"
-                maxLength={6}
+                numberOfLines={3}
               />
               
               <View style={styles.addressTypeSelector}>
@@ -811,12 +750,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: colors.surface,
   },
-  rowInputs: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  halfInput: {
-    width: '48%',
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
   },
   addressTypeSelector: {
     flexDirection: 'row',
