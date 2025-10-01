@@ -1928,13 +1928,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 6,
   },
-  shareButton: {
-    padding: 8,
-    backgroundColor: colors.lightBackground,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  // shareButton: {
+  //   padding: 8,
+  //   backgroundColor: colors.lightBackground,
+  //   borderRadius: 20,
+  //   borderWidth: 1,
+  //   borderColor: colors.border,
+  // },
   productDetails: {
     marginBottom: 8,
   },
