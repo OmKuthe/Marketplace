@@ -401,6 +401,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    marginTop:27,
+    paddingBottom:38
   },
   animatedContainer: {
     flex: 1,

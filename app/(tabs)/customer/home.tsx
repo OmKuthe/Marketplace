@@ -657,7 +657,6 @@ export default function CustomerHome() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Keep all your existing functions (fetchProductsAndShopkeepers, fetchCustomerPosts, etc.)
-  // ... (all your existing functions remain the same)
 
   const fetchProductsAndShopkeepers = async () => {
     try {
@@ -1336,7 +1335,8 @@ export default function CustomerHome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#ffffff',
+    marginTop:27
   },
   header: {
     flexDirection: 'row',

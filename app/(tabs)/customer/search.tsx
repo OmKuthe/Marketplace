@@ -1,4 +1,4 @@
-
+import { Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -119,9 +119,6 @@ const ProductCard = React.memo(({
         return 'Nearby location';
       }
       return item.location;
-    }
-    if (item.address) {
-      return item.address;
     }
     if (item.latitude && item.longitude) {
       return 'Nearby location';
@@ -528,9 +525,6 @@ export default function SearchScreen() {
       }
       return item.location;
     }
-    if (item.address) {
-      return item.address;
-    }
     if (item.latitude && item.longitude) {
       return 'Nearby location';
     }
@@ -577,11 +571,11 @@ export default function SearchScreen() {
         </View>
         
         {[
-          { name: "Home", icon: "home", route: "/customer/home" },
+          { name: "Home", icon: "home", route: "/customer/home" as Href},
           { name: "Search", icon: "search", route: null },
-          { name: "Messages", icon: "chatbubbles", route: "/customer/messages" },
-          { name: "Orders", icon: "list", route: "/customer/myorders" },
-          { name: "Profile", icon: "person", route: "/customer/profile" },
+          { name: "Messages", icon: "chatbubbles", route: "/customer/messages" as Href},
+          { name: "Orders", icon: "list", route: "/customer/myorders" as Href},
+          { name: "Profile", icon: "person", route: "/customer/profile" as Href},
         ].map((item, index) => (
           <TouchableOpacity 
             key={index}
@@ -589,7 +583,7 @@ export default function SearchScreen() {
             onPress={() => {
               closePanel();
               if (item.route) {
-                router.push(item.route as string);
+                router.push(item.route);
               }
             }}
           >
@@ -883,6 +877,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+    marginTop:27
   },
   animatedContainer: {
     flex: 1,

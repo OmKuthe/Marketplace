@@ -46,7 +46,11 @@ export default function EditProfile() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1,
+    backgroundColor: "#fff",
+     
+  
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",

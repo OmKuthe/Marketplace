@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F5F5F5",
-    padding: 3
+    marginTop:27,
   },
   // Header Styles - Modern Marketplace Design
   header: {

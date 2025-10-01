@@ -58,7 +58,6 @@ export default function MessagesScreen() {
   const router = useRouter();
 
   // Function to fetch user details from both users and shopkeepers collections
-// Fix the fetchUserDetails function - replace it with this version
 const fetchUserDetails = async (participantId: string): Promise<User> => {
   try {
     console.log('🔍 Fetching details for participant:', participantId);
@@ -432,7 +431,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
-    paddingTop: 20,
+    marginTop:20
   },
   loadingContainer: {
     flex: 1,
