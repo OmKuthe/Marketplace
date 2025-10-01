@@ -1,4 +1,3 @@
-
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
@@ -125,8 +124,38 @@ export default function ShopScreen() {
     });
   };
 
+  // Function to handle view product details
+  const handleViewProduct = (product: Product) => {
+    router.push({
+      pathname: '../details/productdetails',
+      params: {
+        product: JSON.stringify({
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          price: product.price,
+          stock: product.stock,
+          category: product.category,
+          type: product.type,
+          imageUrl: product.imageUrl,
+          createdAt: product.createdAt,
+          shopkeeperId: shop.uid,
+          shopId: shop.id,
+          shopName: shop.shopName,
+          ownerName: shop.ownerName,
+          location: shop.location,
+          phone: shop.phone,
+          email: shop.email
+        })
+      }
+    });
+  };
+
   const renderProductItem = ({ item }: { item: Product }) => (
-    <TouchableOpacity style={styles.productCard}>
+    <TouchableOpacity 
+      style={styles.productCard}
+      onPress={() => handleViewProduct(item)}
+    >
       {item.imageUrl ? (
         <Image 
           source={{ uri: item.imageUrl }} 
@@ -154,17 +183,28 @@ export default function ShopScreen() {
         </View>
         
         <View style={styles.productFooter}>
-          {item.price && item.price > 0 && (
-            <Text style={styles.productPrice}>${item.price}</Text>
-          )}
-          {item.stock !== undefined && (
-            <Text style={[
-              styles.productStock,
-              item.stock === 0 && styles.outOfStock
-            ]}>
-              {item.stock === 0 ? 'Out of Stock' : `${item.stock} in stock`}
-            </Text>
-          )}
+          <View style={styles.priceStockContainer}>
+            {item.price && item.price > 0 && (
+              <Text style={styles.productPrice}>${item.price}</Text>
+            )}
+            {item.stock !== undefined && (
+              <Text style={[
+                styles.productStock,
+                item.stock === 0 && styles.outOfStock
+              ]}>
+                {item.stock === 0 ? 'Out of Stock' : `${item.stock} in stock`}
+              </Text>
+            )}
+          </View>
+          
+          {/* View Button */}
+          <TouchableOpacity 
+            style={styles.viewButton}
+            onPress={() => handleViewProduct(item)}
+          >
+            <Ionicons name="eye" size={16} color="#fff" />
+            <Text style={styles.viewButtonText}>View</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
@@ -334,6 +374,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+    marginTop:27
   },
   header: {
     flexDirection: 'row',
@@ -572,10 +613,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  priceStockContainer: {
+    flex: 1,
+  },
   productPrice: {
     fontSize: 16,
     color: 'rgba(23, 104, 217, 1)',
     fontWeight: '700',
+    marginBottom: 4,
   },
   productStock: {
     fontSize: 12,
@@ -584,6 +629,20 @@ const styles = StyleSheet.create({
   },
   outOfStock: {
     color: '#ff6b6b',
+  },
+  viewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(23, 104, 217, 1)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  viewButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,

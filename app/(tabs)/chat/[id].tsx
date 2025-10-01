@@ -374,6 +374,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
+    paddingBottom:110,
+    marginTop:27
   },
   content: {
     flex: 1,
@@ -393,6 +395,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 5,
+    paddingBottom:33
   },
   bottomSpacer: {
     height: 80,
@@ -401,6 +404,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    
   },
   header: {
     flexDirection: 'row',
@@ -458,6 +462,7 @@ const styles = StyleSheet.create({
   messagesContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+    paddingBottom: 80,
   },
   messageBubble: {
     maxWidth: '80%',

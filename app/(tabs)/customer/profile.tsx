@@ -106,7 +106,7 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    router.push("/customer/edit-profile" as any);
+    router.push("/profile/edit-profile" as any);
   };
 
   const handleOrderHistory = () => {
@@ -404,6 +404,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
+    marginTop:27
   },
   header: {
     flexDirection: 'row',
