@@ -590,7 +590,7 @@ export default function ProductsScreen() {
         style={styles.menuItem}
         onPress={() => {
           setSidePanelVisible(false);
-          router.push("/shopkeeper/analytics");
+          router.push("/shopkeeper/analytics" as any);
         }}
       >
         <Ionicons name="stats-chart" size={20} color="#007AFF" />

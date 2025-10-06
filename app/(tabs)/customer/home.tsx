@@ -1,4 +1,3 @@
-
 import { useAuth } from '@/hooks/useAuth';
 import { conversationService } from '@/utils/conversationService';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,25 +35,28 @@ import {
   View,
   Alert,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  ImageBackground
 } from "react-native";
+import { LinearGradient } from 'expo-linear-gradient';
 import { db, storage } from "../../../firebaseConfig";
 
 const { width } = Dimensions.get('window');
 
-// Updated color palette to match previous code
+// Updated color palette to match RamShop design
 const colors = {
-  primary: 'rgba(23, 104, 217, 1)',      // Bright blue for primary actions
-  secondary: 'rgba(144, 186, 242, 1)',   // Light blue for secondary elements
-  background: '#ffffff',                 // White background
-  surface: '#ffffff',                    // White surface
-  textPrimary: 'rgba(4, 18, 36, 1)',    // Dark navy for main text
-  textSecondary: 'rgba(4, 18, 36, 0.7)', // Medium gray for secondary text
-  border: 'rgba(144, 186, 242, 0.3)',   // Light blue border
-  needCard: 'rgba(255, 236, 230, 0.3)', // Soft orange for needs
-  offerCard: 'rgba(230, 243, 255, 0.3)', // Soft blue for offers
-  success: 'rgba(23, 104, 217, 1)',     // Blue for success actions
-  lightBackground: 'rgba(208, 226, 250, 0.3)', // Very light blue background
+  background: '#f5f5f5',      // Light grey background
+  surface: '#ffffff',          // White cards/sections
+  textPrimary: '#1a1a1a',     // Dark charcoal for main text
+  textSecondary: '#666666',   // Medium grey for secondary text
+  accent: '#2e7d32',          // Green accent for interactive elements
+  success: '#2e7d32',         // Green for prices/success
+  border: '#e5e5e5',          // Light grey for borders/dividers
+  darkButton: '#1a1a1a',      // Black for CTA buttons
+  offerGradient: ['#2e7d32', '#4caf50'], // Green gradient for offers
+  needCard: 'rgba(255, 107, 53, 0.1)',    // Soft orange for needs
+  offerCard: 'rgba(46, 125, 50, 0.1)',    // Soft green for offers
+  lightBackground: 'rgba(229, 229, 229, 0.3)', // Very light grey
 };
 
 // Define types (keep your existing types)
@@ -121,6 +123,26 @@ interface PostFilter {
   status?: string;
   searchQuery?: string;
 }
+
+// Comprehensive categories with icons
+const CATEGORIES = [
+  { id: '1', name: 'All', icon: 'grid-outline', value: 'all' },
+  { id: '2', name: 'Electronics', icon: 'phone-portrait-outline', value: 'electronics' },
+  { id: '3', name: 'Clothing', icon: 'shirt-outline', value: 'clothing' },
+  { id: '4', name: 'Food', icon: 'fast-food-outline', value: 'food' },
+  { id: '5', name: 'Books', icon: 'book-outline', value: 'books' },
+  { id: '6', name: 'Home', icon: 'home-outline', value: 'home' },
+  { id: '7', name: 'Sports', icon: 'basketball-outline', value: 'sports' },
+  { id: '8', name: 'Beauty', icon: 'sparkles-outline', value: 'beauty' },
+  { id: '9', name: 'Toys', icon: 'game-controller-outline', value: 'toys' },
+  { id: '10', name: 'Jewelry', icon: 'diamond-outline', value: 'jewelry' },
+  { id: '11', name: 'Automotive', icon: 'car-outline', value: 'automotive' },
+  { id: '12', name: 'Health', icon: 'fitness-outline', value: 'health' },
+  { id: '13', name: 'Furniture', icon: 'bed-outline', value: 'furniture' },
+  { id: '14', name: 'Shoes', icon: 'walk-outline', value: 'shoes' },
+  { id: '15', name: 'Bags', icon: 'bag-outline', value: 'bags' },
+  { id: '16', name: 'Other', icon: 'ellipsis-horizontal-outline', value: 'other' }
+];
 
 // Post API Functions (keep your existing functions)
 const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
@@ -294,7 +316,93 @@ const updateCustomerPost = async (postId: string, updates: Partial<CustomerPost>
   }
 };
 
-// Animated Product Card Component with updated colors
+// Animated Offer Banner Component
+const OfferBanner = () => {
+  const [currentOffer, setCurrentOffer] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  const offers = ['75% OFF', 'Free Shipping', 'Buy 2 Get 1 Free'];
+
+  useEffect(() => {
+    const offerInterval = setInterval(() => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      setCurrentOffer((prev) => (prev + 1) % offers.length);
+    }, 4000);
+
+    return () => clearInterval(offerInterval);
+  }, []);
+
+  return (
+    <View style={styles.offerBanner}>
+      <LinearGradient
+        colors={colors.offerGradient}
+        style={styles.offerGradient}
+      >
+        <Animated.Text style={[styles.offerText, { opacity: fadeAnim }]}>
+          {offers[currentOffer]}
+        </Animated.Text>
+      </LinearGradient>
+    </View>
+  );
+};
+
+// Category Item Component
+const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: boolean; onPress: () => void }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <TouchableOpacity onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut}>
+      <Animated.View style={[
+        styles.categoryItem, 
+        { transform: [{ scale: scaleAnim }] },
+        isSelected && styles.categoryItemSelected
+      ]}>
+        <View style={[
+          styles.categoryIcon,
+          isSelected && styles.categoryIconSelected
+        ]}>
+          <Ionicons 
+            name={item.icon} 
+            size={24} 
+            color={isSelected ? colors.surface : colors.accent} 
+          />
+        </View>
+        <Text style={[
+          styles.categoryName,
+          isSelected && styles.categoryNameSelected
+        ]}>{item.name}</Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+
+// Updated Product Card Component with RamShop design
 const AnimatedProductCard = ({ 
   item, 
   index, 
@@ -346,104 +454,92 @@ const AnimatedProductCard = ({
   return (
     <Animated.View 
       style={[
-        styles.instagramCard,
+        styles.productCard,
         {
           opacity: fadeAnim,
           transform: [{ scale: scaleAnim }]
         }
       ]}
     >
-      <View style={styles.cardHeader}>
-        <View style={styles.userInfo}>
-          <Image 
-            source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }} 
-            style={styles.avatar}
-          />
-          <View>
-            <Text style={styles.username}>
-              {shopkeeperData?.shopName || 'Unknown Shop'}
-            </Text>
-            <Text style={styles.userLocation}>
-              {shopkeeperData?.location || 'Unknown Location'}
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity onPress={handleSave}>
+      <View style={styles.productImageContainer}>
+        <Image 
+          source={{ uri: item.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' }} 
+          style={styles.productImage}
+          resizeMode="cover"
+        />
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Ionicons 
-            name={saved ? "bookmark" : "bookmark-outline"} 
+            name={saved ? "heart" : "heart-outline"} 
             size={24} 
-            color={saved ? colors.primary : colors.textPrimary} 
+            color={saved ? '#ff6b6b' : colors.textPrimary} 
           />
         </TouchableOpacity>
+        {item.stock < 10 && item.stock > 0 && (
+          <View style={styles.lowStockBadge}>
+            <Text style={styles.lowStockText}>Low Stock</Text>
+          </View>
+        )}
+        {item.stock === 0 && (
+          <View style={styles.outOfStockBadge}>
+            <Text style={styles.outOfStockText}>Out of Stock</Text>
+          </View>
+        )}
       </View>
       
-      <Image 
-        source={{ uri: item.imageUrl || 'https://via.placeholder.com/400x300' }} 
-        style={styles.productImage}
-        resizeMode="cover"
-      />
-      
-      <View style={styles.cardFooter}>
-        <View style={styles.actionButtons}> 
-          <TouchableOpacity 
-            style={styles.orderButton}
-            onPress={() => {
-              const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-              router.push({
-                pathname: '../orders/order-now',
-                params: { 
-                  product: JSON.stringify({
-                    id: item.id,
-                    name: item.name,
-                    price: item.price,
-                    imageUrl: item.imageUrl,
-                    shopName: shopkeeperData?.shopName || 'Local Store',
-                    shopId: shopkeeperId || 'shop-001',
-                    description: item.description,
-                    stock: item.stock
-                  })
-                }
-              });
-            }}
-          >
-            <Ionicons name="cart" size={20} color="white" />
-            <Text style={styles.orderButtonText}>Order Now</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.messageButton}
-            onPress={() => onMessagePress(item)}
-          >
-            <Ionicons name="chatbubble-ellipses" size={20} color={colors.primary} />
-            <Text style={styles.messageButtonText}>Message</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-            <Ionicons name="share-social" size={20} color={colors.textPrimary} />
-          </TouchableOpacity>
-        </View>
+      <View style={styles.productInfo}>
+        <Text style={styles.productName}>{item.name}</Text>
+        <Text style={styles.productDescription} numberOfLines={2}>
+          {item.description}
+        </Text>
         
-        <View style={styles.productDetails}>
-          <Text style={styles.productName}>{item.name}</Text>
-          <Text style={styles.productDescription} numberOfLines={2}>
-            {item.description}
-          </Text>
-          <View style={styles.priceStockContainer}>
-            <Text style={styles.productPrice}>💰 ${item.price}</Text>
-            <Text style={styles.productStock}>📦 {item.stock} in stock</Text>
+        <View style={styles.productMeta}>
+          <View style={styles.shopInfo}>
+            <Ionicons name="storefront-outline" size={16} color={colors.textSecondary} />
+            <Text style={styles.shopName}>{shopkeeperData?.shopName || 'Local Store'}</Text>
           </View>
           <Text style={styles.productCategory}>#{item.category}</Text>
         </View>
         
-        {item.createdAt?.seconds && (
-          <Text style={styles.timestamp}>
-            {new Date(item.createdAt.seconds * 1000).toLocaleDateString()}
-          </Text>
-        )}
+        <View style={styles.productFooter}>
+          <Text style={styles.productPrice}>${item.price}</Text>
+          <View style={styles.productActions}>
+            <TouchableOpacity 
+              style={styles.cartButton}
+              onPress={() => {
+                const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+                router.push({
+                  pathname: '../orders/order-now',
+                  params: { 
+                    product: JSON.stringify({
+                      id: item.id,
+                      name: item.name,
+                      price: item.price,
+                      imageUrl: item.imageUrl,
+                      shopName: shopkeeperData?.shopName || 'Local Store',
+                      shopId: shopkeeperId || 'shop-001',
+                      description: item.description,
+                      stock: item.stock
+                    })
+                  }
+                });
+              }}
+            >
+              <Ionicons name="cart-outline" size={18} color={colors.surface} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.messageButton}
+              onPress={() => onMessagePress(item)}
+            >
+              <Ionicons name="chatbubble-outline" size={18} color={colors.accent} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </Animated.View>
   );
 };
 
-// Customer Post Card Component with updated colors
+// Updated Customer Post Card Component
 const CustomerPostCard = ({ 
   item, 
   index,
@@ -475,45 +571,12 @@ const CustomerPostCard = ({
     ]).start();
   }, []);
 
-  const getPostColor = () => {
-    return item.type === 'NEED' ? colors.needCard : colors.offerCard;
-  };
-
-  const getTypeIcon = () => {
-    return item.type === 'NEED' ? 'help-circle' : 'gift';
-  };
-
   const getTypeColor = () => {
-    return item.type === 'NEED' ? '#FF6B35' : colors.primary;
+    return item.type === 'NEED' ? '#FF6B35' : colors.accent;
   };
 
   const handleSave = () => {
     setSaved(!saved);
-  };
-
-  const handleShare = async () => {
-    try {
-      await Share.share({
-        message: `${item.type === 'NEED' ? 'Looking for' : 'Offering'}: ${item.title} - ${item.description} | Price: ${item.price ? `₹${item.price}` : 'Negotiable'} | Location: ${item.location}`,
-        title: item.title,
-      });
-    } catch (error) {
-      console.error('Error sharing:', error);
-    }
-  };
-
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return 'Recent';
-    try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return date.toLocaleDateString('en-IN', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      });
-    } catch (error) {
-      return 'Recent';
-    }
   };
 
   return (
@@ -523,58 +586,34 @@ const CustomerPostCard = ({
         {
           opacity: fadeAnim,
           transform: [{ scale: scaleAnim }],
-          backgroundColor: getPostColor()
+          borderLeftColor: getTypeColor(),
         }
       ]}
     >
       <View style={styles.postHeader}>
         <View style={styles.postUserInfo}>
           <View style={[styles.postAvatar, { backgroundColor: getTypeColor() }]}>
-            <Ionicons name={getTypeIcon()} size={16} color="white" />
+            <Ionicons 
+              name={item.type === 'NEED' ? "help-circle" : "gift"} 
+              size={16} 
+              color="white" 
+            />
           </View>
-          <View>
+          <View style={styles.postUserDetails}>
             <Text style={styles.postUsername}>{item.customerName}</Text>
             <Text style={[styles.postType, { color: getTypeColor() }]}>
               {item.type} • {item.category}
             </Text>
           </View>
         </View>
-        <View style={styles.postHeaderActions}>
-          <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-            <Ionicons 
-              name={saved ? "bookmark" : "bookmark-outline"} 
-              size={20} 
-              color={saved ? colors.primary : colors.textSecondary} 
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleShare} style={styles.shareButton}>
-            <Ionicons name="share-outline" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={handleSave}>
+          <Ionicons 
+            name={saved ? "bookmark" : "bookmark-outline"} 
+            size={20} 
+            color={saved ? colors.accent : colors.textSecondary} 
+          />
+        </TouchableOpacity>
       </View>
-
-      <View style={styles.urgencyContainer}>
-        <View style={[styles.urgencyBadge, { 
-          backgroundColor: item.urgency === 'HIGH' ? '#FF6B6B' : 
-                          item.urgency === 'MEDIUM' ? '#FFD93D' : '#6BCF7F' 
-        }]}>
-          <Text style={styles.urgencyText}>{item.urgency} URGENCY</Text>
-        </View>
-      </View>
-
-      {item.imageUrl ? (
-        <Image 
-          source={{ uri: item.imageUrl }} 
-          style={styles.postImage}
-          resizeMode="cover"
-          onError={(error) => console.log('❌ Image load error:', error.nativeEvent.error)}
-        />
-      ) : (
-        <View style={styles.noImagePlaceholder}>
-          <Ionicons name="image-outline" size={40} color={colors.textSecondary} />
-          <Text style={styles.noImageText}>No Image</Text>
-        </View>
-      )}
 
       <View style={styles.postContent}>
         <Text style={styles.postTitle}>{item.title}</Text>
@@ -582,60 +621,50 @@ const CustomerPostCard = ({
         
         <View style={styles.postDetails}>
           {item.price && (
-            <Text style={styles.postPrice}>💰 ₹{item.price}</Text>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Price:</Text>
+              <Text style={styles.postPrice}>${item.price}</Text>
+            </View>
           )}
-          <Text style={styles.postLocation}>📍 {item.location}</Text>
-        </View>
-        
-        {item.tags && item.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {item.tags.slice(0, 3).map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>#{tag}</Text>
-              </View>
-            ))}
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Location:</Text>
+            <Text style={styles.postLocation}>📍 {item.location}</Text>
           </View>
-        )}
-        
-        <View style={styles.postMeta}>
-          <Text style={styles.postDate}>
-            {formatDate(item.createdAt)}
-          </Text>
-          <Text style={styles.postStatus}>
-            • {item.status}
-          </Text>
         </View>
       </View>
 
-      <View style={styles.postActions}>
+      <View style={styles.postFooter}>
         <TouchableOpacity 
           style={styles.contactButton}
           onPress={() => onContactPress(item)}
         >
           <Ionicons 
             name="chatbubble-ellipses" 
-            size={18} 
-            color={colors.primary} 
+            size={16} 
+            color={colors.accent} 
           />
           <Text style={styles.contactButtonText}>Contact</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={styles.postMeta}>
+          <Text style={styles.postDate}>
+            {new Date(item.createdAt?.seconds * 1000).toLocaleDateString()}
+          </Text>
+        </View>
       </View>
     </Animated.View>
   );
 };
 
+// Main CustomerHome Component with RamShop UI
 export default function CustomerHome() {
   const [products, setProducts] = useState<Product[]>([]);
   const [customerPosts, setCustomerPosts] = useState<CustomerPost[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [shopkeeperData, setShopkeeperData] = useState<{[key: string]: ShopkeeperData}>({});
-  const [activeTab, setActiveTab] = useState<"all" | "need" | "offer" | "customer-posts">("all");
-  const [sidePanelVisible, setSidePanelVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<"all" | "need" | "offer">("all");
   const [createPostModalVisible, setCreatePostModalVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const router = useRouter();
   const { user } = useAuth();
   
@@ -651,13 +680,11 @@ export default function CustomerHome() {
   });
   
   const [activeFilter, setActiveFilter] = useState<PostFilter>({});
-  const [lastVisible, setLastVisible] = useState<any>(null);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [creatingPost, setCreatingPost] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Keep all your existing functions (fetchProductsAndShopkeepers, fetchCustomerPosts, etc.)
-
+  // Fetch functions
   const fetchProductsAndShopkeepers = async () => {
     try {
       console.log('🔄 Refreshing products...');
@@ -705,7 +732,6 @@ export default function CustomerHome() {
       console.log('📊 Fetch result:', result);
       
       setCustomerPosts(result.posts);
-      setLastVisible(null);
       
       console.log('✅ Posts set to state, count:', result.posts.length);
     } catch (error) {
@@ -719,9 +745,24 @@ export default function CustomerHome() {
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchCustomerPosts(activeFilter);
+    await fetchProductsAndShopkeepers();
     setRefreshing(false);
   };
 
+  // Filter products by category
+  const filterProductsByCategory = (category: string) => {
+    setSelectedCategory(category);
+    if (category === 'all') {
+      setFilteredProducts(products);
+    } else {
+      const filtered = products.filter(product => 
+        product.category.toLowerCase() === category.toLowerCase()
+      );
+      setFilteredProducts(filtered);
+    }
+  };
+
+  // Other functions remain the same
   const handleCreatePost = async () => {
     if (!user) {
       Alert.alert('Error', 'Please log in to create a post');
@@ -754,10 +795,7 @@ export default function CustomerHome() {
                         'Anonymous Customer';
           
           customerEmail = customerData.email || user.email || '';
-          
-          console.log('✅ Customer data fetched - Name:', customerName, 'Email:', customerEmail);
         } else {
-          console.log('❌ Customer document not found in customers collection, using displayName');
           customerName = user.displayName || 'Anonymous Customer';
         }
       } catch (customerError) {
@@ -769,17 +807,12 @@ export default function CustomerHome() {
 
       if (newPost.image) {
         try {
-          console.log('🖼️ Uploading post image to ImgBB...');
           const uploadedUrl = await uploadPostImage(newPost.image);
-          
           if (uploadedUrl) {
             imageUrl = uploadedUrl;
-            console.log('✅ Post image uploaded successfully:', imageUrl);
-          } else {
-            console.warn('⚠️ Image upload failed, creating post without image');
           }
         } catch (imageError) {
-          console.warn('⚠️ Image upload failed, but post will be created:', imageError);
+          console.warn('⚠️ Image upload failed:', imageError);
         }
       }
 
@@ -803,7 +836,6 @@ export default function CustomerHome() {
         tags: newPost.category ? [newPost.category.toLowerCase()] : ['general'],
       };
   
-      console.log('📝 Creating post with data (including imageUrl):', postData);
       const postId = await createCustomerPost(postData);
       console.log('✅ Post created with ID:', postId);
   
@@ -885,7 +917,6 @@ export default function CustomerHome() {
         return;
       }
 
-      alert('Starting conversation...');
       const conversationId = await conversationService.findOrCreateConversation(user.uid, shopkeeperId);
       await conversationService.sendInitialMessage(conversationId, user.uid, product);
       router.push(`/chat/${conversationId}`);
@@ -897,41 +928,6 @@ export default function CustomerHome() {
   };
 
   useEffect(() => {
-    const fetchProductsAndShopkeepers = async () => {
-      try {
-        const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Product[];
-        
-        setProducts(data);
-        setFilteredProducts(data);
-
-        const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
-        for (const product of data) {
-          const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
-          if (shopkeeperId && !shopkeeperMap[shopkeeperId]) {
-            try {
-              const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
-              if (shopkeeperDoc.exists()) {
-                shopkeeperMap[shopkeeperId] = {
-                  uid: shopkeeperId,
-                  ...shopkeeperDoc.data()
-                } as ShopkeeperData;
-              }
-            } catch (error) {
-              console.error("Error fetching shopkeeper:", error);
-            }
-          }
-        }
-        setShopkeeperData(shopkeeperMap);
-      } catch (err) {
-        console.log("Error fetching products:", err);
-      }
-    };
-
     fetchProductsAndShopkeepers();
     fetchCustomerPosts();
   }, []);
@@ -939,10 +935,6 @@ export default function CustomerHome() {
   useEffect(() => {
     if (activeTab === "all") {
       setFilteredProducts(products);
-    } else if (activeTab === "customer-posts") {
-      // Customer posts are handled separately
-    } else {
-      setFilteredProducts(products.filter(product => product.type === activeTab.toUpperCase()));
     }
   }, [activeTab, products]);
 
@@ -958,58 +950,24 @@ export default function CustomerHome() {
         style={[styles.filterButton, activeFilter.type === undefined && styles.activeFilterButton]}
         onPress={() => applyFilter({ type: undefined })}
       >
-        <Text style={styles.filterButtonText}>All Posts</Text>
+        <Text style={[styles.filterButtonText, activeFilter.type === undefined && styles.activeFilterButtonText]}>All Posts</Text>
       </TouchableOpacity>
       <TouchableOpacity 
         style={[styles.filterButton, activeFilter.type === 'NEED' && styles.activeFilterButton]}
         onPress={() => applyFilter({ type: 'NEED' })}
       >
-        <Text style={styles.filterButtonText}>Needs</Text>
+        <Text style={[styles.filterButtonText, activeFilter.type === 'NEED' && styles.activeFilterButtonText]}>Needs</Text>
       </TouchableOpacity>
       <TouchableOpacity 
         style={[styles.filterButton, activeFilter.type === 'OFFER' && styles.activeFilterButton]}
         onPress={() => applyFilter({ type: 'OFFER' })}
       >
-        <Text style={styles.filterButtonText}>Offers</Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={[styles.filterButton, activeFilter.urgency === 'HIGH' && styles.activeFilterButton]}
-        onPress={() => applyFilter({ urgency: 'HIGH' })}
-      >
-        <Text style={styles.filterButtonText}>Urgent</Text>
+        <Text style={[styles.filterButtonText, activeFilter.type === 'OFFER' && styles.activeFilterButtonText]}>Offers</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 
-  const SidePanel = () => (
-    <View style={styles.sidePanel}>
-      <TouchableOpacity style={styles.sidePanelClose} onPress={() => setSidePanelVisible(false)}>
-        <Ionicons name="close" size={24} color={colors.textPrimary} />
-      </TouchableOpacity>
-      
-      <View style={styles.sidePanelHeader}>
-        <Text style={styles.sidePanelTitle}>Menu</Text>
-      </View>
-      
-      {['Home', 'Search', 'Messages', 'Orders', 'Profile'].map((item) => (
-        <TouchableOpacity key={item} style={styles.menuItem} onPress={() => setSidePanelVisible(false)}>
-          <Ionicons name={
-            item === 'Home' ? 'home' : 
-            item === 'Search' ? 'search' : 
-            item === 'Messages' ? 'chatbubbles' : 
-            item === 'Orders' ? 'list' : 'person'
-          } size={22} color={colors.primary} />
-          <Text style={styles.menuItemText}>{item}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
   const renderContent = () => {
-    console.log('🎯 Active Tab:', activeTab);
-    console.log('📋 All Customer Posts Count:', customerPosts.length);
-    console.log('📦 Filtered Products Count:', filteredProducts.length);
-
     const handleRefresh = async () => {
       setRefreshing(true);
       
@@ -1024,31 +982,27 @@ export default function CustomerHome() {
 
     if (activeTab === "need") {
       const needPosts = customerPosts.filter(post => post.type === 'NEED');
-      console.log('🔄 Rendering NEED posts:', needPosts.length);
       
       return (
         <FlatList
           data={needPosts}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 25 }}
+          contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              colors={[colors.primary]}
+              colors={[colors.accent]}
             />
           }
-          renderItem={({ item, index }) => {
-            console.log('🎨 Rendering NEED post:', item.id, item.title);
-            return (
-              <CustomerPostCard 
-                item={item} 
-                index={index} 
-                onContactPress={handleContactPost}
-              />
-            );
-          }}
+          renderItem={({ item, index }) => (
+            <CustomerPostCard 
+              item={item} 
+              index={index} 
+              onContactPress={handleContactPost}
+            />
+          )}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="document-text-outline" size={64} color={colors.textSecondary} />
@@ -1062,51 +1016,33 @@ export default function CustomerHome() {
               </TouchableOpacity>
             </View>
           }
-          ListFooterComponent={
-            loadingPosts ? (
-              <View style={styles.loadingMore}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.loadingText}>Loading more posts...</Text>
-              </View>
-            ) : null
-          }
-          onEndReached={() => {
-            if (lastVisible && !loadingPosts) {
-              fetchCustomerPosts(activeFilter);
-            }
-          }}
-          onEndReachedThreshold={0.5}
         />
       );
     }
 
     if (activeTab === "offer") {
       const offerPosts = customerPosts.filter(post => post.type === 'OFFER');
-      console.log('🔄 Rendering OFFER posts:', offerPosts.length);
       
       return (
         <FlatList
           data={offerPosts}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 25 }}
+          contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              colors={[colors.primary]}
+              colors={[colors.accent]}
             />
           }
-          renderItem={({ item, index }) => {
-            console.log('🎨 Rendering OFFER post:', item.id, item.title);
-            return (
-              <CustomerPostCard 
-                item={item} 
-                index={index} 
-                onContactPress={handleContactPost}
-              />
-            );
-          }}
+          renderItem={({ item, index }) => (
+            <CustomerPostCard 
+              item={item} 
+              index={index} 
+              onContactPress={handleContactPost}
+            />
+          )}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="gift-outline" size={64} color={colors.textSecondary} />
@@ -1123,82 +1059,149 @@ export default function CustomerHome() {
               </TouchableOpacity>
             </View>
           }
-          ListFooterComponent={
-            loadingPosts ? (
-              <View style={styles.loadingMore}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.loadingText}>Loading more posts...</Text>
-              </View>
-            ) : null
-          }
-          onEndReached={() => {
-            if (lastVisible && !loadingPosts) {
-              fetchCustomerPosts(activeFilter);
-            }
-          }}
-          onEndReachedThreshold={0.5}
         />
       );
     }
 
-    console.log('🔄 Rendering products for ALL tab:', activeTab);
     return (
-      <FlatList
-        data={filteredProducts}
-        keyExtractor={(item) => item.id}
+      <ScrollView 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 25 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            colors={[colors.primary]}
+            colors={[colors.accent]}
           />
         }
-        renderItem={({ item, index }) => {
-          const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-          const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
-          
-          return (
-            <AnimatedProductCard 
-              item={item} 
-              index={index} 
-              shopkeeperData={shopkeeper}
-              onMessagePress={handleMessageButton}
-            />
-          );
-        }}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="cube-outline" size={64} color={colors.textSecondary} />
-            <Text style={styles.emptyStateText}>No products available</Text>
-            <Text style={styles.emptyStateSubtext}>Check back later for new products</Text>
+      >
+        {/* Offer Banner */}
+        <OfferBanner />
+
+        {/* Categories Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Shop by Category</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            style={styles.categoriesList}
+            contentContainerStyle={styles.categoriesContent}
+          >
+            {CATEGORIES.map((category) => (
+              <CategoryItem 
+                key={category.id} 
+                item={category} 
+                isSelected={selectedCategory === category.value}
+                onPress={() => filterProductsByCategory(category.value)}
+              />
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Category Filter Info */}
+        {selectedCategory !== 'all' && (
+          <View style={styles.categoryFilterInfo}>
+            <Text style={styles.categoryFilterText}>
+              Showing {filteredProducts.length} products in {CATEGORIES.find(cat => cat.value === selectedCategory)?.name}
+            </Text>
+            <TouchableOpacity onPress={() => filterProductsByCategory('all')}>
+              <Text style={styles.clearFilterText}>Clear filter</Text>
+            </TouchableOpacity>
           </View>
-        }
-      />
+        )}
+
+        {/* Recommended Products */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {selectedCategory === 'all' ? 'Recommended for you' : `Top ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
+            </Text>
+            <TouchableOpacity>
+              <Text style={styles.seeAllText}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          {filteredProducts.length > 0 ? (
+            <FlatList
+              data={filteredProducts.slice(0, 5)}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item, index }) => {
+                const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+                const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+                
+                return (
+                  <AnimatedProductCard 
+                    item={item} 
+                    index={index} 
+                    shopkeeperData={shopkeeper}
+                    onMessagePress={handleMessageButton}
+                  />
+                );
+              }}
+              contentContainerStyle={styles.productsList}
+            />
+          ) : (
+            <View style={styles.noProducts}>
+              <Ionicons name="search-outline" size={48} color={colors.textSecondary} />
+              <Text style={styles.noProductsText}>No products found</Text>
+              <Text style={styles.noProductsSubtext}>Try selecting a different category</Text>
+            </View>
+          )}
+        </View>
+
+        {/* All Products Grid */}
+        {filteredProducts.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              {selectedCategory === 'all' ? 'All Products' : `All ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
+            </Text>
+            <View style={styles.productsGrid}>
+              {filteredProducts.map((item, index) => {
+                const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+                const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+                
+                return (
+                  <AnimatedProductCard 
+                    key={item.id}
+                    item={item} 
+                    index={index} 
+                    shopkeeperData={shopkeeper}
+                    onMessagePress={handleMessageButton}
+                  />
+                );
+              })}
+            </View>
+          </View>
+        )}
+      </ScrollView>
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-          <Ionicons name="menu" size={28} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>🛒 Customer Dashboard</Text>
-        <TouchableOpacity style={styles.createButton} onPress={() => setCreatePostModalVisible(true)}>
-          <Ionicons name="add-circle" size={26} color={colors.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerLeft}>
+          <Text style={styles.time}>{new Date().getHours()}:{new Date().getMinutes().toString().padStart(2, '0')}</Text>
+        </View>
+        <Text style={styles.headerTitle}>RAMSHOP</Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.headerButton} onPress={() => setCreatePostModalVisible(true)}>
+            <Ionicons name="add-circle" size={24} color={colors.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton}>
+            <Ionicons name="cart-outline" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {sidePanelVisible && <SidePanel />}
-
+      {/* Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity 
           style={[styles.tab, activeTab === "all" && styles.activeTab]}
           onPress={() => setActiveTab("all")}
         >
-          <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>All Products</Text>
+          <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>Products</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === "need" && styles.activeTab]}
@@ -1214,10 +1217,11 @@ export default function CustomerHome() {
         </TouchableOpacity>
       </View>
 
-      {activeTab === "customer-posts" && <FilterBar />}
+      {(activeTab === "need" || activeTab === "offer") && <FilterBar />}
 
       {renderContent()}
 
+      {/* Create Post Modal */}
       <Modal visible={createPostModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalContainer}>
           <ScrollView contentContainerStyle={styles.modalScrollContent}>
@@ -1258,6 +1262,7 @@ export default function CustomerHome() {
               <TextInput
                 style={styles.formInput}
                 placeholder="Post Title *"
+                placeholderTextColor={colors.textSecondary}
                 value={newPost.title}
                 onChangeText={(text) => setNewPost({...newPost, title: text})}
               />
@@ -1266,6 +1271,7 @@ export default function CustomerHome() {
                 style={[styles.formInput, styles.textArea]}
                 multiline
                 placeholder="Description *"
+                placeholderTextColor={colors.textSecondary}
                 value={newPost.description}
                 onChangeText={(text) => setNewPost({...newPost, description: text})}
               />
@@ -1273,7 +1279,8 @@ export default function CustomerHome() {
               <View style={styles.rowInputs}>
                 <TextInput
                   style={[styles.formInput, styles.halfInput]}
-                  placeholder="Price (₹)"
+                  placeholder="Price ($)"
+                  placeholderTextColor={colors.textSecondary}
                   keyboardType="numeric"
                   value={newPost.price}
                   onChangeText={(text) => setNewPost({...newPost, price: text})}
@@ -1281,6 +1288,7 @@ export default function CustomerHome() {
                 <TextInput
                   style={[styles.formInput, styles.halfInput]}
                   placeholder="Category"
+                  placeholderTextColor={colors.textSecondary}
                   value={newPost.category}
                   onChangeText={(text) => setNewPost({...newPost, category: text})}
                 />
@@ -1289,6 +1297,7 @@ export default function CustomerHome() {
               <TextInput
                 style={styles.formInput}
                 placeholder="Location"
+                placeholderTextColor={colors.textSecondary}
                 value={newPost.location}
                 onChangeText={(text) => setNewPost({...newPost, location: text})}
               />
@@ -1335,26 +1344,40 @@ export default function CustomerHome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
-    marginTop:27
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 15,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  headerLeft: {
+    flex: 1,
+  },
+  time: {
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.textPrimary,
   },
-  createButton: {
-    padding: 4,
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    letterSpacing: 1,
+  },
+  headerRight: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  headerButton: {
+    marginLeft: 16,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -1364,61 +1387,280 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 15,
     alignItems: 'center',
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
+    borderBottomColor: colors.accent,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
     fontWeight: '500',
   },
   activeTabText: {
-    color: colors.primary,
+    color: colors.accent,
+    fontWeight: '600',
+  },
+  offerBanner: {
+    marginHorizontal: 20,
+    marginVertical: 15,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  offerGradient: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  offerText: {
+    color: colors.surface,
+    fontSize: 24,
     fontWeight: 'bold',
   },
-  filterBar: {
+  section: {
+    marginBottom: 25,
+  },
+  sectionHeader: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 15,
   },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.lightBackground,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    paddingHorizontal: 20,
+    marginBottom: 15,
   },
-  activeFilterButton: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  filterButtonText: {
+  seeAllText: {
+    color: colors.accent,
     fontSize: 14,
+    fontWeight: '600',
+  },
+  categoriesList: {
+    paddingHorizontal: 15,
+  },
+  categoriesContent: {
+    paddingRight: 15,
+  },
+  categoryItem: {
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  categoryItemSelected: {
+    // Selected state styling
+  },
+  categoryIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  categoryIconSelected: {
+    backgroundColor: colors.accent,
+  },
+  categoryName: {
+    fontSize: 12,
     color: colors.textSecondary,
     fontWeight: '500',
+    textAlign: 'center',
   },
-  postCard: {
+  categoryNameSelected: {
+    color: colors.accent,
+    fontWeight: '600',
+  },
+  categoryFilterInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 15,
+    paddingVertical: 10,
+    backgroundColor: colors.lightBackground,
+    marginHorizontal: 20,
+    borderRadius: 8,
+  },
+  categoryFilterText: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  clearFilterText: {
+    fontSize: 14,
+    color: colors.accent,
+    fontWeight: '600',
+  },
+  productsList: {
+    paddingHorizontal: 15,
+  },
+  productsGrid: {
+    paddingHorizontal: 15,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  productCard: {
     backgroundColor: colors.surface,
-    marginHorizontal: 12,
-    marginVertical: 6,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: 'rgba(4, 18, 36, 0.15)',
-    shadowOffset: { width: 0, height: 4 },
+    borderRadius: 12,
+    marginBottom: 15,
+    width: (width - 45) / 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  productImageContainer: {
+    position: 'relative',
+  },
+  productImage: {
+    width: '100%',
+    height: 150,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  saveButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    padding: 6,
+  },
+  lowStockBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: '#FFD93D',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  lowStockText: {
+    color: colors.textPrimary,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  outOfStockBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  outOfStockText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  productInfo: {
+    padding: 12,
+  },
+  productName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  productDescription: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 8,
+    lineHeight: 16,
+  },
+  productMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  shopInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  shopName: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  productCategory: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    backgroundColor: colors.lightBackground,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  productFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  productPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.success,
+  },
+  productActions: {
+    flexDirection: 'row',
+  },
+  cartButton: {
+    backgroundColor: colors.darkButton,
+    padding: 8,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  messageButton: {
+    backgroundColor: colors.lightBackground,
+    padding: 8,
+    borderRadius: 8,
+    marginLeft: 6,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  // Post Card Styles
+  postCard: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
+    marginVertical: 8,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderLeftWidth: 4,
   },
   postHeader: {
     flexDirection: 'row',
@@ -1432,77 +1674,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   postAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 12,
+  },
+  postUserDetails: {
+    flex: 1,
   },
   postUsername: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.textPrimary,
   },
   postType: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  postHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  saveButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
-  shareButton: {
-    padding: 4,
-    marginLeft: 4,
-  },
-  urgencyContainer: {
-    marginBottom: 12,
-  },
-  urgencyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  urgencyText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  noImagePlaceholder: {
-    width: '100%',
-    height: 150,
-    backgroundColor: colors.lightBackground,
-    borderRadius: 12,
-    marginBottom: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-  },
-  noImageText: {
     fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 8,
-  },
-  postImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 12,
+    fontWeight: '500',
+    marginTop: 2,
   },
   postContent: {
     marginBottom: 12,
   },
   postTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 6,
@@ -1511,56 +1707,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textPrimary,
     lineHeight: 20,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   postDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 8,
   },
-  postPrice: {
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  detailLabel: {
     fontSize: 14,
+    color: colors.textSecondary,
+    marginRight: 8,
+    fontWeight: '500',
+  },
+  postPrice: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: colors.success,
   },
   postLocation: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textSecondary,
   },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 8,
-  },
-  tag: {
-    backgroundColor: colors.lightBackground,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 6,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tagText: {
-    fontSize: 10,
-    color: colors.textSecondary,
-  },
-  postMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  postDate: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  postStatus: {
-    fontSize: 11,
-    color: colors.success,
-    fontWeight: '500',
-  },
-  postActions: {
+  postFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1568,32 +1740,118 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingTop: 12,
   },
+  postMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  postDate: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
   contactButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: colors.lightBackground,
-    borderRadius: 20,
-    flex: 1,
-    marginRight: 8,
-    justifyContent: 'center',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
   contactButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.primary,
+    color: colors.accent,
     marginLeft: 6,
   },
-  moreButton: {
-    padding: 8,
+  // Filter Bar
+  filterBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: colors.lightBackground,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  activeFilterButton: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  activeFilterButtonText: {
+    color: colors.surface,
+  },
+  listContent: {
+    paddingBottom: 25,
+    paddingTop: 8,
+  },
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  noProducts: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  noProductsText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noProductsSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  createFirstPostButton: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  createFirstPostText: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: '500',
   },
   // Modal Styles
   modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(4, 18, 36, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
   },
   modalScrollContent: {
@@ -1616,7 +1874,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.textPrimary,
   },
@@ -1637,10 +1895,13 @@ const styles = StyleSheet.create({
   },
   activeTypeButton: {
     backgroundColor: colors.surface,
-    shadowColor: 'rgba(4, 18, 36, 0.15)',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1651,8 +1912,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   activeTypeButtonText: {
-    color: colors.primary,
-    fontWeight: 'bold',
+    color: colors.accent,
+    fontWeight: '600',
   },
   imageUploadSection: {
     height: 120,
@@ -1721,8 +1982,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   activeUrgencyOption: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   urgencyOptionText: {
     fontSize: 12,
@@ -1749,7 +2010,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   submitButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
   },
   disabledButton: {
     opacity: 0.6,
@@ -1763,214 +2024,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: colors.surface,
-  },
-  // Empty State Styles
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  createFirstPostButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
-  createFirstPostText: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  loadingMore: {
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 8,
-  },
-  // Side Panel Styles
-  sidePanel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: width * 0.75,
-    backgroundColor: colors.surface,
-    zIndex: 1000,
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
-  },
-  sidePanelClose: {
-    position: 'absolute',
-    top: 40,
-    right: 20,
-  },
-  sidePanelHeader: {
-    marginBottom: 30,
-  },
-  sidePanelTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  menuItemText: {
-    fontSize: 16,
-    color: colors.textPrimary,
-    marginLeft: 12,
-  },
-  // Instagram Card Styles
-  instagramCard: {
-    backgroundColor: colors.surface,
-    marginHorizontal: 12,
-    marginVertical: 6,
-    borderRadius: 16,
-    shadowColor: 'rgba(4, 18, 36, 0.15)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  username: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  userLocation: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  productImage: {
-    width: '100%',
-    height: 300,
-  },
-  cardFooter: {
-    padding: 16,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  orderButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flex: 2,
-    marginRight: 8,
-    justifyContent: 'center',
-  },
-  orderButtonText: {
-    color: colors.surface,
-    fontWeight: '500',
-    marginLeft: 6,
-  },
-  messageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightBackground,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flex: 2,
-    marginRight: 8,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  messageButtonText: {
-    color: colors.primary,
-    fontWeight: '500',
-    marginLeft: 6,
-  },
-  // shareButton: {
-  //   padding: 8,
-  //   backgroundColor: colors.lightBackground,
-  //   borderRadius: 20,
-  //   borderWidth: 1,
-  //   borderColor: colors.border,
-  // },
-  productDetails: {
-    marginBottom: 8,
-  },
-  productName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  productDescription: {
-    fontSize: 14,
-    color: colors.textPrimary,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  priceStockContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  productPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.success,
-  },
-  productStock: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  productCategory: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  timestamp: {
-    fontSize: 11,
-    color: colors.textSecondary,
   },
 });
