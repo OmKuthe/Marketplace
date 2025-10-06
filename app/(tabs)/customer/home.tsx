@@ -1,3 +1,5 @@
+
+
 import { useAuth } from '@/hooks/useAuth';
 import { conversationService } from '@/utils/conversationService';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,28 +37,35 @@ import {
   View,
   Alert,
   ActivityIndicator,
-  RefreshControl,
-  ImageBackground
+  RefreshControl
 } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 import { db, storage } from "../../../firebaseConfig";
 
 const { width } = Dimensions.get('window');
 
-// Updated color palette to match RamShop design
+// NEW EYE-CATCHING COLOR SCHEME
 const colors = {
-  background: '#f5f5f5',      // Light grey background
-  surface: '#ffffff',          // White cards/sections
-  textPrimary: '#1a1a1a',     // Dark charcoal for main text
-  textSecondary: '#666666',   // Medium grey for secondary text
-  accent: '#2e7d32',          // Green accent for interactive elements
-  success: '#2e7d32',         // Green for prices/success
-  border: '#e5e5e5',          // Light grey for borders/dividers
-  darkButton: '#1a1a1a',      // Black for CTA buttons
-  offerGradient: ['#2e7d32', '#4caf50'], // Green gradient for offers
-  needCard: 'rgba(255, 107, 53, 0.1)',    // Soft orange for needs
-  offerCard: 'rgba(46, 125, 50, 0.1)',    // Soft green for offers
-  lightBackground: 'rgba(229, 229, 229, 0.3)', // Very light grey
+  background: '#f8fafc',          // Light blue-grey background
+  surface: '#ffffff',              // White cards/sections
+  textPrimary: '#1e293b',         // Dark blue-grey for main text
+  textSecondary: '#64748b',       // Medium blue-grey for secondary text
+  accent: '#3b82f6',              // Vibrant blue for interactive elements
+  accentLight: '#60a5fa',         // Lighter blue for gradients
+  success: '#10b981',             // Emerald green for success/prices
+  warning: '#f59e0b',             // Amber for warnings
+  error: '#ef4444',               // Red for errors
+  border: '#e2e8f0',              // Light blue-grey for borders
+  darkButton: '#1e293b',          // Dark blue-grey for CTA buttons
+  needColor: '#f97316',           // Coral orange for needs
+  offerColor: '#10b981',          // Emerald green for offers
+  gradientPrimary: ['#3b82f6', '#6366f1'], // Blue to purple gradient
+  gradientSuccess: ['#10b981', '#34d399'], // Green gradient
+  gradientWarning: ['#f59e0b', '#fbbf24'], // Amber gradient
+  needCard: 'rgba(249, 115, 22, 0.08)',    // Soft orange for needs
+  offerCard: 'rgba(16, 185, 129, 0.08)',   // Soft green for offers
+  lightBackground: 'rgba(226, 232, 240, 0.4)', // Very light blue-grey
+  electricPurple: '#8b5cf6',      // Electric purple for highlights
 };
 
 // Define types (keep your existing types)
@@ -316,12 +325,16 @@ const updateCustomerPost = async (postId: string, updates: Partial<CustomerPost>
   }
 };
 
-// Animated Offer Banner Component
+// UPDATED Offer Banner Component without image dependency
 const OfferBanner = () => {
   const [currentOffer, setCurrentOffer] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  const offers = ['75% OFF', 'Free Shipping', 'Buy 2 Get 1 Free'];
+  const offers = [
+    { text: '75% OFF', gradient: colors.gradientPrimary },
+    { text: 'Free Shipping', gradient: colors.gradientSuccess },
+    { text: 'Buy 2 Get 1 Free', gradient: colors.gradientWarning }
+  ];
 
   useEffect(() => {
     const offerInterval = setInterval(() => {
@@ -347,18 +360,21 @@ const OfferBanner = () => {
   return (
     <View style={styles.offerBanner}>
       <LinearGradient
-        colors={colors.offerGradient}
+        colors={offers[currentOffer].gradient}
         style={styles.offerGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
       >
         <Animated.Text style={[styles.offerText, { opacity: fadeAnim }]}>
-          {offers[currentOffer]}
+          {offers[currentOffer].text}
         </Animated.Text>
+        <Text style={styles.offerSubtext}>Limited Time Offer</Text>
       </LinearGradient>
     </View>
   );
 };
 
-// Category Item Component
+// UPDATED Category Item Component without image dependency
 const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: boolean; onPress: () => void }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -402,7 +418,7 @@ const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: bo
   );
 };
 
-// Updated Product Card Component with RamShop design
+// UPDATED Product Card Component without image dependency
 const AnimatedProductCard = ({ 
   item, 
   index, 
@@ -440,17 +456,6 @@ const AnimatedProductCard = ({
     setSaved(!saved);
   };
 
-  const handleShare = async () => {
-    try {
-      await Share.share({
-        message: `Check out this product: ${item.name} - ${item.description}`,
-        title: item.name,
-      });
-    } catch (error) {
-      console.error('Error sharing:', error);
-    }
-  };
-
   return (
     <Animated.View 
       style={[
@@ -463,15 +468,17 @@ const AnimatedProductCard = ({
     >
       <View style={styles.productImageContainer}>
         <Image 
-          source={{ uri: item.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' }} 
+          source={{ 
+            uri: item.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' 
+          }} 
           style={styles.productImage}
           resizeMode="cover"
         />
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Ionicons 
             name={saved ? "heart" : "heart-outline"} 
-            size={24} 
-            color={saved ? '#ff6b6b' : colors.textPrimary} 
+            size={20} 
+            color={saved ? colors.error : colors.surface} 
           />
         </TouchableOpacity>
         {item.stock < 10 && item.stock > 0 && (
@@ -487,15 +494,17 @@ const AnimatedProductCard = ({
       </View>
       
       <View style={styles.productInfo}>
-        <Text style={styles.productName}>{item.name}</Text>
+        <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.productDescription} numberOfLines={2}>
           {item.description}
         </Text>
         
         <View style={styles.productMeta}>
           <View style={styles.shopInfo}>
-            <Ionicons name="storefront-outline" size={16} color={colors.textSecondary} />
-            <Text style={styles.shopName}>{shopkeeperData?.shopName || 'Local Store'}</Text>
+            <Ionicons name="storefront-outline" size={14} color={colors.textSecondary} />
+            <Text style={styles.shopName} numberOfLines={1}>
+              {shopkeeperData?.shopName || 'Local Store'}
+            </Text>
           </View>
           <Text style={styles.productCategory}>#{item.category}</Text>
         </View>
@@ -524,13 +533,13 @@ const AnimatedProductCard = ({
                 });
               }}
             >
-              <Ionicons name="cart-outline" size={18} color={colors.surface} />
+              <Ionicons name="cart-outline" size={16} color={colors.surface} />
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.messageButton}
               onPress={() => onMessagePress(item)}
             >
-              <Ionicons name="chatbubble-outline" size={18} color={colors.accent} />
+              <Ionicons name="chatbubble-outline" size={16} color={colors.accent} />
             </TouchableOpacity>
           </View>
         </View>
@@ -539,7 +548,7 @@ const AnimatedProductCard = ({
   );
 };
 
-// Updated Customer Post Card Component
+// UPDATED Customer Post Card Component without image dependency
 const CustomerPostCard = ({ 
   item, 
   index,
@@ -572,11 +581,26 @@ const CustomerPostCard = ({
   }, []);
 
   const getTypeColor = () => {
-    return item.type === 'NEED' ? '#FF6B35' : colors.accent;
+    return item.type === 'NEED' ? colors.needColor : colors.offerColor;
+  };
+
+  const getTypeGradient = () => {
+    return item.type === 'NEED' 
+      ? [colors.needColor, '#fb923c'] 
+      : [colors.offerColor, '#34d399'];
   };
 
   const handleSave = () => {
     setSaved(!saved);
+  };
+
+  // FIXED: Proper image handling without placeholder images
+  const getImageSource = () => {
+    if (item.imageUrl) {
+      return { uri: item.imageUrl };
+    }
+    // Return a simple color background when no image
+    return null;
   };
 
   return (
@@ -586,69 +610,122 @@ const CustomerPostCard = ({
         {
           opacity: fadeAnim,
           transform: [{ scale: scaleAnim }],
-          borderLeftColor: getTypeColor(),
+          backgroundColor: item.type === 'NEED' ? colors.needCard : colors.offerCard,
         }
       ]}
     >
-      <View style={styles.postHeader}>
-        <View style={styles.postUserInfo}>
-          <View style={[styles.postAvatar, { backgroundColor: getTypeColor() }]}>
+      {/* Post Header with Gradient */}
+      <LinearGradient
+        colors={getTypeGradient()}
+        style={styles.postHeaderGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <View style={styles.postHeader}>
+          <View style={styles.postUserInfo}>
+            <View style={styles.postAvatar}>
+              <Ionicons 
+                name={item.type === 'NEED' ? "help-circle" : "gift"} 
+                size={20} 
+                color="white" 
+              />
+            </View>
+            <View style={styles.postUserDetails}>
+              <Text style={styles.postUsername}>{item.customerName}</Text>
+              <Text style={styles.postType}>
+                {item.type} • {item.category}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity onPress={handleSave}>
             <Ionicons 
-              name={item.type === 'NEED' ? "help-circle" : "gift"} 
-              size={16} 
+              name={saved ? "bookmark" : "bookmark-outline"} 
+              size={20} 
               color="white" 
             />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+
+      {/* Post Content */}
+      <View style={styles.postContent}>
+        {/* FIXED: Image display with fallback to colored background */}
+        {item.imageUrl ? (
+          <View style={styles.postImageContainer}>
+            <Image 
+              source={{ uri: item.imageUrl }}
+              style={styles.postImage}
+              resizeMode="cover"
+              onError={() => console.log('Error loading post image')}
+            />
           </View>
-          <View style={styles.postUserDetails}>
-            <Text style={styles.postUsername}>{item.customerName}</Text>
-            <Text style={[styles.postType, { color: getTypeColor() }]}>
-              {item.type} • {item.category}
+        ) : (
+          <View style={[styles.postImageContainer, styles.noImageContainer]}>
+            <Ionicons 
+              name={item.type === 'NEED' ? "help-circle-outline" : "gift-outline"} 
+              size={48} 
+              color={item.type === 'NEED' ? colors.needColor : colors.offerColor} 
+            />
+            <Text style={styles.noImageText}>
+              {item.type === 'NEED' ? 'Need Image' : 'Offer Image'}
             </Text>
           </View>
-        </View>
-        <TouchableOpacity onPress={handleSave}>
-          <Ionicons 
-            name={saved ? "bookmark" : "bookmark-outline"} 
-            size={20} 
-            color={saved ? colors.accent : colors.textSecondary} 
-          />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.postContent}>
+        )}
+        
         <Text style={styles.postTitle}>{item.title}</Text>
         <Text style={styles.postDescription}>{item.description}</Text>
         
         <View style={styles.postDetails}>
           {item.price && (
             <View style={styles.detailRow}>
+              <Ionicons name="pricetag-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.detailLabel}>Price:</Text>
               <Text style={styles.postPrice}>${item.price}</Text>
             </View>
           )}
           <View style={styles.detailRow}>
+            <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
             <Text style={styles.detailLabel}>Location:</Text>
-            <Text style={styles.postLocation}>📍 {item.location}</Text>
+            <Text style={styles.postLocation}>{item.location}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+            <Text style={styles.detailLabel}>Urgency:</Text>
+            <View style={[
+              styles.urgencyBadge,
+              { 
+                backgroundColor: item.urgency === 'HIGH' ? colors.error : 
+                                item.urgency === 'MEDIUM' ? colors.warning : colors.success 
+              }
+            ]}>
+              <Text style={styles.urgencyText}>{item.urgency}</Text>
+            </View>
           </View>
         </View>
       </View>
 
       <View style={styles.postFooter}>
         <TouchableOpacity 
-          style={styles.contactButton}
+          style={[
+            styles.contactButton,
+            { backgroundColor: getTypeColor() }
+          ]}
           onPress={() => onContactPress(item)}
         >
           <Ionicons 
             name="chatbubble-ellipses" 
             size={16} 
-            color={colors.accent} 
+            color="white" 
           />
           <Text style={styles.contactButtonText}>Contact</Text>
         </TouchableOpacity>
         
         <View style={styles.postMeta}>
           <Text style={styles.postDate}>
-            {new Date(item.createdAt?.seconds * 1000).toLocaleDateString()}
+            {item.createdAt?.seconds 
+              ? new Date(item.createdAt.seconds * 1000).toLocaleDateString()
+              : 'Recently'
+            }
           </Text>
         </View>
       </View>
@@ -656,7 +733,7 @@ const CustomerPostCard = ({
   );
 };
 
-// Main CustomerHome Component with RamShop UI
+// UPDATED Main CustomerHome Component - REMOVED FILTER BAR
 export default function CustomerHome() {
   const [products, setProducts] = useState<Product[]>([]);
   const [customerPosts, setCustomerPosts] = useState<CustomerPost[]>([]);
@@ -944,28 +1021,7 @@ export default function CustomerHome() {
     fetchCustomerPosts(newFilter);
   };
 
-  const FilterBar = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
-      <TouchableOpacity 
-        style={[styles.filterButton, activeFilter.type === undefined && styles.activeFilterButton]}
-        onPress={() => applyFilter({ type: undefined })}
-      >
-        <Text style={[styles.filterButtonText, activeFilter.type === undefined && styles.activeFilterButtonText]}>All Posts</Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={[styles.filterButton, activeFilter.type === 'NEED' && styles.activeFilterButton]}
-        onPress={() => applyFilter({ type: 'NEED' })}
-      >
-        <Text style={[styles.filterButtonText, activeFilter.type === 'NEED' && styles.activeFilterButtonText]}>Needs</Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={[styles.filterButton, activeFilter.type === 'OFFER' && styles.activeFilterButton]}
-        onPress={() => applyFilter({ type: 'OFFER' })}
-      >
-        <Text style={[styles.filterButtonText, activeFilter.type === 'OFFER' && styles.activeFilterButtonText]}>Offers</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
+  // REMOVED: FilterBar component completely
 
   const renderContent = () => {
     const handleRefresh = async () => {
@@ -993,7 +1049,7 @@ export default function CustomerHome() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              colors={[colors.accent]}
+              colors={[colors.needColor]}
             />
           }
           renderItem={({ item, index }) => (
@@ -1009,7 +1065,7 @@ export default function CustomerHome() {
               <Text style={styles.emptyStateText}>No needs posted yet</Text>
               <Text style={styles.emptyStateSubtext}>Be the first to post what you need!</Text>
               <TouchableOpacity 
-                style={styles.createFirstPostButton}
+                style={[styles.createFirstPostButton, { backgroundColor: colors.needColor }]}
                 onPress={() => setCreatePostModalVisible(true)}
               >
                 <Text style={styles.createFirstPostText}>Post Your Need</Text>
@@ -1033,7 +1089,7 @@ export default function CustomerHome() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              colors={[colors.accent]}
+              colors={[colors.offerColor]}
             />
           }
           renderItem={({ item, index }) => (
@@ -1049,7 +1105,7 @@ export default function CustomerHome() {
               <Text style={styles.emptyStateText}>No offers posted yet</Text>
               <Text style={styles.emptyStateSubtext}>Be the first to offer something!</Text>
               <TouchableOpacity 
-                style={styles.createFirstPostButton}
+                style={[styles.createFirstPostButton, { backgroundColor: colors.offerColor }]}
                 onPress={() => {
                   setNewPost(prev => ({ ...prev, type: "OFFER" }));
                   setCreatePostModalVisible(true);
@@ -1182,12 +1238,17 @@ export default function CustomerHome() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.time}>{new Date().getHours()}:{new Date().getMinutes().toString().padStart(2, '0')}</Text>
+          <Text style={styles.time}>
+            {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
         </View>
         <Text style={styles.headerTitle}>RAMSHOP</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => setCreatePostModalVisible(true)}>
-            <Ionicons name="add-circle" size={24} color={colors.accent} />
+          <TouchableOpacity 
+            style={styles.headerButton} 
+            onPress={() => setCreatePostModalVisible(true)}
+          >
+            <Ionicons name="add-circle" size={26} color={colors.accent} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerButton}>
             <Ionicons name="cart-outline" size={24} color={colors.textPrimary} />
@@ -1201,23 +1262,38 @@ export default function CustomerHome() {
           style={[styles.tab, activeTab === "all" && styles.activeTab]}
           onPress={() => setActiveTab("all")}
         >
+          <Ionicons 
+            name="grid-outline" 
+            size={20} 
+            color={activeTab === "all" ? colors.accent : colors.textSecondary} 
+          />
           <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>Products</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === "need" && styles.activeTab]}
           onPress={() => setActiveTab("need")}
         >
+          <Ionicons 
+            name="help-circle-outline" 
+            size={20} 
+            color={activeTab === "need" ? colors.needColor : colors.textSecondary} 
+          />
           <Text style={[styles.tabText, activeTab === "need" && styles.activeTabText]}>Needs</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === "offer" && styles.activeTab]}
           onPress={() => setActiveTab("offer")}
         >
+          <Ionicons 
+            name="gift-outline" 
+            size={20} 
+            color={activeTab === "offer" ? colors.offerColor : colors.textSecondary} 
+          />
           <Text style={[styles.tabText, activeTab === "offer" && styles.activeTabText]}>Offers</Text>
         </TouchableOpacity>
       </View>
 
-      {(activeTab === "need" || activeTab === "offer") && <FilterBar />}
+      {/* REMOVED: FilterBar component from here */}
 
       {renderContent()}
 
@@ -1356,6 +1432,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   headerLeft: {
     flex: 1,
@@ -1366,65 +1450,84 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: colors.textPrimary,
+    color: colors.accent,
     letterSpacing: 1,
   },
   headerRight: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   headerButton: {
     marginLeft: 16,
+    padding: 4,
   },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    paddingHorizontal: 10,
   },
   tab: {
     flex: 1,
-    paddingVertical: 15,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginHorizontal: 4,
+    borderRadius: 12,
   },
   activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.accent,
+    backgroundColor: colors.lightBackground,
   },
   tabText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
     fontWeight: '500',
+    marginLeft: 6,
   },
   activeTabText: {
-    color: colors.accent,
+    color: colors.textPrimary,
     fontWeight: '600',
   },
   offerBanner: {
     marginHorizontal: 20,
     marginVertical: 15,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   offerGradient: {
-    paddingVertical: 20,
+    paddingVertical: 25,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   offerText: {
     color: colors.surface,
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  offerSubtext: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 4,
+    opacity: 0.9,
   },
   section: {
     marginBottom: 25,
@@ -1458,9 +1561,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 8,
   },
-  categoryItemSelected: {
-    // Selected state styling
-  },
+  categoryItemSelected: {},
   categoryIcon: {
     width: 60,
     height: 60,
@@ -1472,11 +1573,11 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   categoryIconSelected: {
     backgroundColor: colors.accent,
@@ -1497,10 +1598,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 15,
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: colors.lightBackground,
     marginHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   categoryFilterText: {
     fontSize: 14,
@@ -1523,17 +1624,19 @@ const styles = StyleSheet.create({
   },
   productCard: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 15,
     width: (width - 45) / 2,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 3,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   productImageContainer: {
     position: 'relative',
@@ -1541,28 +1644,36 @@ const styles = StyleSheet.create({
   productImage: {
     width: '100%',
     height: 150,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   saveButton: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderRadius: 20,
     padding: 6,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
   lowStockBadge: {
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: '#FFD93D',
+    backgroundColor: colors.warning,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   lowStockText: {
-    color: colors.textPrimary,
+    color: colors.surface,
     fontSize: 10,
     fontWeight: '600',
   },
@@ -1570,10 +1681,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: '#FF6B6B',
+    backgroundColor: colors.error,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   outOfStockText: {
     color: colors.surface,
@@ -1604,11 +1715,13 @@ const styles = StyleSheet.create({
   shopInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   shopName: {
     fontSize: 11,
     color: colors.textSecondary,
     marginLeft: 4,
+    flex: 1,
   },
   productCategory: {
     fontSize: 11,
@@ -1636,6 +1749,14 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     marginLeft: 6,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   messageButton: {
     backgroundColor: colors.lightBackground,
@@ -1645,28 +1766,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  // Post Card Styles
+  // UPDATED Post Card Styles
   postCard: {
-    backgroundColor: colors.surface,
     marginHorizontal: 20,
     marginVertical: 8,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 3,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderLeftWidth: 4,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  postHeaderGradient: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   postHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
   },
   postUserInfo: {
     flexDirection: 'row',
@@ -1680,6 +1804,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   postUserDetails: {
     flex: 1,
@@ -1687,21 +1812,47 @@ const styles = StyleSheet.create({
   postUsername: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.textPrimary,
+    color: colors.surface,
   },
   postType: {
     fontSize: 14,
     fontWeight: '500',
     marginTop: 2,
+    color: colors.surface,
+    opacity: 0.9,
   },
   postContent: {
+    padding: 16,
+  },
+  // FIXED: Post image styles without placeholder images
+  postImageContainer: {
     marginBottom: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+    height: 200,
+    backgroundColor: colors.lightBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  postImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  noImageContainer: {
+    backgroundColor: colors.lightBackground,
+  },
+  noImageText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
   postTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.textPrimary,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   postDescription: {
     fontSize: 14,
@@ -1715,13 +1866,14 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   detailLabel: {
     fontSize: 14,
     color: colors.textSecondary,
     marginRight: 8,
     fontWeight: '500',
+    marginLeft: 4,
   },
   postPrice: {
     fontSize: 16,
@@ -1732,13 +1884,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
+  urgencyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  urgencyText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.surface,
+  },
   postFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 12,
+    padding: 16,
+    backgroundColor: colors.surface,
   },
   postMeta: {
     flexDirection: 'row',
@@ -1753,47 +1917,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: colors.lightBackground,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 10,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   contactButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.accent,
-    marginLeft: 6,
-  },
-  // Filter Bar
-  filterBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: colors.lightBackground,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  activeFilterButton: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  activeFilterButtonText: {
     color: colors.surface,
+    marginLeft: 6,
   },
   listContent: {
     paddingBottom: 25,
@@ -1838,10 +1977,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   createFirstPostButton: {
-    backgroundColor: colors.accent,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   createFirstPostText: {
     color: colors.surface,
