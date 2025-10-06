@@ -19,16 +19,16 @@ import { conversationService } from '@/utils/conversationService';
 
 const { width } = Dimensions.get('window');
 
-// Reuse your existing color palette
+// Updated color palette based on the shipping list image analysis
 const colors = {
-  primary: 'rgba(23, 104, 217, 1)',
-  secondary: 'rgba(144, 186, 242, 1)',
-  background: '#ffffff',
-  surface: '#ffffff',
-  textPrimary: 'rgba(4, 18, 36, 1)',
-  textSecondary: 'rgba(4, 18, 36, 0.7)',
-  border: 'rgba(144, 186, 242, 0.3)',
-  success: 'rgba(23, 104, 217, 1)',
+  background: '#f5f5f7', // Light grey background
+  surface: '#ffffff',     // White cards/sections
+  textPrimary: '#1d1d1f', // Dark charcoal for main text
+  textSecondary: '#86868b', // Medium grey for secondary text
+  accent: '#007aff',      // Vibrant blue for interactive elements
+  success: '#34c759',     // Green for prices/success
+  border: '#e5e5e7',      // Light grey for borders/dividers
+  checkbox: '#007aff',    // Blue for checkboxes
 };
 
 type Product = {
@@ -51,7 +51,6 @@ type Product = {
   email?: string;
 };
 
-// Move isValidUrl outside the component to avoid scope issues
 const isValidUrl = (url: string | undefined): url is string => {
   if (!url || typeof url !== 'string') {
     return false;
@@ -59,7 +58,6 @@ const isValidUrl = (url: string | undefined): url is string => {
   
   const trimmedUrl = url.trim();
   
-  // Check for obviously invalid values
   if (trimmedUrl === '' || 
       trimmedUrl === 'undefined' || 
       trimmedUrl === 'null' ||
@@ -69,7 +67,6 @@ const isValidUrl = (url: string | undefined): url is string => {
     return false;
   }
   
-  // Simple check - if it looks like a URL and contains common image domains
   const looksLikeUrl = trimmedUrl.startsWith('http') && 
                       (trimmedUrl.includes('.') || trimmedUrl.includes('//'));
   
@@ -84,7 +81,6 @@ export default function ProductDetails() {
   const [imageError, setImageError] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
 
-  // Parse product data safely
   let productData: Product | null = null;
   try {
     productData = product ? JSON.parse(product as string) : null;
@@ -93,12 +89,12 @@ export default function ProductDetails() {
     console.error('❌ Error parsing product data:', error);
     productData = null;
   }
+
   const getImageUrl = (): string => {
     if (!productData) {
       return 'https://via.placeholder.com/400x300?text=No+Image+Available';
     }
   
-    // Simple priority check - just like your home page
     if (productData.imageUrl && isValidUrl(productData.imageUrl)) {
       console.log('✅ Using imageUrl:', productData.imageUrl);
       return productData.imageUrl;
@@ -116,7 +112,6 @@ export default function ProductDetails() {
   const imageUrl = getImageUrl();
 
   useEffect(() => {
-    // Fade in animation
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 400,
@@ -140,7 +135,7 @@ export default function ProductDetails() {
     if (!imageUrl) {
       return (
         <View style={styles.imageLoader}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Loading image...</Text>
         </View>
       );
@@ -167,17 +162,8 @@ export default function ProductDetails() {
           console.log('🔄 Starting to load image:', imageUrl);
           setImageLoading(true);
         }}
-        onLoad={() => {
-          console.log('✅ Image loaded successfully');
-          setImageLoading(false);
-          setImageError(false);
-        }}
-        onError={(error) => {
-          console.log('❌ Image load error for URL:', imageUrl);
-          console.log('Error details:', error.nativeEvent);
-          setImageLoading(false);
-          setImageError(true);
-        }}
+        onLoad={handleImageLoad}
+        onError={handleImageError}
       />
     );
   };
@@ -201,7 +187,6 @@ export default function ProductDetails() {
   }
 
   const handleOrderNow = () => {
-    // Use the actual image URL that's being displayed
     const currentImageUrl = imageError || !isValidUrl(imageUrl) ? '' : imageUrl;
     
     router.push({
@@ -212,7 +197,7 @@ export default function ProductDetails() {
           name: productData!.name,
           price: productData!.price,
           imageUrl: currentImageUrl,
-          image: currentImageUrl, // Pass both for compatibility
+          image: currentImageUrl,
           shopName: productData!.shopName || 'Local Store',
           shopId: productData!.shopId || 'shop-001',
           description: productData!.description,
@@ -263,7 +248,7 @@ export default function ProductDetails() {
   return (
     <SafeAreaView style={styles.container}>
       <Animated.View style={[styles.animatedContainer, { opacity: fadeAnim }]}>
-        {/* Header */}
+        {/* Header - Updated with new design */}
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -276,106 +261,132 @@ export default function ProductDetails() {
         </View>
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Product Image */}
-          <View style={styles.imageContainer}>
-            {renderImageContent()}
-            
-            {/* Stock Status Badge */}
-            {productData.stock === 0 && (
-              <View style={styles.outOfStockBadge}>
-                <Text style={styles.outOfStockText}>Out of Stock</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Product Info */}
-          <View style={styles.productInfo}>
-            <Text style={styles.productName}>{productData.name}</Text>
-            <Text style={styles.productPrice}>${productData.price}</Text>
-            <Text style={styles.productDescription}>{productData.description}</Text>
-            
-            <View style={styles.detailsGrid}>
-              <View style={styles.detailItem}>
-                <Ionicons name="pricetag" size={20} color={colors.primary} />
-                <Text style={styles.detailLabel}>Category:</Text>
-                <Text style={styles.detailValue}>{productData.category}</Text>
-              </View>
+          {/* Product Image Card */}
+          <View style={styles.card}>
+            <View style={styles.imageContainer}>
+              {renderImageContent()}
               
-              <View style={styles.detailItem}>
-                <Ionicons name="cube" size={20} color={colors.primary} />
-                <Text style={styles.detailLabel}>Stock:</Text>
-                <Text style={[
-                  styles.detailValue, 
-                  productData.stock === 0 ? styles.outOfStockValue : styles.inStockValue
-                ]}>
-                  {productData.stock} available
-                </Text>
-              </View>
-              
-              <View style={styles.detailItem}>
-                <Ionicons name="business" size={20} color={colors.primary} />
-                <Text style={styles.detailLabel}>Type:</Text>
-                <Text style={styles.detailValue}>{productData.type}</Text>
-              </View>
-
-              {/* Debug info for image fields */}
-              <View style={styles.detailItem}>
-                <Ionicons name="information-circle" size={20} color={colors.primary} />
-                <Text style={styles.detailLabel}>Image Status:</Text>
-                <Text style={styles.detailValue}>
-                  {isValidUrl(imageUrl) ? 'Available' : 'Not Available'}
-                </Text>
-              </View>
+              {/* Stock Status Badge */}
+              {productData.stock === 0 && (
+                <View style={styles.outOfStockBadge}>
+                  <Text style={styles.outOfStockText}>Out of Stock</Text>
+                </View>
+              )}
             </View>
-
-            {productData.createdAt && (
-              <View style={styles.dateContainer}>
-                <Text style={styles.dateText}>
-                  Listed on: {formatDate(productData.createdAt)}
-                </Text>
-              </View>
-            )}
           </View>
 
-          {/* Shopkeeper Info */}
-          <View style={styles.shopkeeperSection}>
+          {/* Product Info Card */}
+          <View style={styles.card}>
+            <View style={styles.productInfo}>
+              <Text style={styles.productName}>{productData.name}</Text>
+              <Text style={styles.productPrice}>${productData.price}</Text>
+              
+              <View style={styles.divider} />
+              
+              <Text style={styles.sectionLabel}>Description</Text>
+              <Text style={styles.productDescription}>{productData.description}</Text>
+              
+              <View style={styles.divider} />
+              
+              <View style={styles.detailsGrid}>
+                <View style={styles.detailItem}>
+                  <View style={styles.detailIcon}>
+                    <Ionicons name="pricetag" size={16} color={colors.textSecondary} />
+                  </View>
+                  <Text style={styles.detailLabel}>Category</Text>
+                  <Text style={styles.detailValue}>{productData.category}</Text>
+                </View>
+                
+                <View style={styles.detailItem}>
+                  <View style={styles.detailIcon}>
+                    <Ionicons name="cube" size={16} color={colors.textSecondary} />
+                  </View>
+                  <Text style={styles.detailLabel}>Stock</Text>
+                  <Text style={[
+                    styles.detailValue, 
+                    productData.stock === 0 ? styles.outOfStockValue : styles.inStockValue
+                  ]}>
+                    {productData.stock} available
+                  </Text>
+                </View>
+                
+                <View style={styles.detailItem}>
+                  <View style={styles.detailIcon}>
+                    <Ionicons name="business" size={16} color={colors.textSecondary} />
+                  </View>
+                  <Text style={styles.detailLabel}>Type</Text>
+                  <Text style={styles.detailValue}>{productData.type}</Text>
+                </View>
+              </View>
+
+              {productData.createdAt && (
+                <View style={styles.dateContainer}>
+                  <Text style={styles.dateText}>
+                    Listed on: {formatDate(productData.createdAt)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Shopkeeper Info Card */}
+          <View style={styles.card}>
             <Text style={styles.sectionTitle}>Shop Information</Text>
             <View style={styles.shopkeeperInfo}>
               <View style={styles.shopAvatar}>
-                <Ionicons name="storefront" size={24} color={colors.primary} />
+                <Ionicons name="storefront" size={24} color={colors.accent} />
               </View>
               <View style={styles.shopDetails}>
                 <Text style={styles.shopName}>{productData.shopName || 'Local Store'}</Text>
                 <Text style={styles.ownerName}>{productData.ownerName || 'Shop Owner'}</Text>
-                <Text style={styles.shopLocation}>
+                <View style={styles.shopContactInfo}>
                   <Ionicons name="location" size={14} color={colors.textSecondary} />
-                  {' '}{productData.location || 'Unknown Location'}
-                </Text>
-                {productData.phone && (
-                  <Text style={styles.shopPhone}>
-                    <Ionicons name="call" size={14} color={colors.textSecondary} />
-                    {' '}{productData.phone}
+                  <Text style={styles.shopLocation}>
+                    {productData.location || 'Unknown Location'}
                   </Text>
+                </View>
+                {productData.phone && (
+                  <View style={styles.shopContactInfo}>
+                    <Ionicons name="call" size={14} color={colors.textSecondary} />
+                    <Text style={styles.shopPhone}>{productData.phone}</Text>
+                  </View>
                 )}
                 {productData.email && (
-                  <Text style={styles.shopEmail}>
+                  <View style={styles.shopContactInfo}>
                     <Ionicons name="mail" size={14} color={colors.textSecondary} />
-                    {' '}{productData.email}
-                  </Text>
+                    <Text style={styles.shopEmail}>{productData.email}</Text>
+                  </View>
                 )}
               </View>
             </View>
           </View>
+
+          {/* Special Offers Section - Inspired by the image */}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Special Offers</Text>
+            <View style={styles.offerItem}>
+              <View style={styles.offerBadge}>
+                <Text style={styles.offerBadgeText}>SAVE</Text>
+              </View>
+              <Text style={styles.offerText}>Free shipping on orders over $50</Text>
+            </View>
+            <View style={styles.offerItem}>
+              <View style={styles.offerBadge}>
+                <Text style={styles.offerBadgeText}>DEAL</Text>
+              </View>
+              <Text style={styles.offerText}>Buy 2 get 1 free on selected items</Text>
+            </View>
+          </View>
         </ScrollView>
 
-        {/* Action Buttons */}
+        {/* Action Buttons - Updated design */}
         <View style={styles.actionBar}>
           <TouchableOpacity 
             style={styles.messageButton}
             onPress={handleMessageShopkeeper}
           >
-            <Ionicons name="chatbubble-ellipses" size={20} color={colors.primary} />
-            <Text style={styles.messageButtonText}>Message</Text>
+            <Ionicons name="chatbubble-ellipses" size={20} color={colors.accent} />
+            <Text style={styles.messageButtonText}>Message Shop</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -388,7 +399,7 @@ export default function ProductDetails() {
           >
             <Ionicons name="cart" size={20} color="white" />
             <Text style={styles.orderButtonText}>
-              {productData.stock === 0 ? 'Out of Stock' : 'Order Now'}
+              {productData.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -401,8 +412,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    marginTop:27,
-    paddingBottom:38
   },
   animatedContainer: {
     flex: 1,
@@ -413,15 +422,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    backgroundColor: colors.background,
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: colors.textPrimary,
   },
@@ -431,116 +440,141 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  card: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
   imageContainer: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.background,
     position: 'relative',
-    width: width,
-    height: width,
-    backgroundColor: '#f5f5f5',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   productImage: {
     width: '100%',
-    height: '100%',
+    height: 300,
   },
   imageLoader: {
+    height: 300,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    backgroundColor: colors.background,
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 8,
     color: colors.textSecondary,
     fontSize: 14,
   },
   imageError: {
+    height: 300,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    backgroundColor: colors.background,
   },
   imageErrorText: {
-    fontSize: 16,
+    marginTop: 8,
     color: colors.textSecondary,
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  imageErrorSubText: {
     fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 5,
-    textAlign: 'center',
   },
   outOfStockBadge: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    backgroundColor: 'rgba(255, 59, 48, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    zIndex: 10,
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   outOfStockText: {
     color: 'white',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   productInfo: {
-    padding: 16,
+    padding: 0,
   },
   productName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.textPrimary,
     marginBottom: 8,
   },
   productPrice: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
-    color: colors.primary,
+    color: colors.success,
     marginBottom: 16,
   },
   productDescription: {
     fontSize: 16,
-    color: colors.textSecondary,
-    lineHeight: 24,
-    marginBottom: 20,
+    color: colors.textPrimary,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 16,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 16,
   },
   detailsGrid: {
-    backgroundColor: 'rgba(144, 186, 242, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+    gap: 12,
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    paddingVertical: 8,
+  },
+  detailIcon: {
+    width: 24,
+    alignItems: 'center',
+    marginRight: 12,
   },
   detailLabel: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
-    marginLeft: 8,
-    marginRight: 4,
-    fontWeight: '500',
-    width: 100,
+    width: 80,
+    marginRight: 12,
   },
   detailValue: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textPrimary,
-    fontWeight: '600',
+    fontWeight: '500',
     flex: 1,
   },
   inStockValue: {
     color: colors.success,
   },
   outOfStockValue: {
-    color: '#FF3B30',
+    color: '#ff3b30',
   },
   dateContainer: {
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 12,
   },
   dateText: {
     fontSize: 14,
@@ -548,129 +582,148 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   shopkeeperSection: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 12,
+    marginTop: 8,
   },
   shopkeeperInfo: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(144, 186, 242, 0.1)',
-    borderRadius: 12,
-    padding: 16,
+    alignItems: 'flex-start',
   },
   shopAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(144, 186, 242, 0.3)',
-    alignItems: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: colors.background,
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   shopDetails: {
     flex: 1,
   },
   shopName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: colors.textPrimary,
     marginBottom: 2,
   },
   ownerName: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  shopContactInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
   },
   shopLocation: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 2,
+    marginLeft: 6,
   },
   shopPhone: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 2,
+    marginLeft: 6,
   },
   shopEmail: {
     fontSize: 14,
     color: colors.textSecondary,
+    marginLeft: 6,
+  },
+  offerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  offerBadge: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  offerBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  offerText: {
+    fontSize: 15,
+    color: colors.textPrimary,
+    flex: 1,
   },
   actionBar: {
     flexDirection: 'row',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.background,
+    gap: 12,
   },
   messageButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(144, 186, 242, 0.2)',
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.primary,
-    marginRight: 8,
+    borderColor: colors.accent,
+    borderRadius: 12,
+    gap: 8,
   },
   messageButtonText: {
-    color: colors.primary,
-    fontWeight: '600',
+    color: colors.accent,
     fontSize: 16,
-    marginLeft: 8,
+    fontWeight: '600',
   },
   orderButton: {
     flex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    backgroundColor: colors.accent,
     borderRadius: 12,
+    gap: 8,
   },
   disabledOrderButton: {
-    backgroundColor: '#C7C7CC',
+    backgroundColor: colors.textSecondary,
   },
   orderButtonText: {
     color: 'white',
-    fontWeight: '600',
     fontSize: 16,
-    marginLeft: 8,
+    fontWeight: '600',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    backgroundColor: colors.background,
   },
   errorText: {
     fontSize: 20,
+    fontWeight: '600',
     color: colors.textPrimary,
-    marginBottom: 10,
-    marginTop: 10,
-    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
   },
   errorSubText: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 20,
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: 24,
   },
   backButtonText: {
-    color: colors.primary,
-    fontWeight: '600',
+    color: colors.accent,
     fontSize: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    fontWeight: '600',
   },
 });
 

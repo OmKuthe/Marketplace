@@ -356,7 +356,7 @@ const CustomerPostCard = ({ item }: { item: CustomerPost }) => (
         style={styles.menuItem}
         onPress={() => {
           setSidePanelVisible(false);
-          router.push("/shopkeeper/analytics");
+          router.push("/shopkeeper/analytics" as any);
         }}
       >
         <Ionicons name="stats-chart" size={20} color="#2874F0" />
