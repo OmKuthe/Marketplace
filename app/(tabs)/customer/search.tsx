@@ -23,6 +23,25 @@ import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { db } from "../../../firebaseConfig";
 
+const { width, height } = Dimensions.get('window');
+
+// NEW EYE-CATCHING COLOR SCHEME
+const colors = {
+  background: '#f8fafc',
+  surface: '#ffffff',
+  textPrimary: '#1e293b',
+  textSecondary: '#64748b',
+  accent: '#3b82f6',
+  accentLight: '#60a5fa',
+  success: '#10b981',
+  warning: '#f59e0b',
+  error: '#ef4444',
+  border: '#e2e8f0',
+  darkButton: '#1e293b',
+  lightBackground: 'rgba(226, 232, 240, 0.4)',
+  gradientPrimary: ['#3b82f6', '#6366f1'],
+};
+
 type Product = {
   id: string;
   name: string;
@@ -32,7 +51,7 @@ type Product = {
   category: string;
   type: string;
   imageUrl?: string;
-  image?: string; // Add this field to match your data
+  image?: string;
   createdAt?: any;
   shopkeeperId?: string;
   shopId?: string;
@@ -61,9 +80,7 @@ type Shop = {
   uid: string;
 };
 
-const { width, height } = Dimensions.get('window');
-
-// Product Card Component with Image Handling
+// Enhanced Product Card Component
 const ProductCard = React.memo(({ 
   item, 
   index, 
@@ -80,14 +97,12 @@ const ProductCard = React.memo(({
   const [imageError, setImageError] = useState(false);
   const [cardAnim] = useState(new Animated.Value(0));
 
-  // Get the correct image URL for the item
   const getImageUrl = (): string => {
     if (isShop) {
       const shop = item as Shop;
       return shop.shopLogo || '';
     } else {
       const product = item as Product;
-      // Check both image and imageUrl fields
       return product.imageUrl || product.image || '';
     }
   };
@@ -132,7 +147,7 @@ const ProductCard = React.memo(({
         <>
           {imageLoading && (
             <View style={styles.imageLoader}>
-              <ActivityIndicator size="small" color="rgba(23, 104, 217, 1)" />
+              <ActivityIndicator size="small" color={colors.accent} />
             </View>
           )}
           <Image 
@@ -153,7 +168,7 @@ const ProductCard = React.memo(({
         <Ionicons 
           name={isShop ? "storefront" : "cube"} 
           size={24} 
-          color="rgba(23, 104, 217, 1)" 
+          color={colors.accent} 
         />
       </View>
     );
@@ -192,7 +207,7 @@ const ProductCard = React.memo(({
         )}
         
         {(item as Product).category && (
-          <Text style={styles.cardCategory}>{(item as Product).category}</Text>
+          <Text style={styles.cardCategory}>#{(item as Product).category}</Text>
         )}
         
         <Text style={styles.cardAddress} numberOfLines={1}>
@@ -221,6 +236,7 @@ const ProductCard = React.memo(({
   );
 });
 
+// Enhanced Search Screen
 export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<(Product | Shop)[]>([]);
@@ -240,7 +256,7 @@ export default function SearchScreen() {
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(300))[0];
 
-  // Load initial data only once
+  // Load initial data
   useEffect(() => {
     const initializeData = async () => {
       if (dataLoaded) return;
@@ -310,8 +326,8 @@ export default function SearchScreen() {
           stock: data.stock || 0,
           category: data.category || 'General',
           type: data.type || 'product',
-          imageUrl: data.imageUrl, // Map to imageUrl
-          image: data.image, // Keep original image field
+          imageUrl: data.imageUrl,
+          image: data.image,
           createdAt: data.createdAt,
           shopkeeperId: data.shopkeeperId,
           shopId: data.shopId,
@@ -326,13 +342,12 @@ export default function SearchScreen() {
         };
       });
       setProducts(productsData);
-      console.log(`Loaded ${productsData.length} products`);
     } catch (err) {
       console.log("Error loading products:", err);
     }
   };
 
-  // Optimized search function
+  // Search function
   const handleSearch = async (queryText: string = searchQuery) => {
     const searchText = queryText.trim();
     if (!searchText) {
@@ -366,11 +381,8 @@ export default function SearchScreen() {
         product.category?.toLowerCase().includes(searchLower)
       );
 
-      // Combine results - shops first, then products
       const combinedResults = [...filteredShops, ...filteredProducts];
       setSearchResults(combinedResults);
-
-      console.log(`Found ${combinedResults.length} results for "${searchText}"`);
 
     } catch (err) {
       console.log("Error searching:", err);
@@ -379,7 +391,7 @@ export default function SearchScreen() {
     }
   };
 
-  // Optimized search with debounce
+  // Debounced search
   useEffect(() => {
     if (searchQuery.trim()) {
       const timeoutId = setTimeout(() => {
@@ -398,26 +410,7 @@ export default function SearchScreen() {
     setSelectedItem(null);
   };
 
-  // Function to handle phone calls
-  const handleCall = (phoneNumber: string) => {
-    if (!phoneNumber) return;
-    
-    const phoneUrl = `tel:${phoneNumber}`;
-    Linking.canOpenURL(phoneUrl)
-      .then(supported => {
-        if (supported) {
-          Linking.openURL(phoneUrl);
-        } else {
-          Alert.alert('Error', 'Phone calls are not supported on this device');
-        }
-      })
-      .catch(err => {
-        console.log('Error making call:', err);
-        Alert.alert('Error', 'Unable to make phone call');
-      });
-  };
-
-  // Function to navigate to shop details
+  // Navigation handlers
   const handleViewShopDetails = (shop: Shop) => {
     router.push({
       pathname: "../details/shop",
@@ -436,12 +429,10 @@ export default function SearchScreen() {
     });
   };
 
-  // Function to navigate to product details
   const handleViewProductDetails = async (product: Product) => {
     try {
       let shopData = null;
       
-      // If we have shopId, try to fetch shop details
       if (product.shopId) {
         try {
           const shopDoc = await getDoc(doc(db, "shopkeepers", product.shopId));
@@ -460,7 +451,6 @@ export default function SearchScreen() {
         }
       }
 
-      // Use either imageUrl or image field
       const productImage = product.imageUrl || product.image;
 
       router.push({
@@ -474,8 +464,8 @@ export default function SearchScreen() {
             stock: product.stock || 0,
             category: product.category || 'General',
             type: product.type || 'product',
-            imageUrl: productImage, // Pass the image URL
-            image: productImage, // Also pass as image for compatibility
+            imageUrl: productImage,
+            image: productImage,
             createdAt: product.createdAt,
             shopkeeperId: product.shopId,
             shopId: product.shopId,
@@ -489,7 +479,6 @@ export default function SearchScreen() {
       });
     } catch (error) {
       console.log("Error navigating to product details:", error);
-      // Fallback to basic navigation
       const productImage = product.imageUrl || product.image;
       router.push({
         pathname: "../details/productdetails",
@@ -531,7 +520,7 @@ export default function SearchScreen() {
     return "Location not available";
   };
 
-  // Side Panel with Animation
+  // Enhanced Side Panel
   const SidePanel = () => {
     useEffect(() => {
       if (sidePanelVisible) {
@@ -562,11 +551,11 @@ export default function SearchScreen() {
           style={styles.sidePanelClose} 
           onPress={closePanel}
         >
-          <Ionicons name="close" size={24} color="rgba(4, 18, 36, 1)" />
+          <Ionicons name="close" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         
         <View style={styles.sidePanelHeader}>
-          <Text style={styles.sidePanelTitle}>MARKETMATE</Text>
+          <Text style={styles.sidePanelTitle}>RAMSHOP</Text>
           <Text style={styles.sidePanelSubtitle}>Discover • Connect • Shop</Text>
         </View>
         
@@ -587,7 +576,7 @@ export default function SearchScreen() {
               }
             }}
           >
-            <Ionicons name={item.icon as any} size={20} color="rgba(23, 104, 217, 1)" />
+            <Ionicons name={item.icon as any} size={20} color={colors.accent} />
             <Text style={styles.menuItemText}>{item.name}</Text>
           </TouchableOpacity>
         ))}
@@ -610,16 +599,16 @@ export default function SearchScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Animated.View style={[styles.animatedContainer, { opacity: fadeAnim }]}>
-        {/* Header */}
+        {/* Enhanced Header */}
         <View style={styles.header}>
           <TouchableOpacity 
             onPress={() => setSidePanelVisible(true)}
             style={styles.headerButton}
           >
-            <Ionicons name="menu" size={24} color="rgba(4, 18, 36, 1)" />
+            <Ionicons name="menu" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>MARKETMATE</Text>
+            <Text style={styles.headerTitle}>RAMSHOP</Text>
             <Text style={styles.headerSubtitle}>Search</Text>
           </View>
           <View style={styles.headerButton} />
@@ -628,10 +617,10 @@ export default function SearchScreen() {
         {/* Side Panel */}
         {sidePanelVisible && <SidePanel />}
 
-        {/* Search Bar */}
+        {/* Enhanced Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={20} color="rgba(23, 104, 217, 1)" style={styles.searchIcon} />
+            <Ionicons name="search" size={20} color={colors.accent} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search shops, products, or locations..."
@@ -639,23 +628,23 @@ export default function SearchScreen() {
               onChangeText={setSearchQuery}
               returnKeyType="search"
               clearButtonMode="while-editing"
-              placeholderTextColor="rgba(144, 186, 242, 0.8)"
+              placeholderTextColor={colors.textSecondary}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-                <Ionicons name="close-circle" size={20} color="rgba(144, 186, 242, 1)" />
+                <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
         </View>
 
-        {/* View Toggle */}
+        {/* Enhanced View Toggle */}
         <View style={styles.viewToggleContainer}>
           <TouchableOpacity 
             style={[styles.viewToggleButton, !mapView && styles.activeViewToggle]}
             onPress={() => setMapView(false)}
           >
-            <Ionicons name="list" size={18} color={!mapView ? "#fff" : "rgba(23, 104, 217, 1)"} />
+            <Ionicons name="list" size={18} color={!mapView ? "#fff" : colors.accent} />
             <Text style={[styles.viewToggleText, !mapView && styles.activeViewToggleText]}>List</Text>
           </TouchableOpacity>
           
@@ -663,12 +652,12 @@ export default function SearchScreen() {
             style={[styles.viewToggleButton, mapView && styles.activeViewToggle]}
             onPress={() => setMapView(true)}
           >
-            <Ionicons name="map" size={18} color={mapView ? "#fff" : "rgba(23, 104, 217, 1)"} />
+            <Ionicons name="map" size={18} color={mapView ? "#fff" : colors.accent} />
             <Text style={[styles.viewToggleText, mapView && styles.activeViewToggleText]}>Map</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Recent Searches */}
+        {/* Enhanced Recent Searches */}
         {!mapView && searchResults.length === 0 && recentSearches.length > 0 && !isSearching && !searchQuery && (
           <View style={styles.recentSearchesContainer}>
             <Text style={styles.sectionTitle}>Recent Searches</Text>
@@ -679,7 +668,7 @@ export default function SearchScreen() {
                   style={styles.recentSearchItem}
                   onPress={() => setSearchQuery(search)}
                 >
-                  <Ionicons name="time-outline" size={14} color="rgba(23, 104, 217, 1)" />
+                  <Ionicons name="time-outline" size={14} color={colors.accent} />
                   <Text style={styles.recentSearchText}>{search}</Text>
                 </TouchableOpacity>
               ))}
@@ -687,7 +676,7 @@ export default function SearchScreen() {
           </View>
         )}
 
-        {/* Search Results */}
+        {/* Enhanced Search Results */}
         <View style={styles.resultsContainer}>
           {/* Results Count */}
           {(searchResults.length > 0 || (!searchQuery && mapView)) && (
@@ -706,7 +695,7 @@ export default function SearchScreen() {
           )}
           
           {mapView ? (
-            // MAP VIEW
+            // Enhanced Map View
             <View style={styles.mapContainer}>
               <MapView 
                 style={styles.map}
@@ -724,7 +713,7 @@ export default function SearchScreen() {
                   <Marker
                     coordinate={currentLocation}
                     title="Your Location"
-                    pinColor="rgba(23, 104, 217, 1)"
+                    pinColor={colors.accent}
                   />
                 )}
                 
@@ -757,7 +746,7 @@ export default function SearchScreen() {
                 })}
               </MapView>
               
-              {/* Selected Item Info */}
+              {/* Enhanced Selected Item Info */}
               {selectedItem && (
                 <View style={styles.selectedItemCard}>
                   <View style={styles.selectedItemHeader}>
@@ -769,7 +758,7 @@ export default function SearchScreen() {
                       <Image source={{ uri: (selectedItem as Product).imageUrl }} style={styles.selectedItemImage} />
                     ) : (
                       <View style={styles.selectedItemImagePlaceholder}>
-                        <Ionicons name={'ownerName' in selectedItem ? "storefront" : "cube"} size={20} color="rgba(23, 104, 217, 1)" />
+                        <Ionicons name={'ownerName' in selectedItem ? "storefront" : "cube"} size={20} color={colors.accent} />
                       </View>
                     )}
                     <View style={styles.selectedItemInfo}>
@@ -826,14 +815,14 @@ export default function SearchScreen() {
               {/* No Location Warning */}
               {searchQuery && mapItems.length === 0 && (
                 <View style={styles.noLocationWarning}>
-                  <Ionicons name="location-outline" size={40} color="rgba(144, 186, 242, 1)" />
+                  <Ionicons name="location-outline" size={40} color={colors.textSecondary} />
                   <Text style={styles.noLocationText}>No locations found for your search</Text>
                   <Text style={styles.noLocationSubText}>Try searching for something else</Text>
                 </View>
               )}
             </View>
           ) : (
-            // LIST VIEW
+            // Enhanced List View
             <>
               {searchResults.length > 0 ? (
                 <FlatList
@@ -852,13 +841,13 @@ export default function SearchScreen() {
                 />
               ) : searchQuery ? (
                 <View style={styles.noResultsContainer}>
-                  <Ionicons name="search-outline" size={60} color="rgba(144, 186, 242, 1)" />
+                  <Ionicons name="search-outline" size={60} color={colors.textSecondary} />
                   <Text style={styles.noResultsText}>No results found for "{searchQuery}"</Text>
                   <Text style={styles.noResultsSubText}>Try different keywords</Text>
                 </View>
               ) : (
                 <View style={styles.initialStateContainer}>
-                  <Ionicons name="search-outline" size={80} color="rgba(144, 186, 242, 1)" />
+                  <Ionicons name="search-outline" size={80} color={colors.textSecondary} />
                   <Text style={styles.initialStateText}>Search for shops or products</Text>
                   <Text style={styles.initialStateSubText}>
                     Find what you're looking for by typing in the search bar above
@@ -876,8 +865,8 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
-    marginTop:27
+    backgroundColor: colors.background,
+    marginTop: 27
   },
   animatedContainer: {
     flex: 1,
@@ -888,10 +877,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(144, 186, 242, 0.3)',
-    shadowColor: 'rgba(4, 18, 36, 0.1)',
+    borderBottomColor: colors.border,
+    shadowColor: 'rgba(0, 0, 0, 0.1)',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -903,7 +892,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
-    backgroundColor: 'rgba(144, 186, 242, 0.1)',
+    backgroundColor: colors.lightBackground,
   },
   headerTitleContainer: {
     alignItems: 'center',
@@ -911,12 +900,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     letterSpacing: 1,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: 'rgba(23, 104, 217, 0.8)',
+    color: colors.accent,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -927,13 +916,13 @@ const styles = StyleSheet.create({
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderWidth: 2,
-    borderColor: 'rgba(144, 186, 242, 0.4)',
-    shadowColor: 'rgba(4, 18, 36, 0.1)',
+    borderColor: colors.border,
+    shadowColor: 'rgba(0, 0, 0, 0.1)',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -945,7 +934,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     padding: 0,
     fontWeight: '500',
   },
@@ -956,12 +945,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 20,
     marginBottom: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 4,
     borderWidth: 2,
-    borderColor: 'rgba(144, 186, 242, 0.4)',
-    shadowColor: 'rgba(4, 18, 36, 0.1)',
+    borderColor: colors.border,
+    shadowColor: 'rgba(0, 0, 0, 0.1)',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -977,12 +966,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   activeViewToggle: {
-    backgroundColor: 'rgba(23, 104, 217, 1)',
+    backgroundColor: colors.accent,
   },
   viewToggleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(23, 104, 217, 1)',
+    color: colors.accent,
   },
   activeViewToggleText: {
     color: '#fff',
@@ -994,14 +983,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     fontSize: 14,
-    color: 'rgba(4, 18, 36, 0.8)',
-    backgroundColor: '#ffffff',
+    color: colors.textSecondary,
+    backgroundColor: colors.surface,
     fontWeight: '500',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(144, 186, 242, 0.3)',
+    borderBottomColor: colors.border,
   },
   mapResultsCount: {
-    color: 'rgba(23, 104, 217, 1)',
+    color: colors.accent,
     fontWeight: '600',
   },
   listContent: {
@@ -1009,18 +998,18 @@ const styles = StyleSheet.create({
   },
   card: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     marginHorizontal: 20,
     marginVertical: 6,
     padding: 16,
     borderRadius: 16,
-    shadowColor: 'rgba(4, 18, 36, 0.15)',
+    shadowColor: 'rgba(0, 0, 0, 0.15)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 5,
     borderWidth: 1,
-    borderColor: 'rgba(144, 186, 242, 0.2)',
+    borderColor: colors.border,
   },
   itemImage: {
     width: 60,
@@ -1037,7 +1026,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 12,
-    backgroundColor: 'rgba(208, 226, 250, 0.3)',
+    backgroundColor: colors.lightBackground,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -1047,12 +1036,12 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 12,
-    backgroundColor: 'rgba(208, 226, 250, 0.3)',
+    backgroundColor: colors.lightBackground,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
     borderWidth: 2,
-    borderColor: 'rgba(144, 186, 242, 0.3)',
+    borderColor: colors.border,
   },
   cardContent: {
     flex: 1,
@@ -1061,37 +1050,37 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   cardDescription: {
     fontSize: 14,
-    color: 'rgba(4, 18, 36, 0.7)',
+    color: colors.textSecondary,
     marginBottom: 6,
     lineHeight: 18,
   },
   cardPrice: {
     fontSize: 15,
-    color: 'rgba(23, 104, 217, 1)',
+    color: colors.success,
     fontWeight: '600',
     marginBottom: 2,
   },
   cardCategory: {
     fontSize: 13,
-    color: 'rgba(144, 186, 242, 1)',
+    color: colors.accent,
     marginBottom: 2,
     fontWeight: '500',
   },
   cardAddress: {
     fontSize: 13,
-    color: 'rgba(4, 18, 36, 0.6)',
+    color: colors.textSecondary,
     marginBottom: 8,
     fontWeight: '500',
   },
   viewDetailsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(23, 104, 217, 1)',
+    backgroundColor: colors.accent,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
@@ -1116,38 +1105,38 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(23, 104, 217, 1)',
+    backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#fff',
-    shadowColor: 'rgba(4, 18, 36, 0.3)',
+    shadowColor: 'rgba(0, 0, 0, 0.3)',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 6,
   },
   shopMarker: {
-    backgroundColor: 'rgba(23, 104, 217, 1)',
+    backgroundColor: colors.accent,
   },
   productMarker: {
-    backgroundColor: 'rgba(144, 186, 242, 1)',
+    backgroundColor: colors.accentLight,
   },
   selectedItemCard: {
     position: 'absolute',
     bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
-    shadowColor: 'rgba(4, 18, 36, 0.2)',
+    shadowColor: 'rgba(0, 0, 0, 0.2)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 16,
     elevation: 12,
     borderWidth: 1,
-    borderColor: 'rgba(144, 186, 242, 0.3)',
+    borderColor: colors.border,
   },
   selectedItemHeader: {
     flexDirection: 'row',
@@ -1164,12 +1153,12 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 12,
-    backgroundColor: 'rgba(208, 226, 250, 0.3)',
+    backgroundColor: colors.lightBackground,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
     borderWidth: 2,
-    borderColor: 'rgba(144, 186, 242, 0.3)',
+    borderColor: colors.border,
   },
   selectedItemInfo: {
     flex: 1,
@@ -1177,23 +1166,23 @@ const styles = StyleSheet.create({
   selectedItemTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     marginBottom: 2,
   },
   selectedItemPrice: {
     fontSize: 16,
-    color: 'rgba(23, 104, 217, 1)',
+    color: colors.success,
     fontWeight: '600',
   },
   selectedItemAddress: {
     fontSize: 14,
-    color: 'rgba(4, 18, 36, 0.7)',
+    color: colors.textSecondary,
     marginBottom: 6,
     fontWeight: '500',
   },
   selectedItemDetail: {
     fontSize: 14,
-    color: 'rgba(4, 18, 36, 0.7)',
+    color: colors.textSecondary,
     marginBottom: 4,
     lineHeight: 18,
   },
@@ -1208,19 +1197,19 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(144, 186, 242, 0.4)',
-    backgroundColor: '#ffffff',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   primaryActionButton: {
-    backgroundColor: 'rgba(23, 104, 217, 1)',
-    borderColor: 'rgba(23, 104, 217, 1)',
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
   actionButtonText: {
-    color: 'rgba(23, 104, 217, 1)',
+    color: colors.accent,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -1235,9 +1224,9 @@ const styles = StyleSheet.create({
     left: 0,
     bottom: 0,
     width: '80%',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     zIndex: 1000,
-    shadowColor: 'rgba(4, 18, 36, 0.2)',
+    shadowColor: 'rgba(0, 0, 0, 0.2)',
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -1250,18 +1239,18 @@ const styles = StyleSheet.create({
   sidePanelHeader: {
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(144, 186, 242, 0.3)',
-    backgroundColor: '#ffffff',
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   sidePanelTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     letterSpacing: 1,
   },
   sidePanelSubtitle: {
     fontSize: 12,
-    color: 'rgba(23, 104, 217, 0.8)',
+    color: colors.accent,
     fontWeight: '500',
     marginTop: 4,
   },
@@ -1271,17 +1260,17 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingLeft: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(144, 186, 242, 0.2)',
+    borderBottomColor: colors.border,
   },
   activeMenuItem: {
-    backgroundColor: 'rgba(144, 186, 242, 0.1)',
+    backgroundColor: colors.lightBackground,
     borderLeftWidth: 4,
-    borderLeftColor: 'rgba(23, 104, 217, 1)',
+    borderLeftColor: colors.accent,
   },
   menuItemText: {
     marginLeft: 16,
     fontSize: 16,
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     fontWeight: '500',
   },
   recentSearchesContainer: {
@@ -1290,7 +1279,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   recentSearches: {
@@ -1301,17 +1290,17 @@ const styles = StyleSheet.create({
   recentSearchItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: 'rgba(144, 186, 242, 0.4)',
+    borderColor: colors.border,
   },
   recentSearchText: {
     marginLeft: 6,
     fontSize: 14,
-    color: 'rgba(23, 104, 217, 1)',
+    color: colors.accent,
     fontWeight: '500',
   },
   noResultsContainer: {
@@ -1323,13 +1312,13 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     marginTop: 20,
     textAlign: 'center',
   },
   noResultsSubText: {
     fontSize: 14,
-    color: 'rgba(144, 186, 242, 1)',
+    color: colors.textSecondary,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -1344,13 +1333,13 @@ const styles = StyleSheet.create({
   noLocationText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     marginTop: 12,
     textAlign: 'center',
   },
   noLocationSubText: {
     fontSize: 14,
-    color: 'rgba(144, 186, 242, 1)',
+    color: colors.textSecondary,
     marginTop: 6,
     textAlign: 'center',
   },
@@ -1363,16 +1352,15 @@ const styles = StyleSheet.create({
   initialStateText: {
     fontSize: 20,
     fontWeight: '600',
-    color: 'rgba(4, 18, 36, 1)',
+    color: colors.textPrimary,
     marginTop: 20,
     textAlign: 'center',
   },
   initialStateSubText: {
     fontSize: 14,
-    color: 'rgba(144, 186, 242, 1)',
+    color: colors.textSecondary,
     marginTop: 10,
     textAlign: 'center',
     lineHeight: 20,
   },
 });
-
