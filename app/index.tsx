@@ -3,7 +3,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig"; 
 import React, { useState } from "react";
-import { Alert, Button, Text, TextInput, View } from "react-native";
+import { Alert, Button, Text, TextInput, View, Image, StyleSheet } from "react-native";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -56,32 +56,31 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={{ flex: 1, justifyContent: "center", padding: 20 }}>
-      <Text style={{ fontSize: 24, marginBottom: 20 }}>Login</Text>
+    <View style={styles.container}>
+      {/* Logo Section */}
+      <View style={styles.logoContainer}>
+        <Image 
+          source={require('../assets/images/logo.jpeg')} // Update path to your logo
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </View>
+
+      <Text style={styles.title}>Login</Text>
 
       <TextInput
         placeholder="Email"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
-        style={{
-          borderWidth: 1,
-          padding: 10,
-          marginBottom: 10,
-          borderRadius: 5,
-        }}
+        style={styles.input}
       />
       <TextInput
         placeholder="Password"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
-        style={{
-          borderWidth: 1,
-          padding: 10,
-          marginBottom: 20,
-          borderRadius: 5,
-        }}
+        style={styles.input}
       />
 
       <Button 
@@ -89,9 +88,50 @@ export default function LoginScreen() {
         onPress={handleLogin} 
         disabled={loading}
       />
-      <View style={{ marginTop: 20 }}>
+      
+      <View style={styles.signupButton}>
         <Button title="Go to Signup" onPress={() => router.push("/signup")} />
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 10,
+  },
+  appName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  title: {
+    fontSize: 24,
+    marginBottom: 20,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    padding: 15,
+    marginBottom: 15,
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+  },
+  signupButton: {
+    marginTop: 20,
+  },
+});
