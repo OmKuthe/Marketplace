@@ -26,6 +26,30 @@ import { useAuth } from '../../../hooks/useAuth';
 
 const { width } = Dimensions.get('window');
 
+// Enhanced color constants with better usage
+const COLORS = {
+  primary: 'rgba(15, 177, 234, 1)',
+  primaryLight: 'rgba(15, 177, 234, 0.15)',
+  primaryDark: 'rgba(12, 142, 187, 1)',
+  secondary: 'rgba(9, 68, 89, 1)',
+  secondaryLight: 'rgba(9, 68, 89, 0.7)',
+  accent: 'rgba(247, 206, 38, 1)', // Yellow - properly used
+  accentLight: 'rgba(247, 206, 38, 0.15)',
+  danger: 'rgba(255, 49, 49, 1)', // Red - properly used
+  dangerLight: 'rgba(255, 49, 49, 0.15)',
+  success: 'rgba(76, 175, 80, 1)',
+  background: '#FFFFFF',
+  cardBackground: '#FFFFFF',
+  border: '#E0E0E0', // Darker border for better visibility
+  borderLight: '#F0F0F0',
+  textPrimary: 'rgba(9, 68, 89, 1)',
+  textSecondary: 'rgba(9, 68, 89, 0.7)',
+  textMuted: '#999',
+  inputBackground: '#F8F9FA',
+  overlay: 'rgba(9, 68, 89, 0.08)',
+  warning: 'rgba(255, 152, 0, 1)'
+};
+
 type User = {
   id: string;
   name: string;
@@ -52,7 +76,6 @@ type Conversation = {
 export default function ShopkeeperMessagesScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const router = useRouter();
@@ -255,70 +278,52 @@ export default function ShopkeeperMessagesScreen() {
     }
   };
 
-  const SidePanel = () => (
-    <View style={styles.sidePanel}>
-      <TouchableOpacity 
-        style={styles.sidePanelClose} 
-        onPress={() => setSidePanelVisible(false)}
-      >
-        <Ionicons name="close" size={24} color="#333" />
-      </TouchableOpacity>
-      
-      <View style={styles.sidePanelHeader}>
-        <Text style={styles.sidePanelTitle}>Shop Menu</Text>
+  // Enhanced Header Component - E-commerce style
+  const Header = () => (
+    <View style={styles.header}>
+      <View style={styles.headerTop}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => router.push('/shopkeeper/home')}
+        >
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+        </TouchableOpacity>
+        
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Customer Messages</Text>
+          <Text style={styles.headerSubtitle}>
+            {conversations.length} active conversation{conversations.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        
+        <TouchableOpacity style={styles.filterButton}>
+          <Ionicons name="filter-outline" size={22} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
       
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/home");
-        }}
-      >
-        <Ionicons name="home" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Dashboard</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/products");
-        }}
-      >
-        <Ionicons name="cube" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Products</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.menuItem, styles.activeMenuItem]}
-        onPress={() => setSidePanelVisible(false)}
-      >
-        <Ionicons name="chatbubbles" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Messages</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/myorders");
-        }}
-      >
-        <Ionicons name="list" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Orders</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/profile");
-        }}
-      >
-        <Ionicons name="person" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Profile</Text>
-      </TouchableOpacity>
+      <View style={styles.headerStats}>
+        <View style={styles.statItem}>
+          <Text style={styles.statNumber}>
+            {conversations.filter(conv => conv.unreadCount > 0).length}
+          </Text>
+          <Text style={styles.statLabel}>Unread</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statNumber}>{conversations.length}</Text>
+          <Text style={styles.statLabel}>Total</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statNumber}>
+            {conversations.filter(conv => {
+              const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+              return conv.updatedAt > oneDayAgo;
+            }).length}
+          </Text>
+          <Text style={styles.statLabel}>Today</Text>
+        </View>
+      </View>
     </View>
   );
 
@@ -335,48 +340,102 @@ export default function ShopkeeperMessagesScreen() {
     const displayName = customer?.name || 'Customer';
     const displayAvatar = customer?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face';
     const roleText = customer?.role === 'shopkeeper' ? 'Shopkeeper' : 'Customer';
+    const isUnread = item.unreadCount > 0;
     
     return (
       <TouchableOpacity 
-        style={styles.conversationItem}
+        style={[
+          styles.conversationItem,
+          isUnread && styles.unreadConversationItem
+        ]}
         onPress={() => router.push(`/chat/${item.id}`)}
       >
-        <Image 
-          source={{ uri: displayAvatar }} 
-          style={styles.avatar}
-          defaultSource={{ uri: 'https://via.placeholder.com/150' }}
-        />
+        <View style={styles.avatarContainer}>
+          <Image 
+            source={{ uri: displayAvatar }} 
+            style={styles.avatar}
+            defaultSource={{ uri: 'https://via.placeholder.com/150' }}
+          />
+          {isUnread && (
+            <View style={styles.unreadIndicator} />
+          )}
+          <View style={[
+            styles.statusIndicator,
+            isUnread && styles.unreadStatusIndicator
+          ]} />
+        </View>
+        
         <View style={styles.conversationContent}>
           <View style={styles.conversationHeader}>
             <View style={styles.nameContainer}>
-              <Text style={styles.conversationName}>
+              <Text style={[
+                styles.conversationName,
+                isUnread && styles.unreadConversationName
+              ]}>
                 {displayName}
               </Text>
-              <Text style={styles.roleBadge}>
-                {roleText}
-              </Text>
+              <View style={[
+                styles.roleBadge,
+                customer?.role === 'shopkeeper' ? styles.shopkeeperBadge : styles.customerBadge
+              ]}>
+                <Ionicons 
+                  name={customer?.role === 'shopkeeper' ? "storefront" : "person"} 
+                  size={10} 
+                  color={customer?.role === 'shopkeeper' ? COLORS.accent : COLORS.primary} 
+                  style={styles.roleIcon}
+                />
+                <Text style={[
+                  styles.roleBadgeText,
+                  customer?.role === 'shopkeeper' ? styles.shopkeeperBadgeText : styles.customerBadgeText
+                ]}>
+                  {roleText}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.timestamp}>
-              {formatTime(item.lastMessage.timestamp)}
-            </Text>
+            <View style={styles.timestampContainer}>
+              <Text style={[
+                styles.timestamp,
+                isUnread && styles.unreadTimestamp
+              ]}>
+                {formatTime(item.lastMessage.timestamp)}
+              </Text>
+              {isUnread && (
+                <View style={styles.unreadDot} />
+              )}
+            </View>
           </View>
+          
           <View style={styles.conversationPreview}>
             <Text 
               style={[
                 styles.lastMessage, 
-                item.unreadCount > 0 && styles.unreadMessage
+                isUnread && styles.unreadMessage
               ]}
               numberOfLines={1}
             >
-              {item.lastMessage.senderId === user?.uid ? 'You: ' : ''}
+              {item.lastMessage.senderId === user?.uid ? (
+                <>
+                  <Ionicons name="checkmark-done" size={12} color={COLORS.textSecondary} />
+                  <Text> You: </Text>
+                </>
+              ) : ''}
               {item.lastMessage.text}
             </Text>
-            {item.unreadCount > 0 && (
+            
+            {isUnread && (
               <View style={styles.unreadBadge}>
                 <Text style={styles.unreadCount}>{item.unreadCount}</Text>
               </View>
             )}
           </View>
+        </View>
+        
+        <View style={styles.arrowContainer}>
+          <Ionicons 
+            name="chevron-forward" 
+            size={20} 
+            color={COLORS.textMuted} 
+          />
         </View>
       </TouchableOpacity>
     );
@@ -386,7 +445,11 @@ export default function ShopkeeperMessagesScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text>Loading messages...</Text>
+          <View style={styles.loadingAnimation}>
+            <Ionicons name="chatbubbles" size={48} color={COLORS.primary} />
+            <Text style={styles.loadingText}>Loading your messages...</Text>
+            <Text style={styles.loadingSubText}>Connecting to customers</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -394,34 +457,29 @@ export default function ShopkeeperMessagesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with menu button */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-          <Ionicons name="menu" size={28} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>💬 Customer Messages</Text>
-        <TouchableOpacity>
-          <Ionicons name="filter-outline" size={24} color="#007AFF" />
-        </TouchableOpacity>
-      </View>
+      {/* Enhanced Header */}
+      <Header />
 
-      {/* Side Panel */}
-      {sidePanelVisible && <SidePanel />}
-
-      {/* Search Bar */}
+      {/* Enhanced Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={20} color="#777" style={styles.searchIcon} />
+          <Ionicons name="search" size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search customer messages..."
+            placeholder="Search customer messages by name..."
+            placeholderTextColor={COLORS.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearSearchButton}>
+              <Ionicons name="close-circle" size={20} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
-      {/* Conversations List */}
+      {/* Enhanced Conversations List */}
       {filteredConversations.length > 0 ? (
         <FlatList
           data={filteredConversations}
@@ -432,16 +490,24 @@ export default function ShopkeeperMessagesScreen() {
         />
       ) : (
         <View style={styles.emptyState}>
-          <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
+          <View style={styles.emptyIllustration}>
+            <Ionicons name="chatbubbles-outline" size={80} color={COLORS.textMuted} />
+          </View>
           <Text style={styles.emptyStateText}>
             {searchQuery ? 'No conversations found' : 'No customer messages yet'}
           </Text>
           <Text style={styles.emptyStateSubText}>
             {searchQuery 
               ? 'Try adjusting your search terms'
-              : 'Customers will appear here when they message you about your products'
+              : 'Customer messages will appear here when they contact you about your products'
             }
           </Text>
+          {!searchQuery && (
+            <TouchableOpacity style={styles.startConversationButton}>
+              <Ionicons name="megaphone" size={18} color="#fff" style={styles.buttonIcon} />
+              <Text style={styles.startConversationButtonText}>Share Your Products</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </SafeAreaView>
@@ -451,116 +517,188 @@ export default function ShopkeeperMessagesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9f9f9",
-    marginTop:20,
+    backgroundColor: "#f8f9fa",
+    marginTop: 27,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: COLORS.background,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingAnimation: {
     alignItems: 'center',
-    padding: 3,
-    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 18,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  loadingSubText: {
+    marginTop: 4,
+    fontSize: 14,
+    color: COLORS.textMuted,
+  },
+  // Enhanced Header Styles - E-commerce style
+  header: {
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    marginTop: 10,
+    borderBottomColor: COLORS.border,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  backButton: {
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLight,
+  },
+  headerCenter: {
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 16,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  sidePanel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: width * 0.7,
-    height: '100%',
-    backgroundColor: '#fff',
-    zIndex: 100,
-    padding: 20,
-    paddingTop: 50,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 2,
-      height: 0,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sidePanelClose: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-  },
-  sidePanelHeader: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingBottom: 15,
-    marginBottom: 20,
-  },
-  sidePanelTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
   },
-  menuItem: {
+  headerSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  filterButton: {
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLight,
+  },
+  headerStats: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 8,
   },
-  activeMenuItem: {
-    backgroundColor: '#f0f7ff',
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
   },
-  menuItemText: {
-    fontSize: 16,
-    marginLeft: 15,
+  statNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: COLORS.border,
   },
   searchContainer: {
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 14,
     fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+  clearSearchButton: {
+    padding: 4,
   },
   listContainer: {
     padding: 16,
     paddingTop: 8,
   },
+  // Enhanced Conversation Item
   conversationItem: {
     flexDirection: 'row',
     padding: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 16,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  unreadConversationItem: {
+    backgroundColor: COLORS.primaryLight,
+    borderColor: COLORS.primary,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 12,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+  },
+  unreadIndicator: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: COLORS.background,
+  },
+  statusIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.success,
+    borderWidth: 2,
+    borderColor: COLORS.background,
+  },
+  unreadStatusIndicator: {
+    backgroundColor: COLORS.accent,
   },
   conversationContent: {
     flex: 1,
@@ -570,31 +708,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   nameContainer: {
     flex: 1,
     marginRight: 8,
   },
   conversationName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  unreadConversationName: {
+    color: COLORS.primary,
+    fontWeight: '700',
   },
   roleBadge: {
-    fontSize: 12,
-    color: '#666',
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     alignSelf: 'flex-start',
+  },
+  shopkeeperBadge: {
+    backgroundColor: COLORS.accentLight,
+  },
+  customerBadge: {
+    backgroundColor: COLORS.primaryLight,
+  },
+  roleIcon: {
+    marginRight: 4,
+  },
+  roleBadgeText: {
+    fontSize: 11,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  shopkeeperBadgeText: {
+    color: COLORS.accent,
+  },
+  customerBadgeText: {
+    color: COLORS.primary,
+  },
+  timestampContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   timestamp: {
     fontSize: 12,
-    color: '#666',
-    marginTop: 2,
+    color: COLORS.textSecondary,
+    marginRight: 6,
+  },
+  unreadTimestamp: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  unreadDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.primary,
   },
   conversationPreview: {
     flexDirection: 'row',
@@ -604,26 +780,35 @@ const styles = StyleSheet.create({
   lastMessage: {
     flex: 1,
     fontSize: 14,
-    color: '#666',
+    color: COLORS.textSecondary,
     marginRight: 8,
+    lineHeight: 18,
   },
   unreadMessage: {
-    color: '#333',
-    fontWeight: '500',
+    color: COLORS.textPrimary,
+    fontWeight: '600',
   },
   unreadBadge: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
-    minWidth: 20,
-    height: 20,
+    minWidth: 22,
+    height: 22,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   unreadCount: {
     color: '#fff',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  arrowContainer: {
+    marginLeft: 8,
   },
   emptyState: {
     flex: 1,
@@ -632,17 +817,50 @@ const styles = StyleSheet.create({
     padding: 40,
     paddingTop: 100,
   },
+  emptyIllustration: {
+    padding: 20,
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 40,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
   emptyStateText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#666',
+    color: COLORS.textSecondary,
     marginTop: 16,
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptyStateSubText: {
     fontSize: 14,
-    color: '#999',
+    color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: 24,
+  },
+  startConversationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primaryDark,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  startConversationButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
 });

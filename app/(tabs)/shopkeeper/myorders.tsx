@@ -25,6 +25,29 @@ import { useAuth } from '../../../hooks/useAuth';
 
 const { width } = Dimensions.get('window');
 
+// Enhanced color constants matching your design system
+const COLORS = {
+  primary: 'rgba(15, 177, 234, 1)',
+  primaryLight: 'rgba(15, 177, 234, 0.15)',
+  primaryDark: 'rgba(12, 142, 187, 1)',
+  secondary: 'rgba(9, 68, 89, 1)',
+  secondaryLight: 'rgba(9, 68, 89, 0.7)',
+  accent: 'rgba(247, 206, 38, 1)',
+  accentLight: 'rgba(247, 206, 38, 0.15)',
+  danger: 'rgba(255, 49, 49, 1)',
+  dangerLight: 'rgba(255, 49, 49, 0.15)',
+  success: 'rgba(76, 175, 80, 1)',
+  background: '#FFFFFF',
+  cardBackground: '#FFFFFF',
+  border: '#E0E0E0',
+  borderLight: '#F0F0F0',
+  textPrimary: 'rgba(9, 68, 89, 1)',
+  textSecondary: 'rgba(9, 68, 89, 0.7)',
+  textMuted: '#999',
+  inputBackground: '#F8F9FA',
+  overlay: 'rgba(9, 68, 89, 0.08)'
+};
+
 export default function ShopkeeperOrdersScreen() {
   const { user, role, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -35,39 +58,33 @@ export default function ShopkeeperOrdersScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // Replace with your actual shop ID
-  const SHOP_ID = user?.uid; // Using the shopId from your DB example
+  const SHOP_ID = user?.uid;
 
   // Fetch orders with real-time updates
   useEffect(() => {
     if (!SHOP_ID) {
       setIsLoading(false);
-      return; // Don't fetch orders if no shopId
+      return;
     }
     
     setIsLoading(true);
     
-    // Set up real-time listener with dynamic shop ID
     const unsubscribe = subscribeToOrders(SHOP_ID, (ordersData) => {
       setOrders(ordersData);
       setIsLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [SHOP_ID]); 
+  }, [SHOP_ID]);
 
-
-  // Apply filters whenever orders, activeFilter, or searchQuery change
+  // Apply filters
   useEffect(() => {
     let filtered = orders;
     
-    // Apply status filter
     if (activeFilter !== "all") {
       filtered = filtered.filter(order => order.status === activeFilter);
     }
     
-    // Apply search filter
     if (searchQuery) {
       filtered = filtered.filter(order =>
         order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -79,36 +96,27 @@ export default function ShopkeeperOrdersScreen() {
     setFilteredOrders(filtered);
   }, [activeFilter, searchQuery, orders]);
 
-
-  if (authLoading || !SHOP_ID) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-            <Ionicons name="menu" size={28} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>📋 Customer Orders</Text>
-          <View style={{ width: 28 }} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>
-            {authLoading ? "Loading..." : "No shop associated with your account"}
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   const getStatusColor = (status: Order['status']) => {
     switch (status) {
-      case 'pending': return '#FF9500';
-      case 'confirmed': return '#007AFF';
+      case 'pending': return COLORS.accent;
+      case 'confirmed': return COLORS.primary;
       case 'preparing': return '#5856D6';
-      case 'ready': return '#34C759';
+      case 'ready': return COLORS.success;
       case 'completed': return '#4CD964';
-      case 'cancelled': return '#FF3B30';
+      case 'cancelled': return COLORS.danger;
       default: return '#8E8E93';
+    }
+  };
+
+  const getStatusIcon = (status: Order['status']) => {
+    switch (status) {
+      case 'pending': return 'time-outline';
+      case 'confirmed': return 'checkmark-circle-outline';
+      case 'preparing': return 'restaurant-outline';
+      case 'ready': return 'bag-check-outline';
+      case 'completed': return 'checkmark-done-circle-outline';
+      case 'cancelled': return 'close-circle-outline';
+      default: return 'ellipse-outline';
     }
   };
 
@@ -125,7 +133,6 @@ export default function ShopkeeperOrdersScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    // Parse the date string from Firebase
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -152,13 +159,13 @@ export default function ShopkeeperOrdersScreen() {
       case 'pending':
         options.push(
           { text: 'Confirm Order', onPress: () => updateOrderStatus(order.id, 'confirmed') },
-          { text: 'Cancel Order', onPress: () => updateOrderStatus(order.id, 'cancelled') }
+          { text: 'Cancel Order', onPress: () => updateOrderStatus(order.id, 'cancelled'), style: 'destructive' }
         );
         break;
       case 'confirmed':
         options.push(
           { text: 'Start Preparing', onPress: () => updateOrderStatus(order.id, 'preparing') },
-          { text: 'Cancel Order', onPress: () => updateOrderStatus(order.id, 'cancelled') }
+          { text: 'Cancel Order', onPress: () => updateOrderStatus(order.id, 'cancelled'), style: 'destructive' }
         );
         break;
       case 'preparing':
@@ -182,91 +189,104 @@ export default function ShopkeeperOrdersScreen() {
     }
   };
 
+  // Enhanced Side Panel
   const SidePanel = () => (
     <View style={styles.sidePanel}>
-      <TouchableOpacity 
-        style={styles.sidePanelClose} 
-        onPress={() => setSidePanelVisible(false)}
-      >
-        <Ionicons name="close" size={24} color="#333" />
-      </TouchableOpacity>
-      
       <View style={styles.sidePanelHeader}>
+        <TouchableOpacity 
+          style={styles.sidePanelClose} 
+          onPress={() => setSidePanelVisible(false)}
+        >
+          <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+        </TouchableOpacity>
         <Text style={styles.sidePanelTitle}>Shop Menu</Text>
       </View>
       
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/home");
-        }}
-      >
-        <Ionicons name="home" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Dashboard</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/products");
-        }}
-      >
-        <Ionicons name="cube" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Products</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/messages");
-        }}
-      >
-        <Ionicons name="chatbubbles" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Messages</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.menuItem, styles.activeMenuItem]}
-        onPress={() => setSidePanelVisible(false)}
-      >
-        <Ionicons name="list" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Orders</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/profile");
-        }}
-      >
-        <Ionicons name="person" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Profile</Text>
-      </TouchableOpacity>
+      <View style={styles.menuItems}>
+        <TouchableOpacity 
+          style={styles.menuItem}
+          onPress={() => {
+            setSidePanelVisible(false);
+            router.push("/shopkeeper/home");
+          }}
+        >
+          <Ionicons name="home" size={22} color={COLORS.primary} />
+          <Text style={styles.menuItemText}>Dashboard</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.menuItem}
+          onPress={() => {
+            setSidePanelVisible(false);
+            router.push("/shopkeeper/products");
+          }}
+        >
+          <Ionicons name="cube" size={22} color={COLORS.primary} />
+          <Text style={styles.menuItemText}>Products</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.menuItem}
+          onPress={() => {
+            setSidePanelVisible(false);
+            router.push("/shopkeeper/messages");
+          }}
+        >
+          <Ionicons name="chatbubbles" size={22} color={COLORS.primary} />
+          <Text style={styles.menuItemText}>Messages</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.menuItem, styles.activeMenuItem]}
+          onPress={() => setSidePanelVisible(false)}
+        >
+          <Ionicons name="receipt" size={22} color={COLORS.primary} />
+          <Text style={[styles.menuItemText, styles.activeMenuItemText]}>Orders</Text>
+          <View style={styles.activeMenuItemDot} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.menuItem}
+          onPress={() => {
+            setSidePanelVisible(false);
+            router.push("/shopkeeper/profile");
+          }}
+        >
+          <Ionicons name="person" size={22} color={COLORS.primary} />
+          <Text style={styles.menuItemText}>Profile</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
+  // Enhanced Order Card
   const renderOrderItem = ({ item }: { item: Order }) => (
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
         <View style={styles.customerInfo}>
-          <View style={styles.customerAvatarPlaceholder}>
+          <View style={styles.customerAvatar}>
             <Text style={styles.customerAvatarText}>
               {item.customerName.charAt(0).toUpperCase()}
             </Text>
           </View>
-          <View>
+          <View style={styles.customerDetails}>
             <Text style={styles.customerName}>{item.customerName}</Text>
             <Text style={styles.orderId}>Order #{item.id.substring(0, 8)}</Text>
             {item.customerPhone && (
-              <Text style={styles.customerPhone}>{item.customerPhone}</Text>
+              <View style={styles.phoneContainer}>
+                <Ionicons name="call" size={12} color={COLORS.textSecondary} />
+                <Text style={styles.customerPhone}>{item.customerPhone}</Text>
+              </View>
             )}
           </View>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+          <Ionicons 
+            name={getStatusIcon(item.status)} 
+            size={14} 
+            color={getStatusColor(item.status)} 
+            style={styles.statusIcon}
+          />
           <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
             {getStatusText(item.status)}
           </Text>
@@ -274,36 +294,48 @@ export default function ShopkeeperOrdersScreen() {
       </View>
 
       <View style={styles.orderDetails}>
-        <Text style={styles.itemsText}>
-          {item.items.length} item{item.items.length !== 1 ? 's' : ''} • {formatCurrency(item.totalAmount)}
-        </Text>
+        <View style={styles.orderSummary}>
+          <Text style={styles.itemsCount}>
+            {item.items.length} item{item.items.length !== 1 ? 's' : ''}
+          </Text>
+          <Text style={styles.orderAmount}>{formatCurrency(item.totalAmount)}</Text>
+        </View>
         
         <View style={styles.itemsList}>
-          {item.items.slice(0, 3).map((product, index) => (
-            <Text key={index} style={styles.productText} numberOfLines={1}>
-              {product.quantity}x {product.name}
-            </Text>
+          {item.items.slice(0, 2).map((product, index) => (
+            <View key={index} style={styles.productItem}>
+              <Text style={styles.productQuantity}>{product.quantity}x</Text>
+              <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
+            </View>
           ))}
-          {item.items.length > 3 && (
+          {item.items.length > 2 && (
             <Text style={styles.moreItemsText}>
-              +{item.items.length - 3} more items
+              +{item.items.length - 2} more items
             </Text>
           )}
         </View>
 
         {item.deliveryAddress && (
-          <Text style={styles.addressText} numberOfLines={1}>
-            📍 {item.deliveryAddress}
-          </Text>
+          <View style={styles.addressContainer}>
+            <Ionicons name="location" size={14} color={COLORS.textSecondary} />
+            <Text style={styles.addressText} numberOfLines={1}>
+              {item.deliveryAddress}
+            </Text>
+          </View>
         )}
 
-        <Text style={styles.dateText}>
-          Ordered on {formatDate(item.createdAt)} 
-        </Text>
-
-        <Text style={styles.paymentText}>
-          Payment: {item.paymentMethod === 'cash' ? 'Cash on Delivery' : item.paymentMethod}
-        </Text>
+        <View style={styles.orderMeta}>
+          <View style={styles.metaItem}>
+            <Ionicons name="time" size={12} color={COLORS.textMuted} />
+            <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="card" size={12} color={COLORS.textMuted} />
+            <Text style={styles.paymentText}>
+              {item.paymentMethod === 'cash' ? 'Cash on Delivery' : item.paymentMethod}
+            </Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.orderActions}>
@@ -311,6 +343,7 @@ export default function ShopkeeperOrdersScreen() {
           style={styles.detailsButton}
           onPress={() => router.push(`../orders/${item.id}`)}
         >
+          <Ionicons name="eye" size={16} color={COLORS.primary} />
           <Text style={styles.detailsButtonText}>View Details</Text>
         </TouchableOpacity>
         
@@ -319,6 +352,7 @@ export default function ShopkeeperOrdersScreen() {
             style={styles.updateButton}
             onPress={() => showStatusUpdateOptions(item)}
           >
+            <Ionicons name="refresh" size={16} color="#fff" />
             <Text style={styles.updateButtonText}>Update Status</Text>
           </TouchableOpacity>
         )}
@@ -326,18 +360,44 @@ export default function ShopkeeperOrdersScreen() {
     </View>
   );
 
+  if (authLoading || !SHOP_ID) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => setSidePanelVisible(true)}
+          >
+            <Ionicons name="menu" size={24} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Customer Orders</Text>
+          <View style={styles.headerPlaceholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>
+            {authLoading ? "Loading..." : "No shop associated with your account"}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (isLoading && orders.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-            <Ionicons name="menu" size={28} color="#333" />
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => setSidePanelVisible(true)}
+          >
+            <Ionicons name="menu" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>📋 Customer Orders</Text>
-          <View style={{ width: 28 }} />
+          <Text style={styles.headerTitle}>Customer Orders</Text>
+          <View style={styles.headerPlaceholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading orders...</Text>
         </View>
       </SafeAreaView>
@@ -346,94 +406,101 @@ export default function ShopkeeperOrdersScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with menu button */}
+      {/* Enhanced Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-          <Ionicons name="menu" size={28} color="#333" />
+        <TouchableOpacity 
+          style={styles.menuButton}
+          onPress={() => setSidePanelVisible(true)}
+        >
+          <Ionicons name="menu" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>📋 Customer Orders</Text>
-        <View style={{ width: 28 }} />
+        
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Customer Orders</Text>
+          <Text style={styles.headerSubtitle}>
+            {orders.length} total order{orders.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        
+        <View style={styles.headerPlaceholder} />
       </View>
 
       {/* Side Panel */}
       {sidePanelVisible && <SidePanel />}
+      {sidePanelVisible && <View style={styles.overlay} />}
 
-      {/* Search Bar */}
+      {/* Enhanced Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={20} color="#777" style={styles.searchIcon} />
+          <Ionicons name="search" size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search orders, customers, or items..."
+            placeholderTextColor={COLORS.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={20} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
-      {/* Order Filters */}
+      {/* Enhanced Order Filters */}
       <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterOptions}>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "all" && styles.activeFilter]}
-            onPress={() => setActiveFilter("all")}
-          >
-            <Text style={[styles.filterText, activeFilter === "all" && styles.activeFilterText]}>All Orders</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "pending" && styles.activeFilter]}
-            onPress={() => setActiveFilter("pending")}
-          >
-            <Text style={[styles.filterText, activeFilter === "pending" && styles.activeFilterText]}>Pending</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "confirmed" && styles.activeFilter]}
-            onPress={() => setActiveFilter("confirmed")}
-          >
-            <Text style={[styles.filterText, activeFilter === "confirmed" && styles.activeFilterText]}>Confirmed</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "preparing" && styles.activeFilter]}
-            onPress={() => setActiveFilter("preparing")}
-          >
-            <Text style={[styles.filterText, activeFilter === "preparing" && styles.activeFilterText]}>Preparing</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "ready" && styles.activeFilter]}
-            onPress={() => setActiveFilter("ready")}
-          >
-            <Text style={[styles.filterText, activeFilter === "ready" && styles.activeFilterText]}>Ready</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "completed" && styles.activeFilter]}
-            onPress={() => setActiveFilter("completed")}
-          >
-            <Text style={[styles.filterText, activeFilter === "completed" && styles.activeFilterText]}>Completed</Text>
-          </TouchableOpacity>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.filterOptions}
+        >
+          {['all', 'pending', 'confirmed', 'preparing', 'ready', 'completed'].map((filter) => (
+            <TouchableOpacity 
+              key={filter}
+              style={[
+                styles.filterButton, 
+                activeFilter === filter && styles.activeFilter
+              ]}
+              onPress={() => setActiveFilter(filter)}
+            >
+              <Text style={[
+                styles.filterText, 
+                activeFilter === filter && styles.activeFilterText
+              ]}>
+                {filter === 'all' ? 'All Orders' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
 
-      {/* Orders Summary */}
+      {/* Enhanced Orders Summary */}
       <View style={styles.summaryContainer}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryNumber}>{orders.filter(o => o.status === 'pending').length}</Text>
           <Text style={styles.summaryLabel}>Pending</Text>
         </View>
+        <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryNumber}>{orders.filter(o => o.status === 'confirmed' || o.status === 'preparing').length}</Text>
+          <Text style={styles.summaryNumber}>
+            {orders.filter(o => o.status === 'confirmed' || o.status === 'preparing').length}
+          </Text>
           <Text style={styles.summaryLabel}>Active</Text>
         </View>
+        <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
           <Text style={styles.summaryNumber}>{orders.filter(o => o.status === 'ready').length}</Text>
           <Text style={styles.summaryLabel}>Ready</Text>
         </View>
+        <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
           <Text style={styles.summaryNumber}>{orders.filter(o => o.status === 'completed').length}</Text>
           <Text style={styles.summaryLabel}>Completed</Text>
         </View>
       </View>
 
-      {/* Orders List */}
+      {/* Enhanced Orders List */}
       {filteredOrders.length > 0 ? (
         <FlatList
           data={filteredOrders}
@@ -444,12 +511,16 @@ export default function ShopkeeperOrdersScreen() {
         />
       ) : (
         <View style={styles.emptyState}>
-          <Ionicons name="receipt-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyStateText}>No orders found</Text>
+          <View style={styles.emptyIllustration}>
+            <Ionicons name="receipt-outline" size={80} color={COLORS.textMuted} />
+          </View>
+          <Text style={styles.emptyStateText}>
+            {searchQuery || activeFilter !== "all" ? "No orders found" : "No orders yet"}
+          </Text>
           <Text style={styles.emptyStateSubText}>
             {searchQuery || activeFilter !== "all" 
               ? "Try adjusting your search or filter" 
-              : "You haven't received any orders yet"
+              : "Customer orders will appear here when they place orders"
             }
           </Text>
         </View>
@@ -461,293 +532,444 @@ export default function ShopkeeperOrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9f9f9",
-    marginTop:27,
+    backgroundColor: "#f8f9fa",
+    marginTop: 27,
   },
+  // Enhanced Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  menuButton: {
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLight,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 16,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "bold",
+    color: COLORS.textPrimary,
   },
+  headerSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  headerPlaceholder: {
+    width: 40,
+  },
+  // Enhanced Side Panel
   sidePanel: {
     position: 'absolute',
     top: 0,
     left: 0,
-    width: width * 0.7,
+    width: width * 0.75,
     height: '100%',
-    backgroundColor: '#fff',
-    zIndex: 100,
-    padding: 20,
+    backgroundColor: COLORS.background,
+    zIndex: 1000,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 2,
-      height: 0,
-    },
+    shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 10,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
   },
-  sidePanelClose: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 999,
   },
   sidePanelHeader: {
+    padding: 20,
+    paddingTop: 60,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingBottom: 15,
-    marginBottom: 20,
+    borderBottomColor: COLORS.border,
+  },
+  sidePanelClose: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    padding: 4,
   },
   sidePanelTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
+    color: COLORS.textPrimary,
+  },
+  menuItems: {
+    padding: 20,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 4,
   },
   activeMenuItem: {
-    backgroundColor: '#f0f7ff',
+    backgroundColor: COLORS.primaryLight,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
+  },
+  activeMenuItemText: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  activeMenuItemDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+    marginLeft: 'auto',
   },
   menuItemText: {
     fontSize: 16,
-    marginLeft: 15,
+    color: COLORS.textPrimary,
+    marginLeft: 16,
+    fontWeight: '500',
   },
+  // Enhanced Search
   searchContainer: {
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 14,
     fontSize: 16,
+    color: COLORS.textPrimary,
   },
+  // Enhanced Filters
   filterContainer: {
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
   },
   filterOptions: {
     flexDirection: 'row',
     gap: 8,
   },
   filterButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.inputBackground,
   },
   activeFilter: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   filterText: {
     fontSize: 14,
-    color: '#666',
-  },
-  activeFilterText: {
-    color: 'white',
+    color: COLORS.textSecondary,
     fontWeight: '500',
   },
+  activeFilterText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  // Enhanced Summary
   summaryContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    padding: 16,
-    backgroundColor: '#fff',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
   },
   summaryItem: {
     alignItems: 'center',
+    flex: 1,
   },
   summaryNumber: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: COLORS.primary,
   },
   summaryLabel: {
     fontSize: 12,
-    color: '#666',
-    marginTop: 4,
+    color: COLORS.textSecondary,
+    marginTop: 6,
+    fontWeight: '500',
   },
+  summaryDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: COLORS.border,
+  },
+  // Enhanced Order Card
   listContainer: {
     padding: 16,
-    gap: 12,
+    gap: 16,
   },
   orderCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 16,
+    padding: 20,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   customerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  customerAvatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  customerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     marginRight: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   customerAvatarText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
+  customerDetails: {
+    flex: 1,
+  },
   customerName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#333',
+    color: COLORS.textPrimary,
+    marginBottom: 2,
   },
   orderId: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  phoneContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   customerPhone: {
     fontSize: 12,
-    color: '#666',
-    marginTop: 2,
+    color: COLORS.textSecondary,
+    marginLeft: 4,
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
+  },
+  statusIcon: {
+    marginRight: 6,
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   orderDetails: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  itemsText: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 8,
+  orderSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  itemsCount: {
+    fontSize: 15,
+    color: COLORS.textPrimary,
     fontWeight: '500',
   },
-  itemsList: {
-    marginBottom: 8,
+  orderAmount: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.primary,
   },
-  productText: {
+  itemsList: {
+    marginBottom: 12,
+  },
+  productItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  productQuantity: {
     fontSize: 13,
-    color: '#666',
-    marginBottom: 2,
+    color: COLORS.primary,
+    fontWeight: '600',
+    marginRight: 8,
+    minWidth: 20,
+  },
+  productName: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    flex: 1,
   },
   moreItemsText: {
     fontSize: 12,
-    color: '#999',
+    color: COLORS.textMuted,
     fontStyle: 'italic',
+    marginTop: 4,
+  },
+  addressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   addressText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginLeft: 6,
+    flex: 1,
   },
-  paymentText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 8,
-    fontWeight: '500',
+  orderMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   dateText: {
     fontSize: 12,
-    color: '#999',
-    marginBottom: 4,
+    color: COLORS.textMuted,
+    marginLeft: 4,
+  },
+  paymentText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginLeft: 4,
   },
   orderActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
+    gap: 12,
   },
   detailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: COLORS.primary,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
   },
   detailsButtonText: {
-    color: '#007AFF',
+    color: COLORS.primary,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   updateButton: {
-    backgroundColor: '#007AFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   updateButtonText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: COLORS.background,
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: COLORS.textSecondary,
+    fontWeight: '500',
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
+    paddingTop: 100,
+  },
+  emptyIllustration: {
+    padding: 20,
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 40,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   emptyStateText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#666',
+    color: COLORS.textSecondary,
     marginTop: 16,
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptyStateSubText: {
     fontSize: 14,
-    color: '#999',
+    color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
