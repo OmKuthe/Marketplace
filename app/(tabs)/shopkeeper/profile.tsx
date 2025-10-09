@@ -123,10 +123,6 @@ export default function ShopkeeperProfileScreen() {
     router.push("/shopkeeper/myorders");
   };
 
-  const handleAnalytics = () => {
-    router.push("/shopkeeper/analytics");
-  };
-
   const handleSupport = () => {
     router.push("/shop_prof/support");
   };
