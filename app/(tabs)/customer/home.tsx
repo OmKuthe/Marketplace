@@ -2,64 +2,67 @@ import { useAuth } from '@/hooks/useAuth';
 import { conversationService } from '@/utils/conversationService';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
-import { useRouter } from "expo-router";
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  orderBy, 
-  query, 
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, useRouter } from 'expo-router';
+import {
   addDoc,
-  updateDoc,
-  where,
-  limit,
-  startAfter,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
   Timestamp
 } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   FlatList,
   Image,
   Modal,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Alert,
-  ActivityIndicator,
-  RefreshControl,
-  ImageBackground
+  View
 } from "react-native";
-import { LinearGradient } from 'expo-linear-gradient';
-import { db, storage } from "../../../firebaseConfig";
+import { db } from "../../../firebaseConfig";
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-// Updated color palette to match RamShop design
+// ENHANCED MODERN COLOR SCHEME
 const colors = {
-  background: '#f5f5f5',      // Light grey background
-  surface: '#ffffff',          // White cards/sections
-  textPrimary: '#1a1a1a',     // Dark charcoal for main text
-  textSecondary: '#666666',   // Medium grey for secondary text
-  accent: '#2e7d32',          // Green accent for interactive elements
-  success: '#2e7d32',         // Green for prices/success
-  border: '#e5e5e5',          // Light grey for borders/dividers
-  darkButton: '#1a1a1a',      // Black for CTA buttons
-  offerGradient: ['#2e7d32', '#4caf50'], // Green gradient for offers
-  needCard: 'rgba(255, 107, 53, 0.1)',    // Soft orange for needs
-  offerCard: 'rgba(46, 125, 50, 0.1)',    // Soft green for offers
-  lightBackground: 'rgba(229, 229, 229, 0.3)', // Very light grey
+  background: '#f8fafc',
+  surface: '#ffffff',
+  textPrimary: '#1e293b',
+  textSecondary: '#64748b',
+  accent: '#3b82f6',
+  accentLight: '#60a5fa',
+  success: '#10b981',
+  warning: '#f59e0b',
+  error: '#ef4444',
+  border: '#e2e8f0',
+  darkButton: '#1e293b',
+  needColor: '#f97316',
+  offerColor: '#10b981',
+  gradientPrimary: ['#667eea', '#764ba2'],
+  gradientSecondary: ['#f093fb', '#f5576c'],
+  gradientSuccess: ['#10b981', '#34d399'],
+  gradientWarning: ['#f59e0b', '#fbbf24'],
+  needCard: 'rgba(249, 115, 22, 0.08)',
+  offerCard: 'rgba(16, 185, 129, 0.08)',
+  lightBackground: 'rgba(226, 232, 240, 0.4)',
+  electricPurple: '#8b5cf6',
+  deepBlue: '#1e40af',
 };
 
-// Define types (keep your existing types)
+// Define types
 type ShopkeeperData = {
   uid: string;
   email: string;
@@ -84,7 +87,6 @@ type Product = {
   shopId?: string;
 };
 
-// Customer Post Types (keep your existing types)
 type PostType = 'NEED' | 'OFFER';
 type PostStatus = 'ACTIVE' | 'FULFILLED' | 'EXPIRED';
 type UrgencyLevel = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -124,27 +126,21 @@ interface PostFilter {
   searchQuery?: string;
 }
 
-// Comprehensive categories with icons
+// Enhanced categories with modern icons
 const CATEGORIES = [
-  { id: '1', name: 'All', icon: 'grid-outline', value: 'all' },
-  { id: '2', name: 'Electronics', icon: 'phone-portrait-outline', value: 'electronics' },
-  { id: '3', name: 'Clothing', icon: 'shirt-outline', value: 'clothing' },
-  { id: '4', name: 'Food', icon: 'fast-food-outline', value: 'food' },
-  { id: '5', name: 'Books', icon: 'book-outline', value: 'books' },
-  { id: '6', name: 'Home', icon: 'home-outline', value: 'home' },
-  { id: '7', name: 'Sports', icon: 'basketball-outline', value: 'sports' },
-  { id: '8', name: 'Beauty', icon: 'sparkles-outline', value: 'beauty' },
-  { id: '9', name: 'Toys', icon: 'game-controller-outline', value: 'toys' },
-  { id: '10', name: 'Jewelry', icon: 'diamond-outline', value: 'jewelry' },
-  { id: '11', name: 'Automotive', icon: 'car-outline', value: 'automotive' },
-  { id: '12', name: 'Health', icon: 'fitness-outline', value: 'health' },
-  { id: '13', name: 'Furniture', icon: 'bed-outline', value: 'furniture' },
-  { id: '14', name: 'Shoes', icon: 'walk-outline', value: 'shoes' },
-  { id: '15', name: 'Bags', icon: 'bag-outline', value: 'bags' },
-  { id: '16', name: 'Other', icon: 'ellipsis-horizontal-outline', value: 'other' }
+  { id: '1', name: 'All', icon: 'grid', value: 'all' },
+  { id: '2', name: 'Electronics', icon: 'phone-portrait', value: 'electronics' },
+  { id: '3', name: 'Fashion', icon: 'shirt', value: 'clothing' },
+  { id: '4', name: 'Food', icon: 'fast-food', value: 'food' },
+  { id: '5', name: 'Books', icon: 'book', value: 'books' },
+  { id: '6', name: 'Home', icon: 'home', value: 'home' },
+  { id: '7', name: 'Sports', icon: 'basketball', value: 'sports' },
+  { id: '8', name: 'Beauty', icon: 'sparkles', value: 'beauty' },
+  { id: '9', name: 'Toys', icon: 'game-controller', value: 'toys' },
+  { id: '10', name: 'Jewelry', icon: 'diamond', value: 'jewelry' },
 ];
 
-// Post API Functions (keep your existing functions)
+// API Functions
 const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
     const postWithTimestamps = {
@@ -154,11 +150,7 @@ const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt
       status: 'ACTIVE' as const
     };
 
-    console.log('📤 Saving post to Firestore with imageUrl:', postWithTimestamps.imageUrl);
-    
     const docRef = await addDoc(collection(db, "customerPosts"), postWithTimestamps);
-    
-    console.log('✅ Post saved with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Error creating post:', error);
@@ -168,21 +160,16 @@ const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt
 
 const uploadPostImage = async (imageUri: string): Promise<string | undefined> => {
   try {
-    console.log('Starting ImgBB upload for post image:', imageUri);
-    
     const IMGBB_API_KEY = '2e6117c9d92bf16f23690049db98971d';
-    
     const formData = new FormData();
     
-    // @ts-ignore - React Native FormData handling
+    // @ts-ignore
     formData.append('image', {
       uri: imageUri,
       type: 'image/jpeg',
       name: 'post_image.jpg',
     });
 
-    console.log('Sending request to ImgBB...');
-    
     const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
       method: 'POST',
       body: formData,
@@ -192,78 +179,44 @@ const uploadPostImage = async (imageUri: string): Promise<string | undefined> =>
     });
 
     const data = await response.json();
-    console.log('ImgBB response for post:', data);
-    
     if (data.success) {
-      console.log('✅ Post image uploaded to ImgBB:', data.data.url);
       return data.data.url;
     } else {
-      console.error('❌ ImgBB upload failed for post:', data);
+      console.error('ImgBB upload failed:', data);
       return undefined;
     }
   } catch (error) {
-    console.error('❌ Error uploading post image to ImgBB:', error);
+    console.error('Error uploading image:', error);
     return undefined;
   }
 };
 
-const getCustomerPosts = async (
-  filters: PostFilter = {}
-): Promise<{ posts: CustomerPost[]; lastVisible: any }> => {
+const getCustomerPosts = async (filters: PostFilter = {}): Promise<{ posts: CustomerPost[]; lastVisible: any }> => {
   try {
-    console.log('🔍 Fetching customer posts with filters:', filters);
-    
     let q = query(collection(db, "customerPosts"), orderBy('createdAt', 'desc'));
-
-    console.log('📝 Query created, executing...');
-
     const snapshot = await getDocs(q);
-    console.log('✅ Query executed, found documents:', snapshot.size);
 
     const posts: CustomerPost[] = [];
     
     for (const postDoc of snapshot.docs) {
       const data = postDoc.data();
       
-      console.log('📄 Processing post:', postDoc.id, 'Customer ID:', data.customerId);
-      console.log('📄 Current customerName from post:', data.customerName);
-      
       let customerName = data.customerName;
       let customerEmail = data.customerEmail;
       
       if (data.customerId) {
         try {
-          console.log('👤 Fetching customer data from customers collection for customerId:', data.customerId);
           const customerDocRef = doc(db, "customers", data.customerId);
           const customerDoc = await getDoc(customerDocRef);
           
           if (customerDoc.exists()) {
             const customerData = customerDoc.data();
-            console.log('✅ Customer data found:', customerData);
-            
-            customerName = customerData.fullName || 
-                          customerData.name || 
-                          customerData.displayName || 
-                          customerData.username || 
-                          customerData.firstName || 
-                          data.customerName || 
-                          'Anonymous Customer';
-            
+            customerName = customerData.fullName || customerData.name || data.customerName || 'Anonymous Customer';
             customerEmail = customerData.email || data.customerEmail || '';
-            
-            console.log('👤 Final customerName from customers collection:', customerName);
-            console.log('📧 Final customerEmail:', customerEmail);
-          } else {
-            console.log('❌ Customer document not found in customers collection for customerId:', data.customerId);
-            customerName = data.customerName || 'Anonymous Customer';
           }
         } catch (customerError) {
-          console.log('⚠️ Could not fetch customer data for post:', postDoc.id, customerError);
           customerName = data.customerName || 'Anonymous Customer';
         }
-      } else {
-        console.log('❌ No customerId found in post data');
-        customerName = data.customerName || 'Anonymous Customer';
       }
       
       const post: CustomerPost = {
@@ -290,119 +243,221 @@ const getCustomerPosts = async (
       };
 
       posts.push(post);
-      console.log('✅ Added post to array. Customer:', post.customerName);
     }
 
-    console.log('📦 Final posts array length:', posts.length);
-    console.log('👥 Customer names in posts:', posts.map(p => p.customerName));
-    
     return { posts, lastVisible: null };
   } catch (error) {
-    console.error('❌ Error fetching posts:', error);
+    console.error('Error fetching posts:', error);
     return { posts: [], lastVisible: null };
   }
 };
 
-const updateCustomerPost = async (postId: string, updates: Partial<CustomerPost>): Promise<void> => {
-  try {
-    const postRef = doc(db, "customerPosts", postId);
-    await updateDoc(postRef, {
-      ...updates,
-      updatedAt: Timestamp.now()
-    });
-  } catch (error) {
-    console.error('Error updating post:', error);
-    throw new Error('Failed to update post');
-  }
+// SMOOTH ANIMATION COMPONENTS
+const FadeInView = ({ children, delay = 0, duration = 500, style = {} }: any) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration,
+      delay,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View style={[{ opacity: fadeAnim }, style]}>
+      {children}
+    </Animated.View>
+  );
 };
 
-// Animated Offer Banner Component
+const SlideInView = ({ children, direction = 'up', delay = 0, duration = 600, style = {} }: any) => {
+  const slideAnim = useRef(new Animated.Value(50)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      tension: 50,
+      friction: 8,
+      delay,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View style={[{ transform: [{ translateY: slideAnim }] }, style]}>
+      {children}
+    </Animated.View>
+  );
+};
+
+// ENHANCED Offer Banner Component with smooth animations
 const OfferBanner = () => {
   const [currentOffer, setCurrentOffer] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
-  const offers = ['75% OFF', 'Free Shipping', 'Buy 2 Get 1 Free'];
+  const offers = [
+    { 
+      text: '75% OFF', 
+      subtext: 'Limited Time Offer',
+      buttonText: 'Shop Now →',
+      gradient: colors.gradientPrimary 
+    },
+    { 
+      text: 'Free Shipping', 
+      subtext: 'On orders over $50',
+      buttonText: 'See Details →',
+      gradient: colors.gradientSecondary 
+    },
+    { 
+      text: 'Buy 2 Get 1', 
+      subtext: 'Special Collection',
+      buttonText: 'Explore →',
+      gradient: colors.gradientSuccess 
+    }
+  ];
 
   useEffect(() => {
     const offerInterval = setInterval(() => {
       Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: -50,
+            duration: 300,
+            useNativeDriver: true,
+          })
+        ]),
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          })
+        ])
       ]).start();
       
       setCurrentOffer((prev) => (prev + 1) % offers.length);
-    }, 4000);
+    }, 5000);
 
     return () => clearInterval(offerInterval);
   }, []);
 
   return (
-    <View style={styles.offerBanner}>
-      <LinearGradient
-        colors={colors.offerGradient}
-        style={styles.offerGradient}
-      >
-        <Animated.Text style={[styles.offerText, { opacity: fadeAnim }]}>
-          {offers[currentOffer]}
-        </Animated.Text>
-      </LinearGradient>
-    </View>
+    <FadeInView delay={200}>
+      <View style={styles.offerBanner}>
+        <LinearGradient
+          colors={offers[currentOffer].gradient}
+          style={styles.offerGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Animated.View style={[
+            styles.offerContent,
+            { 
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}>
+            <View style={styles.offerTextContainer}>
+              <Text style={styles.offerMainText}>{offers[currentOffer].text}</Text>
+              <Text style={styles.offerSubtext}>{offers[currentOffer].subtext}</Text>
+            </View>
+            <TouchableOpacity style={styles.offerButton}>
+              <Text style={styles.offerButtonText}>{offers[currentOffer].buttonText}</Text>
+            </TouchableOpacity>
+          </Animated.View>
+          <View style={styles.offerDecoration}>
+            <Animated.View style={[styles.decorationCircle1, { opacity: fadeAnim }]} />
+            <Animated.View style={[styles.decorationCircle2, { opacity: fadeAnim }]} />
+          </View>
+        </LinearGradient>
+      </View>
+    </FadeInView>
   );
 };
 
-// Category Item Component
+// ENHANCED Category Item Component with smooth animations
 const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: boolean; onPress: () => void }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 0.95,
+        useNativeDriver: true,
+      }),
+      Animated.spring(rotateAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+      })
+    ]).start();
   };
 
   const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      Animated.spring(rotateAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+      })
+    ]).start();
   };
 
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '10deg']
+  });
+
   return (
-    <TouchableOpacity onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut}>
-      <Animated.View style={[
-        styles.categoryItem, 
-        { transform: [{ scale: scaleAnim }] },
-        isSelected && styles.categoryItemSelected
-      ]}>
-        <View style={[
-          styles.categoryIcon,
-          isSelected && styles.categoryIconSelected
+    <SlideInView delay={100 * parseInt(item.id)} direction="up">
+      <TouchableOpacity onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut}>
+        <Animated.View style={[
+          styles.categoryItem, 
+          { 
+            transform: [
+              { scale: scaleAnim },
+              { rotate: rotate }
+            ]
+          },
+          isSelected && styles.categoryItemSelected
         ]}>
-          <Ionicons 
-            name={item.icon} 
-            size={24} 
-            color={isSelected ? colors.surface : colors.accent} 
-          />
-        </View>
-        <Text style={[
-          styles.categoryName,
-          isSelected && styles.categoryNameSelected
-        ]}>{item.name}</Text>
-      </Animated.View>
-    </TouchableOpacity>
+          <LinearGradient
+            colors={isSelected ? colors.gradientPrimary : ['#f1f5f9', '#e2e8f0']}
+            style={styles.categoryIcon}
+          >
+            <Ionicons 
+              name={item.icon} 
+              size={22} 
+              color={isSelected ? colors.surface : colors.accent} 
+            />
+          </LinearGradient>
+          <Text style={[
+            styles.categoryName,
+            isSelected && styles.categoryNameSelected
+          ]}>{item.name}</Text>
+        </Animated.View>
+      </TouchableOpacity>
+    </SlideInView>
   );
 };
 
-// Updated Product Card Component with RamShop design
+// IMPROVED Product Card Component - Fixed UI Issues
 const AnimatedProductCard = ({ 
   item, 
   index, 
@@ -415,41 +470,54 @@ const AnimatedProductCard = ({
   onMessagePress: (product: Product) => void;
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
   const [saved, setSaved] = useState(false);
+  const saveScale = useRef(new Animated.Value(1)).current;
   
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
-        delay: index * 100,
+        duration: 800,
+        delay: index * 150,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
+        tension: 60,
         friction: 7,
-        tension: 40,
-        delay: index * 100,
+        delay: index * 150,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 60,
+        friction: 7,
+        delay: index * 150,
         useNativeDriver: true,
       })
     ]).start();
   }, []);
 
   const handleSave = () => {
+    Animated.sequence([
+      Animated.spring(saveScale, {
+        toValue: 1.3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(saveScale, {
+        toValue: 1,
+        useNativeDriver: true,
+      })
+    ]).start();
     setSaved(!saved);
   };
 
-  const handleShare = async () => {
-    try {
-      await Share.share({
-        message: `Check out this product: ${item.name} - ${item.description}`,
-        title: item.name,
-      });
-    } catch (error) {
-      console.error('Error sharing:', error);
-    }
-  };
+  // Mock data for e-commerce features
+  const discountPercentage = Math.floor(Math.random() * 50) + 10;
+  const originalPrice = Math.round(item.price * (1 + discountPercentage / 100));
+  const couponPrice = Math.round(item.price * 0.9);
 
   return (
     <Animated.View 
@@ -457,51 +525,86 @@ const AnimatedProductCard = ({
         styles.productCard,
         {
           opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }]
+          transform: [
+            { scale: scaleAnim },
+            { translateY: slideAnim }
+          ]
         }
       ]}
     >
       <View style={styles.productImageContainer}>
         <Image 
-          source={{ uri: item.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' }} 
+          source={{ 
+            uri: item.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' 
+          }} 
           style={styles.productImage}
           resizeMode="cover"
         />
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Ionicons 
-            name={saved ? "heart" : "heart-outline"} 
-            size={24} 
-            color={saved ? '#ff6b6b' : colors.textPrimary} 
-          />
-        </TouchableOpacity>
-        {item.stock < 10 && item.stock > 0 && (
-          <View style={styles.lowStockBadge}>
-            <Text style={styles.lowStockText}>Low Stock</Text>
-          </View>
-        )}
-        {item.stock === 0 && (
-          <View style={styles.outOfStockBadge}>
-            <Text style={styles.outOfStockText}>Out of Stock</Text>
-          </View>
-        )}
+        
+        {/* TOP BADGES CONTAINER - FIXED POSITIONING */}
+        <View style={styles.topBadgesContainer}>
+          {/* Discount Badge - TOP LEFT */}
+          <FadeInView delay={300 + index * 50}>
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>✔ {discountPercentage}% OFF</Text>
+            </View>
+          </FadeInView>
+
+          {/* Low Stock Badge - TOP LEFT (below discount) - RED as requested */}
+          {item.stock < 10 && item.stock > 0 && (
+            <FadeInView delay={400 + index * 50}>
+              <View style={styles.lowStockBadge}>
+                <Text style={styles.lowStockText}>Low Stock</Text>
+              </View>
+            </FadeInView>
+          )}
+          {item.stock === 0 && (
+            <FadeInView delay={400 + index * 50}>
+              <View style={styles.outOfStockBadge}>
+                <Text style={styles.outOfStockText}>Out of Stock</Text>
+              </View>
+            </FadeInView>
+          )}
+        </View>
+        
+        {/* Favorite Button - TOP RIGHT */}
+        <Animated.View style={[styles.saveButtonContainer, { transform: [{ scale: saveScale }] }]}>
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <Ionicons 
+              name={saved ? "heart" : "heart-outline"} 
+              size={20} 
+              color={saved ? colors.error : colors.surface} 
+            />
+          </TouchableOpacity>
+        </Animated.View>
       </View>
       
       <View style={styles.productInfo}>
-        <Text style={styles.productName}>{item.name}</Text>
-        <Text style={styles.productDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
+        {/* Product Name/Description - MADE VISIBLE */}
+        <FadeInView delay={550 + index * 50}>
+          <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+        </FadeInView>
         
-        <View style={styles.productMeta}>
-          <View style={styles.shopInfo}>
-            <Ionicons name="storefront-outline" size={16} color={colors.textSecondary} />
-            <Text style={styles.shopName}>{shopkeeperData?.shopName || 'Local Store'}</Text>
+        {/* Pricing Row */}
+        <FadeInView delay={600 + index * 50}>
+          <View style={styles.pricingContainer}>
+            <View style={styles.originalPriceContainer}>
+              <Text style={styles.originalPrice}>${originalPrice}</Text>
+              <Text style={styles.discountedPrice}>${item.price}</Text>
+            </View>
           </View>
-          <Text style={styles.productCategory}>#{item.category}</Text>
-        </View>
+        </FadeInView>
         
-        <View style={styles.productFooter}>
-          <Text style={styles.productPrice}>${item.price}</Text>
+        {/* Coupon Offer */}
+        <FadeInView delay={650 + index * 50}>
+          <View style={styles.couponContainer}>
+            <Text style={styles.wowText}>Wow</Text>
+            <Text style={styles.couponPrice}>${couponPrice} with Coupon</Text>
+          </View>
+        </FadeInView>
+        
+        {/* Action Buttons */}
+        <FadeInView delay={700 + index * 50}>
           <View style={styles.productActions}>
             <TouchableOpacity 
               style={styles.cartButton}
@@ -524,22 +627,24 @@ const AnimatedProductCard = ({
                 });
               }}
             >
-              <Ionicons name="cart-outline" size={18} color={colors.surface} />
+              <Ionicons name="cart" size={16} color={colors.surface} />
+              <Text style={styles.cartButtonText}>Buy Now</Text>
             </TouchableOpacity>
+            
             <TouchableOpacity 
               style={styles.messageButton}
               onPress={() => onMessagePress(item)}
             >
-              <Ionicons name="chatbubble-outline" size={18} color={colors.accent} />
+              <Ionicons name="chatbubble" size={16} color={colors.accent} />
             </TouchableOpacity>
           </View>
-        </View>
+        </FadeInView>
       </View>
     </Animated.View>
   );
 };
 
-// Updated Customer Post Card Component
+// ENHANCED Customer Post Card Component with Smooth Animations
 const CustomerPostCard = ({ 
   item, 
   index,
@@ -551,31 +656,56 @@ const CustomerPostCard = ({
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
   const [saved, setSaved] = useState(false);
+  const saveScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
-        delay: index * 100,
+        duration: 800,
+        delay: index * 200,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
+        tension: 60,
         friction: 7,
-        tension: 40,
-        delay: index * 100,
+        delay: index * 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 60,
+        friction: 7,
+        delay: index * 200,
         useNativeDriver: true,
       })
     ]).start();
   }, []);
 
   const getTypeColor = () => {
-    return item.type === 'NEED' ? '#FF6B35' : colors.accent;
+    return item.type === 'NEED' ? colors.needColor : colors.offerColor;
+  };
+
+  const getTypeGradient = () => {
+    return item.type === 'NEED' 
+      ? [colors.needColor, '#fb923c'] 
+      : [colors.offerColor, '#34d399'];
   };
 
   const handleSave = () => {
+    Animated.sequence([
+      Animated.spring(saveScale, {
+        toValue: 1.3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(saveScale, {
+        toValue: 1,
+        useNativeDriver: true,
+      })
+    ]).start();
     setSaved(!saved);
   };
 
@@ -585,70 +715,134 @@ const CustomerPostCard = ({
         styles.postCard,
         {
           opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }],
-          borderLeftColor: getTypeColor(),
+          transform: [
+            { scale: scaleAnim },
+            { translateY: slideAnim }
+          ],
         }
       ]}
     >
-      <View style={styles.postHeader}>
-        <View style={styles.postUserInfo}>
-          <View style={[styles.postAvatar, { backgroundColor: getTypeColor() }]}>
-            <Ionicons 
-              name={item.type === 'NEED' ? "help-circle" : "gift"} 
-              size={16} 
-              color="white" 
+      {/* Post Header */}
+      <LinearGradient
+        colors={getTypeGradient()}
+        style={styles.postHeaderGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <View style={styles.postHeader}>
+          <View style={styles.postUserInfo}>
+            <View style={styles.postAvatar}>
+              <Ionicons 
+                name={item.type === 'NEED' ? "help-circle" : "gift"} 
+                size={20} 
+                color="white" 
+              />
+            </View>
+            <View style={styles.postUserDetails}>
+              <Text style={styles.postUsername}>{item.customerName}</Text>
+              <View style={styles.postTypeBadge}>
+                <Text style={styles.postTypeText}>
+                  {item.type} • {item.category}
+                </Text>
+              </View>
+            </View>
+          </View>
+          <Animated.View style={{ transform: [{ scale: saveScale }] }}>
+            <TouchableOpacity onPress={handleSave} style={styles.bookmarkButton}>
+              <Ionicons 
+                name={saved ? "bookmark" : "bookmark-outline"} 
+                size={20} 
+                color="white" 
+              />
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </LinearGradient>
+
+      {/* Post Content */}
+      <View style={styles.postContent}>
+        {item.imageUrl ? (
+          <View style={styles.postImageContainer}>
+            <Image 
+              source={{ uri: item.imageUrl }}
+              style={styles.postImage}
+              resizeMode="cover"
             />
           </View>
-          <View style={styles.postUserDetails}>
-            <Text style={styles.postUsername}>{item.customerName}</Text>
-            <Text style={[styles.postType, { color: getTypeColor() }]}>
-              {item.type} • {item.category}
-            </Text>
+        ) : (
+          <View style={[styles.postImageContainer, styles.noImageContainer]}>
+            <LinearGradient
+              colors={['#f8fafc', '#e2e8f0']}
+              style={styles.noImageGradient}
+            >
+              <Ionicons 
+                name={item.type === 'NEED' ? "help-circle" : "gift"} 
+                size={48} 
+                color={item.type === 'NEED' ? colors.needColor : colors.offerColor} 
+              />
+              <Text style={styles.noImageText}>
+                {item.type === 'NEED' ? 'Need' : 'Offer'}
+              </Text>
+            </LinearGradient>
           </View>
+        )}
+        
+        <View style={styles.postTextContent}>
+          <Text style={styles.postTitle}>{item.title}</Text>
+          <Text style={styles.postDescription}>{item.description}</Text>
         </View>
-        <TouchableOpacity onPress={handleSave}>
-          <Ionicons 
-            name={saved ? "bookmark" : "bookmark-outline"} 
-            size={20} 
-            color={saved ? colors.accent : colors.textSecondary} 
-          />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.postContent}>
-        <Text style={styles.postTitle}>{item.title}</Text>
-        <Text style={styles.postDescription}>{item.description}</Text>
         
         <View style={styles.postDetails}>
           {item.price && (
-            <View style={styles.detailRow}>
+            <View style={styles.detailItem}>
+              <Ionicons name="pricetag" size={16} color={colors.textSecondary} />
               <Text style={styles.detailLabel}>Price:</Text>
               <Text style={styles.postPrice}>${item.price}</Text>
             </View>
           )}
-          <View style={styles.detailRow}>
+          <View style={styles.detailItem}>
+            <Ionicons name="location" size={16} color={colors.textSecondary} />
             <Text style={styles.detailLabel}>Location:</Text>
-            <Text style={styles.postLocation}>📍 {item.location}</Text>
+            <Text style={styles.postLocation}>{item.location}</Text>
+          </View>
+          <View style={styles.detailItem}>
+            <Ionicons name="time" size={16} color={colors.textSecondary} />
+            <Text style={styles.detailLabel}>Urgency:</Text>
+            <View style={[
+              styles.urgencyBadge,
+              { 
+                backgroundColor: item.urgency === 'HIGH' ? colors.error : 
+                                item.urgency === 'MEDIUM' ? colors.warning : colors.success 
+              }
+            ]}>
+              <Text style={styles.urgencyText}>{item.urgency}</Text>
+            </View>
           </View>
         </View>
       </View>
 
       <View style={styles.postFooter}>
         <TouchableOpacity 
-          style={styles.contactButton}
+          style={[
+            styles.contactButton,
+            { backgroundColor: getTypeColor() }
+          ]}
           onPress={() => onContactPress(item)}
         >
           <Ionicons 
             name="chatbubble-ellipses" 
             size={16} 
-            color={colors.accent} 
+            color="white" 
           />
           <Text style={styles.contactButtonText}>Contact</Text>
         </TouchableOpacity>
         
         <View style={styles.postMeta}>
           <Text style={styles.postDate}>
-            {new Date(item.createdAt?.seconds * 1000).toLocaleDateString()}
+            {item.createdAt?.seconds 
+              ? new Date(item.createdAt.seconds * 1000).toLocaleDateString()
+              : 'Recently'
+            }
           </Text>
         </View>
       </View>
@@ -656,7 +850,7 @@ const CustomerPostCard = ({
   );
 };
 
-// Main CustomerHome Component with RamShop UI
+// ENHANCED Main CustomerHome Component
 export default function CustomerHome() {
   const [products, setProducts] = useState<Product[]>([]);
   const [customerPosts, setCustomerPosts] = useState<CustomerPost[]>([]);
@@ -683,11 +877,21 @@ export default function CustomerHome() {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [creatingPost, setCreatingPost] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const tabSlideAnim = useRef(new Animated.Value(0)).current;
+
+  // Animate tab change
+  useEffect(() => {
+    Animated.spring(tabSlideAnim, {
+      toValue: 1,
+      tension: 50,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab]);
 
   // Fetch functions
   const fetchProductsAndShopkeepers = async () => {
     try {
-      console.log('🔄 Refreshing products...');
       const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map((doc) => ({
@@ -716,8 +920,6 @@ export default function CustomerHome() {
         }
       }
       setShopkeeperData(shopkeeperMap);
-      
-      console.log('✅ Products refreshed successfully');
     } catch (err) {
       console.log("Error refreshing products:", err);
     }
@@ -725,17 +927,11 @@ export default function CustomerHome() {
 
   const fetchCustomerPosts = async (filters: PostFilter = {}) => {
     try {
-      console.log('🚀 Starting to fetch customer posts...');
       setLoadingPosts(true);
       const result = await getCustomerPosts(filters);
-      
-      console.log('📊 Fetch result:', result);
-      
       setCustomerPosts(result.posts);
-      
-      console.log('✅ Posts set to state, count:', result.posts.length);
     } catch (error) {
-      console.error('❌ Error in fetchCustomerPosts:', error);
+      console.error('Error in fetchCustomerPosts:', error);
       Alert.alert('Error', 'Failed to load posts');
     } finally {
       setLoadingPosts(false);
@@ -749,7 +945,6 @@ export default function CustomerHome() {
     setRefreshing(false);
   };
 
-  // Filter products by category
   const filterProductsByCategory = (category: string) => {
     setSelectedCategory(category);
     if (category === 'all') {
@@ -762,7 +957,6 @@ export default function CustomerHome() {
     }
   };
 
-  // Other functions remain the same
   const handleCreatePost = async () => {
     if (!user) {
       Alert.alert('Error', 'Please log in to create a post');
@@ -781,25 +975,15 @@ export default function CustomerHome() {
       let customerEmail = user.email || '';
   
       try {
-        console.log('👤 Fetching customer data for:', user.uid);
         const customerDocRef = doc(db, "customers", user.uid);
         const customerDoc = await getDoc(customerDocRef);
         
         if (customerDoc.exists()) {
           const customerData = customerDoc.data();
-          console.log('✅ Customer data found:', customerData);
-          
-          customerName = customerData.fullName || 
-                        customerData.customerName || 
-                        user.displayName || 
-                        'Anonymous Customer';
-          
+          customerName = customerData.fullName || user.displayName || 'Anonymous Customer';
           customerEmail = customerData.email || user.email || '';
-        } else {
-          customerName = user.displayName || 'Anonymous Customer';
         }
       } catch (customerError) {
-        console.log('⚠️ Could not fetch customer data:', customerError);
         customerName = user.displayName || 'Anonymous Customer';
       }
   
@@ -812,7 +996,7 @@ export default function CustomerHome() {
             imageUrl = uploadedUrl;
           }
         } catch (imageError) {
-          console.warn('⚠️ Image upload failed:', imageError);
+          console.warn('Image upload failed:', imageError);
         }
       }
 
@@ -837,8 +1021,7 @@ export default function CustomerHome() {
       };
   
       const postId = await createCustomerPost(postData);
-      console.log('✅ Post created with ID:', postId);
-  
+      
       Alert.alert('Success', 'Post created successfully!');
       
       setCreatePostModalVisible(false);
@@ -944,29 +1127,6 @@ export default function CustomerHome() {
     fetchCustomerPosts(newFilter);
   };
 
-  const FilterBar = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
-      <TouchableOpacity 
-        style={[styles.filterButton, activeFilter.type === undefined && styles.activeFilterButton]}
-        onPress={() => applyFilter({ type: undefined })}
-      >
-        <Text style={[styles.filterButtonText, activeFilter.type === undefined && styles.activeFilterButtonText]}>All Posts</Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={[styles.filterButton, activeFilter.type === 'NEED' && styles.activeFilterButton]}
-        onPress={() => applyFilter({ type: 'NEED' })}
-      >
-        <Text style={[styles.filterButtonText, activeFilter.type === 'NEED' && styles.activeFilterButtonText]}>Needs</Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={[styles.filterButton, activeFilter.type === 'OFFER' && styles.activeFilterButton]}
-        onPress={() => applyFilter({ type: 'OFFER' })}
-      >
-        <Text style={[styles.filterButtonText, activeFilter.type === 'OFFER' && styles.activeFilterButtonText]}>Offers</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-
   const renderContent = () => {
     const handleRefresh = async () => {
       setRefreshing(true);
@@ -984,39 +1144,41 @@ export default function CustomerHome() {
       const needPosts = customerPosts.filter(post => post.type === 'NEED');
       
       return (
-        <FlatList
-          data={needPosts}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[colors.accent]}
-            />
-          }
-          renderItem={({ item, index }) => (
-            <CustomerPostCard 
-              item={item} 
-              index={index} 
-              onContactPress={handleContactPost}
-            />
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={64} color={colors.textSecondary} />
-              <Text style={styles.emptyStateText}>No needs posted yet</Text>
-              <Text style={styles.emptyStateSubtext}>Be the first to post what you need!</Text>
-              <TouchableOpacity 
-                style={styles.createFirstPostButton}
-                onPress={() => setCreatePostModalVisible(true)}
-              >
-                <Text style={styles.createFirstPostText}>Post Your Need</Text>
-              </TouchableOpacity>
-            </View>
-          }
-        />
+        <Animated.View style={{ flex: 1, opacity: tabSlideAnim }}>
+          <FlatList
+            data={needPosts}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={[colors.needColor]}
+              />
+            }
+            renderItem={({ item, index }) => (
+              <CustomerPostCard 
+                item={item} 
+                index={index} 
+                onContactPress={handleContactPost}
+              />
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Ionicons name="document-text" size={64} color={colors.textSecondary} />
+                <Text style={styles.emptyStateText}>No needs posted yet</Text>
+                <Text style={styles.emptyStateSubtext}>Be the first to post what you need!</Text>
+                <TouchableOpacity 
+                  style={[styles.createFirstPostButton, { backgroundColor: colors.needColor }]}
+                  onPress={() => setCreatePostModalVisible(true)}
+                >
+                  <Text style={styles.createFirstPostText}>Post Your Need</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+        </Animated.View>
       );
     }
 
@@ -1024,11 +1186,51 @@ export default function CustomerHome() {
       const offerPosts = customerPosts.filter(post => post.type === 'OFFER');
       
       return (
-        <FlatList
-          data={offerPosts}
-          keyExtractor={(item) => item.id}
+        <Animated.View style={{ flex: 1, opacity: tabSlideAnim }}>
+          <FlatList
+            data={offerPosts}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={[colors.offerColor]}
+              />
+            }
+            renderItem={({ item, index }) => (
+              <CustomerPostCard 
+                item={item} 
+                index={index} 
+                onContactPress={handleContactPost}
+              />
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Ionicons name="gift" size={64} color={colors.textSecondary} />
+                <Text style={styles.emptyStateText}>No offers posted yet</Text>
+                <Text style={styles.emptyStateSubtext}>Be the first to offer something!</Text>
+                <TouchableOpacity 
+                  style={[styles.createFirstPostButton, { backgroundColor: colors.offerColor }]}
+                  onPress={() => {
+                    setNewPost(prev => ({ ...prev, type: "OFFER" }));
+                    setCreatePostModalVisible(true);
+                  }}
+                >
+                  <Text style={styles.createFirstPostText}>Post Your Offer</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+        </Animated.View>
+      );
+    }
+
+    return (
+      <Animated.View style={{ flex: 1, opacity: tabSlideAnim }}>
+        <ScrollView 
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -1036,199 +1238,197 @@ export default function CustomerHome() {
               colors={[colors.accent]}
             />
           }
-          renderItem={({ item, index }) => (
-            <CustomerPostCard 
-              item={item} 
-              index={index} 
-              onContactPress={handleContactPost}
-            />
+        >
+          {/* Enhanced Offer Banner */}
+          <OfferBanner />
+
+          {/* Categories Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Shop by Category</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              style={styles.categoriesList}
+              contentContainerStyle={styles.categoriesContent}
+            >
+              {CATEGORIES.map((category) => (
+                <CategoryItem 
+                  key={category.id} 
+                  item={category} 
+                  isSelected={selectedCategory === category.value}
+                  onPress={() => filterProductsByCategory(category.value)}
+                />
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Category Filter Info */}
+          {selectedCategory !== 'all' && (
+            <FadeInView>
+              <View style={styles.categoryFilterInfo}>
+                <Text style={styles.categoryFilterText}>
+                  Showing {filteredProducts.length} products in {CATEGORIES.find(cat => cat.value === selectedCategory)?.name}
+                </Text>
+                <TouchableOpacity onPress={() => filterProductsByCategory('all')}>
+                  <Text style={styles.clearFilterText}>Clear filter</Text>
+                </TouchableOpacity>
+              </View>
+            </FadeInView>
           )}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="gift-outline" size={64} color={colors.textSecondary} />
-              <Text style={styles.emptyStateText}>No offers posted yet</Text>
-              <Text style={styles.emptyStateSubtext}>Be the first to offer something!</Text>
-              <TouchableOpacity 
-                style={styles.createFirstPostButton}
-                onPress={() => {
-                  setNewPost(prev => ({ ...prev, type: "OFFER" }));
-                  setCreatePostModalVisible(true);
-                }}
-              >
-                <Text style={styles.createFirstPostText}>Post Your Offer</Text>
+
+          {/* Recommended Products */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {selectedCategory === 'all' ? 'Recommended for you' : `Top ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
+              </Text>
+              <TouchableOpacity>
+                <Text style={styles.seeAllText}>See all</Text>
               </TouchableOpacity>
             </View>
-          }
-        />
-      );
-    }
-
-    return (
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={[colors.accent]}
-          />
-        }
-      >
-        {/* Offer Banner */}
-        <OfferBanner />
-
-        {/* Categories Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Shop by Category</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
-            style={styles.categoriesList}
-            contentContainerStyle={styles.categoriesContent}
-          >
-            {CATEGORIES.map((category) => (
-              <CategoryItem 
-                key={category.id} 
-                item={category} 
-                isSelected={selectedCategory === category.value}
-                onPress={() => filterProductsByCategory(category.value)}
+            {filteredProducts.length > 0 ? (
+              <FlatList
+                data={filteredProducts.slice(0, 5)}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                renderItem={({ item, index }) => {
+                  const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+                  const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+                  
+                  return (
+                    <AnimatedProductCard 
+                      item={item} 
+                      index={index} 
+                      shopkeeperData={shopkeeper}
+                      onMessagePress={handleMessageButton}
+                    />
+                  );
+                }}
+                contentContainerStyle={styles.productsList}
               />
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Category Filter Info */}
-        {selectedCategory !== 'all' && (
-          <View style={styles.categoryFilterInfo}>
-            <Text style={styles.categoryFilterText}>
-              Showing {filteredProducts.length} products in {CATEGORIES.find(cat => cat.value === selectedCategory)?.name}
-            </Text>
-            <TouchableOpacity onPress={() => filterProductsByCategory('all')}>
-              <Text style={styles.clearFilterText}>Clear filter</Text>
-            </TouchableOpacity>
+            ) : (
+              <View style={styles.noProducts}>
+                <Ionicons name="search" size={48} color={colors.textSecondary} />
+                <Text style={styles.noProductsText}>No products found</Text>
+                <Text style={styles.noProductsSubtext}>Try selecting a different category</Text>
+              </View>
+            )}
           </View>
-        )}
 
-        {/* Recommended Products */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {selectedCategory === 'all' ? 'Recommended for you' : `Top ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
-            </Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>See all</Text>
-            </TouchableOpacity>
-          </View>
-          {filteredProducts.length > 0 ? (
-            <FlatList
-              data={filteredProducts.slice(0, 5)}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item, index }) => {
-                const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-                const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
-                
-                return (
-                  <AnimatedProductCard 
-                    item={item} 
-                    index={index} 
-                    shopkeeperData={shopkeeper}
-                    onMessagePress={handleMessageButton}
-                  />
-                );
-              }}
-              contentContainerStyle={styles.productsList}
-            />
-          ) : (
-            <View style={styles.noProducts}>
-              <Ionicons name="search-outline" size={48} color={colors.textSecondary} />
-              <Text style={styles.noProductsText}>No products found</Text>
-              <Text style={styles.noProductsSubtext}>Try selecting a different category</Text>
+          {/* All Products Grid */}
+          {filteredProducts.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {selectedCategory === 'all' ? 'All Products' : `All ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
+              </Text>
+              <View style={styles.productsGrid}>
+                {filteredProducts.map((item, index) => {
+                  const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+                  const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+                  
+                  return (
+                    <AnimatedProductCard 
+                      key={item.id}
+                      item={item} 
+                      index={index} 
+                      shopkeeperData={shopkeeper}
+                      onMessagePress={handleMessageButton}
+                    />
+                  );
+                })}
+              </View>
             </View>
           )}
-        </View>
-
-        {/* All Products Grid */}
-        {filteredProducts.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              {selectedCategory === 'all' ? 'All Products' : `All ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
-            </Text>
-            <View style={styles.productsGrid}>
-              {filteredProducts.map((item, index) => {
-                const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-                const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
-                
-                return (
-                  <AnimatedProductCard 
-                    key={item.id}
-                    item={item} 
-                    index={index} 
-                    shopkeeperData={shopkeeper}
-                    onMessagePress={handleMessageButton}
-                  />
-                );
-              })}
-            </View>
-          </View>
-        )}
-      </ScrollView>
+        </ScrollView>
+      </Animated.View>
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.time}>{new Date().getHours()}:{new Date().getMinutes().toString().padStart(2, '0')}</Text>
+      {/* FIXED: Reduced Header Size */}
+      <FadeInView duration={800}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Image 
+              source={require('../../../assets/images/logo.png')} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.headerTitle}>TownMart</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              style={styles.headerButton} 
+              onPress={() => setCreatePostModalVisible(true)}
+            >
+              <Ionicons name="add-circle" size={24} color={colors.accent} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton}>
+              <Ionicons name="cart" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
         </View>
-        <Text style={styles.headerTitle}>RAMSHOP</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => setCreatePostModalVisible(true)}>
-            <Ionicons name="add-circle" size={24} color={colors.accent} />
+      </FadeInView>
+
+      {/* Enhanced Tabs */}
+      <SlideInView delay={300}>
+        <View style={styles.tabContainer}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === "all" && styles.activeTab]}
+            onPress={() => setActiveTab("all")}
+          >
+            <Ionicons 
+              name="grid" 
+              size={20} 
+              color={activeTab === "all" ? colors.surface : colors.textSecondary} 
+            />
+            <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>Products</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton}>
-            <Ionicons name="cart-outline" size={24} color={colors.textPrimary} />
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === "need" && styles.activeTab]}
+            onPress={() => setActiveTab("need")}
+          >
+            <Ionicons 
+              name="help-circle" 
+              size={20} 
+              color={activeTab === "need" ? colors.surface : colors.textSecondary} 
+            />
+            <Text style={[styles.tabText, activeTab === "need" && styles.activeTabText]}>Needs</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === "offer" && styles.activeTab]}
+            onPress={() => setActiveTab("offer")}
+          >
+            <Ionicons 
+              name="gift" 
+              size={20} 
+              color={activeTab === "offer" ? colors.surface : colors.textSecondary} 
+            />
+            <Text style={[styles.tabText, activeTab === "offer" && styles.activeTabText]}>Offers</Text>
           </TouchableOpacity>
         </View>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === "all" && styles.activeTab]}
-          onPress={() => setActiveTab("all")}
-        >
-          <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>Products</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === "need" && styles.activeTab]}
-          onPress={() => setActiveTab("need")}
-        >
-          <Text style={[styles.tabText, activeTab === "need" && styles.activeTabText]}>Needs</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === "offer" && styles.activeTab]}
-          onPress={() => setActiveTab("offer")}
-        >
-          <Text style={[styles.tabText, activeTab === "offer" && styles.activeTabText]}>Offers</Text>
-        </TouchableOpacity>
-      </View>
-
-      {(activeTab === "need" || activeTab === "offer") && <FilterBar />}
+      </SlideInView>
 
       {renderContent()}
 
-      {/* Create Post Modal */}
-      <Modal visible={createPostModalVisible} animationType="slide" transparent={true}>
+      {/* Enhanced Create Post Modal */}
+      <Modal 
+        visible={createPostModalVisible} 
+        animationType="slide" 
+        transparent={true}
+        onRequestClose={() => setCreatePostModalVisible(false)}
+      >
         <View style={styles.modalContainer}>
           <ScrollView contentContainerStyle={styles.modalScrollContent}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Create New Post</Text>
-                <TouchableOpacity onPress={() => setCreatePostModalVisible(false)}>
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPress={() => setCreatePostModalVisible(false)}
+                >
                   <Ionicons name="close" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
@@ -1238,13 +1438,23 @@ export default function CustomerHome() {
                   style={[styles.typeButton, newPost.type === "NEED" && styles.activeTypeButton]}
                   onPress={() => setNewPost({...newPost, type: "NEED"})}
                 >
-                  <Text style={[styles.typeButtonText, newPost.type === "NEED" && styles.activeTypeButtonText]}>I Need</Text>
+                  <LinearGradient
+                    colors={newPost.type === "NEED" ? [colors.needColor, '#fb923c'] : ['#f1f5f9', '#e2e8f0']}
+                    style={styles.typeButtonGradient}
+                  >
+                    <Text style={[styles.typeButtonText, newPost.type === "NEED" && styles.activeTypeButtonText]}>I Need</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.typeButton, newPost.type === "OFFER" && styles.activeTypeButton]}
                   onPress={() => setNewPost({...newPost, type: "OFFER"})}
                 >
-                  <Text style={[styles.typeButtonText, newPost.type === "OFFER" && styles.activeTypeButtonText]}>I Offer</Text>
+                  <LinearGradient
+                    colors={newPost.type === "OFFER" ? [colors.offerColor, '#34d399'] : ['#f1f5f9', '#e2e8f0']}
+                    style={styles.typeButtonGradient}
+                  >
+                    <Text style={[styles.typeButtonText, newPost.type === "OFFER" && styles.activeTypeButtonText]}>I Offer</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
               
@@ -1252,10 +1462,13 @@ export default function CustomerHome() {
                 {newPost.image ? (
                   <Image source={{ uri: newPost.image }} style={styles.selectedImage} />
                 ) : (
-                  <View style={styles.imagePlaceholder}>
-                    <Ionicons name="image-outline" size={40} color={colors.textSecondary} />
+                  <LinearGradient
+                    colors={['#f8fafc', '#e2e8f0']}
+                    style={styles.imagePlaceholder}
+                  >
+                    <Ionicons name="image" size={40} color={colors.textSecondary} />
                     <Text style={styles.imagePlaceholderText}>Add Image</Text>
-                  </View>
+                  </LinearGradient>
                 )}
               </TouchableOpacity>
               
@@ -1318,7 +1531,10 @@ export default function CustomerHome() {
               </View>
               
               <View style={styles.modalButtons}>
-                <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setCreatePostModalVisible(false)}>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.cancelButton]} 
+                  onPress={() => setCreatePostModalVisible(false)}
+                >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
@@ -1326,11 +1542,16 @@ export default function CustomerHome() {
                   onPress={handleCreatePost}
                   disabled={creatingPost}
                 >
-                  {creatingPost ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>Create Post</Text>
-                  )}
+                  <LinearGradient
+                    colors={colors.gradientPrimary}
+                    style={styles.submitButtonGradient}
+                  >
+                    {creatingPost ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text style={styles.submitButtonText}>Create Post</Text>
+                    )}
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1341,90 +1562,172 @@ export default function CustomerHome() {
   );
 }
 
+// ENHANCED MODERN STYLES with Fixed UI Issues
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
+  // FIXED: Reduced Header Size
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 15,
+    paddingTop: 15,
+    paddingBottom: 12,
     backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   headerLeft: {
     flex: 1,
   },
-  time: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
+  logo: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: colors.textPrimary,
+    color: colors.deepBlue,
     letterSpacing: 1,
   },
   headerRight: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   headerButton: {
-    marginLeft: 16,
+    marginLeft: 12,
+    padding: 6,
+    borderRadius: 10,
+    backgroundColor: colors.lightBackground,
   },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.accent,
-  },
-  tabText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  activeTabText: {
-    color: colors.accent,
-    fontWeight: '600',
-  },
-  offerBanner: {
     marginHorizontal: 20,
     marginVertical: 15,
-    borderRadius: 12,
-    overflow: 'hidden',
+    borderRadius: 16,
+    padding: 4,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  activeTab: {
+    backgroundColor: colors.accent,
+  },
+  tabText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  activeTabText: {
+    color: colors.surface,
+  },
+  // Enhanced Offer Banner Styles
+  offerBanner: {
+    marginHorizontal: 20,
+    marginVertical: 15,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
   },
   offerGradient: {
-    paddingVertical: 20,
+    padding: 24,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  offerText: {
+  offerContent: {
+    flex: 1,
+  },
+  offerTextContainer: {
+    marginBottom: 16,
+  },
+  offerMainText: {
     color: colors.surface,
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 4,
+    marginBottom: 4,
+  },
+  offerSubtext: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: '500',
+    opacity: 0.9,
+  },
+  offerButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  offerButtonText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  offerDecoration: {
+    position: 'absolute',
+    right: -20,
+    top: -20,
+  },
+  decorationCircle1: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'absolute',
+    right: 20,
+    top: 20,
+  },
+  decorationCircle2: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'absolute',
+    right: 40,
+    top: 40,
   },
   section: {
     marginBottom: 25,
@@ -1437,7 +1740,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.textPrimary,
     paddingHorizontal: 20,
@@ -1458,28 +1761,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 8,
   },
-  categoryItemSelected: {
-    // Selected state styling
-  },
+  categoryItemSelected: {},
   categoryIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.surface,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 3,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  categoryIconSelected: {
-    backgroundColor: colors.accent,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
   },
   categoryName: {
     fontSize: 12,
@@ -1497,10 +1794,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 15,
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: colors.lightBackground,
     marginHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   categoryFilterText: {
     fontSize: 14,
@@ -1521,10 +1818,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
+  // FIXED: Enhanced Product Card Styles - Restructured Layout
   productCard: {
     backgroundColor: colors.surface,
     borderRadius: 12,
-    marginBottom: 15,
+    marginBottom: 16,
     width: (width - 45) / 2,
     shadowColor: '#000',
     shadowOffset: {
@@ -1532,45 +1830,75 @@ const styles = StyleSheet.create({
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.8)',
+    overflow: 'hidden',
   },
   productImageContainer: {
     position: 'relative',
+    height: 140,
   },
   productImage: {
     width: '100%',
-    height: 150,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    height: '100%',
   },
-  saveButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 20,
-    padding: 6,
-  },
-  lowStockBadge: {
+  // NEW: Top badges container for proper positioning
+  topBadgesContainer: {
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: '#FFD93D',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  discountBadge: {
+    backgroundColor: colors.success,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  discountText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  // FIXED: Save button container for top right positioning
+  saveButtonContainer: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  saveButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 20,
+    padding: 6,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  // FIXED: Low Stock Badge in RED - positioned in topBadgesContainer
+  lowStockBadge: {
+    backgroundColor: colors.error,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   lowStockText: {
-    color: colors.textPrimary,
+    color: colors.surface,
     fontSize: 10,
     fontWeight: '600',
   },
   outOfStockBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: '#FF6B6B',
+    backgroundColor: colors.error,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -1583,90 +1911,111 @@ const styles = StyleSheet.create({
   productInfo: {
     padding: 12,
   },
+  // FIXED: Product Name - made more visible
   productName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.textPrimary,
-    marginBottom: 4,
+    marginBottom: 8,
+    lineHeight: 18,
+    minHeight: 36,
   },
-  productDescription: {
+  pricingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  originalPriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  originalPrice: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 8,
-    lineHeight: 16,
+    textDecorationLine: 'line-through',
+    marginRight: 6,
   },
-  productMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  shopInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  shopName: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginLeft: 4,
-  },
-  productCategory: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    backgroundColor: colors.lightBackground,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  productFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  productPrice: {
-    fontSize: 18,
+  discountedPrice: {
+    fontSize: 16,
     fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  couponContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  wowText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: colors.success,
+    marginRight: 4,
+  },
+  couponPrice: {
+    fontSize: 12,
+    fontWeight: '600',
     color: colors.success,
   },
   productActions: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   cartButton: {
+    flex: 1,
     backgroundColor: colors.darkButton,
-    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 8,
-    marginLeft: 6,
+    marginRight: 8,
+  },
+  cartButtonText: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   messageButton: {
     backgroundColor: colors.lightBackground,
     padding: 8,
     borderRadius: 8,
-    marginLeft: 6,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  // Post Card Styles
+  // Enhanced Post Card Styles
   postCard: {
-    backgroundColor: colors.surface,
     marginHorizontal: 20,
     marginVertical: 8,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderLeftWidth: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  postHeaderGradient: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   postHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
   },
   postUserInfo: {
     flexDirection: 'row',
@@ -1674,63 +2023,115 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   postAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   postUserDetails: {
     flex: 1,
   },
   postUsername: {
     fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontWeight: 'bold',
+    color: colors.surface,
+    marginBottom: 2,
   },
-  postType: {
-    fontSize: 14,
+  postTypeBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  postTypeText: {
+    fontSize: 12,
     fontWeight: '500',
-    marginTop: 2,
+    color: colors.surface,
+  },
+  bookmarkButton: {
+    padding: 4,
   },
   postContent: {
-    marginBottom: 12,
+    padding: 0,
+  },
+  postImageContainer: {
+    height: 200,
+  },
+  postImage: {
+    width: '100%',
+    height: '100%',
+  },
+  noImageContainer: {
+    backgroundColor: colors.lightBackground,
+  },
+  noImageGradient: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noImageText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  postTextContent: {
+    padding: 20,
   },
   postTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.textPrimary,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   postDescription: {
     fontSize: 14,
     color: colors.textPrimary,
     lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: 0,
   },
   postDetails: {
-    marginBottom: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
-  detailRow: {
+  detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   detailLabel: {
     fontSize: 14,
     color: colors.textSecondary,
     marginRight: 8,
     fontWeight: '500',
+    marginLeft: 4,
+    width: 60,
   },
   postPrice: {
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.success,
+    flex: 1,
   },
   postLocation: {
     fontSize: 14,
     color: colors.textSecondary,
+    flex: 1,
+  },
+  urgencyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  urgencyText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.surface,
   },
   postFooter: {
     flexDirection: 'row',
@@ -1738,7 +2139,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 12,
+    padding: 20,
+    backgroundColor: colors.surface,
   },
   postMeta: {
     flexDirection: 'row',
@@ -1752,77 +2154,53 @@ const styles = StyleSheet.create({
   contactButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: colors.lightBackground,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   contactButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.accent,
-    marginLeft: 6,
-  },
-  // Filter Bar
-  filterBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: colors.lightBackground,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  activeFilterButton: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  activeFilterButtonText: {
     color: colors.surface,
+    marginLeft: 6,
   },
   listContent: {
     paddingBottom: 25,
     paddingTop: 8,
   },
-  // Empty State
+  // Enhanced Empty State
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
     paddingHorizontal: 40,
   },
   emptyStateText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.textPrimary,
-    marginTop: 16,
+    marginTop: 20,
     marginBottom: 8,
   },
   emptyStateSubtext: {
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 30,
+    lineHeight: 20,
   },
   noProducts: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 60,
     paddingHorizontal: 20,
   },
   noProductsText: {
@@ -1838,20 +2216,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   createFirstPostButton: {
-    backgroundColor: colors.accent,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 4,
   },
   createFirstPostText: {
     color: colors.surface,
     fontSize: 16,
     fontWeight: '500',
   },
-  // Modal Styles
+  // Enhanced Modal Styles
   modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
   },
   modalScrollContent: {
@@ -1861,97 +2246,111 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: colors.surface,
     marginHorizontal: 20,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 24,
+    padding: 24,
     maxHeight: '90%',
     borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.textPrimary,
   },
+  closeButton: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: colors.lightBackground,
+  },
   postTypeSelector: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 20,
     backgroundColor: colors.lightBackground,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 4,
     borderWidth: 1,
     borderColor: colors.border,
   },
   typeButton: {
     flex: 1,
-    paddingVertical: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  typeButtonGradient: {
+    paddingVertical: 14,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 12,
   },
   activeTypeButton: {
-    backgroundColor: colors.surface,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: colors.border,
+    shadowRadius: 4,
+    elevation: 3,
   },
   typeButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
     color: colors.textSecondary,
   },
   activeTypeButtonText: {
-    color: colors.accent,
+    color: colors.surface,
     fontWeight: '600',
   },
   imageUploadSection: {
-    height: 120,
-    backgroundColor: colors.lightBackground,
-    borderRadius: 12,
-    marginBottom: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
+    height: 140,
+    borderRadius: 16,
+    marginBottom: 20,
+    overflow: 'hidden',
+    borderWidth: 2,
     borderColor: colors.border,
     borderStyle: 'dashed',
   },
   selectedImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 12,
   },
   imagePlaceholder: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   imagePlaceholderText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
-    marginTop: 8,
+    marginTop: 12,
   },
   formInput: {
     backgroundColor: colors.lightBackground,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     fontSize: 16,
     color: colors.textPrimary,
-    marginBottom: 12,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
   textArea: {
-    height: 80,
+    height: 100,
     textAlignVertical: 'top',
   },
   rowInputs: {
@@ -1964,18 +2363,18 @@ const styles = StyleSheet.create({
   urgencySelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   urgencyLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
     color: colors.textPrimary,
-    marginRight: 12,
+    marginRight: 16,
   },
   urgencyOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
     backgroundColor: colors.lightBackground,
     marginRight: 8,
     borderWidth: 1,
@@ -1986,7 +2385,7 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
   },
   urgencyOptionText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -1999,9 +2398,8 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
+    borderRadius: 14,
+    overflow: 'hidden',
     marginHorizontal: 6,
   },
   cancelButton: {
@@ -2010,7 +2408,19 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   submitButton: {
-    backgroundColor: colors.accent,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  submitButtonGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderRadius: 14,
   },
   disabledButton: {
     opacity: 0.6,
@@ -2019,6 +2429,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: 16,
   },
   submitButtonText: {
     fontSize: 16,

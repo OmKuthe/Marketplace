@@ -1,44 +1,29 @@
-import { Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import { collection, getDocs, orderBy, query, doc, getDoc } from "firebase/firestore";
+import * as Location from 'expo-location';
+import { Href, useRouter } from 'expo-router';
+import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   Image,
+  Modal,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Linking,
-  Alert,
-  Animated
+  View
 } from "react-native";
 import MapView, { Marker } from 'react-native-maps';
-import * as Location from 'expo-location';
-import { LinearGradient } from 'expo-linear-gradient';
 import { db } from "../../../firebaseConfig";
 
-// Updated color palette to match RamShop design
-const colors = {
-  background: '#f5f5f5',
-  surface: '#ffffff',
-  textPrimary: '#1a1a1a',
-  textSecondary: '#666666',
-  accent: '#2e7d32',
-  success: '#2e7d32',
-  border: '#e5e5e5',
-  darkButton: '#1a1a1a',
-  offerGradient: ['#2e7d32', '#4caf50'],
-  needCard: 'rgba(255, 107, 53, 0.1)',
-  offerCard: 'rgba(46, 125, 50, 0.1)',
-  lightBackground: 'rgba(229, 229, 229, 0.3)',
-};
+// Add missing imports and types
+import { Linking, Alert } from 'react-native';
 
 type Product = {
   id: string;
@@ -78,9 +63,45 @@ type Shop = {
   uid: string;
 };
 
+// Add missing FilterOptions type
+type FilterOptions = {
+  minPrice: number | null;
+  maxPrice: number | null;
+  category: string | null;
+  itemType: 'all' | 'shops' | 'products';
+  sortBy: 'relevance' | 'price-low' | 'price-high' | 'name' | 'newest';
+  locationRange: number | null;
+};
+
+// Use the SAME color palette from previous code
+const colors = {
+  background: '#f8fafc',
+  surface: '#ffffff',
+  textPrimary: '#1e293b',
+  textSecondary: '#64748b',
+  accent: '#3b82f6',
+  accentLight: '#60a5fa',
+  success: '#10b981',
+  warning: '#f59e0b',
+  error: '#ef4444',
+  border: '#e2e8f0',
+  darkButton: '#1e293b',
+  needColor: '#f97316',
+  offerColor: '#10b981',
+  gradientPrimary: ['#667eea', '#764ba2'],
+  gradientSecondary: ['#f093fb', '#f5576c'],
+  gradientSuccess: ['#10b981', '#34d399'],
+  gradientWarning: ['#f59e0b', '#fbbf24'],
+  needCard: 'rgba(249, 115, 22, 0.08)',
+  offerCard: 'rgba(16, 185, 129, 0.08)',
+  lightBackground: 'rgba(226, 232, 240, 0.4)',
+  electricPurple: '#8b5cf6',
+  deepBlue: '#1e40af',
+};
+
 const { width, height } = Dimensions.get('window');
 
-// Modern Product Card Component matching RamShop design
+// ENHANCED Product Card Component with Consistent Styling
 const ProductCard = React.memo(({ 
   item, 
   index, 
@@ -95,8 +116,14 @@ const ProductCard = React.memo(({
   const isShop = 'ownerName' in item && !('description' in item);
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [cardAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(0.9));
+
+  // Mock data for e-commerce features (for products)
+  const discountPercentage = Math.floor(Math.random() * 50) + 10;
+  const originalPrice = isShop ? 0 : Math.round((item as Product).price * (1 + discountPercentage / 100));
+  const couponPrice = isShop ? 0 : Math.round((item as Product).price * 0.9);
 
   const getImageUrl = (): string => {
     if (isShop) {
@@ -138,48 +165,70 @@ const ProductCard = React.memo(({
     setImageError(true);
   };
 
-  const getLocationAddress = (item: Product | Shop) => {
-    if ('location' in item && item.location) {
-      if (item.location.includes('Lat:')) {
-        return 'Nearby location';
-      }
-      return item.location;
-    }
-    if (item.latitude && item.longitude) {
-      return 'Nearby location';
-    }
-    return "Location not available";
+  const handleSave = () => {
+    setSaved(!saved);
   };
 
   const renderImage = () => {
     if (imageUrl && !imageError) {
       return (
-        <>
-          {imageLoading && (
-            <View style={styles.imageLoader}>
-              <ActivityIndicator size="small" color={colors.accent} />
-            </View>
-          )}
+        <View style={styles.productImageContainer}>
           <Image 
             source={{ uri: imageUrl }} 
-            style={[
-              styles.itemImage,
-              imageLoading && styles.hiddenImage
-            ]}
+            style={styles.productImage}
             onLoad={handleImageLoad}
             onError={handleImageError}
           />
-        </>
+          
+          {/* Discount Badge - For Products Only */}
+          {!isShop && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>✔ {discountPercentage}% OFF</Text>
+            </View>
+          )}
+
+          {/* Favorite Button */}
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <Ionicons 
+              name={saved ? "heart" : "heart-outline"} 
+              size={20} 
+              color={saved ? colors.error : colors.surface} 
+            />
+          </TouchableOpacity>
+
+          {/* Stock Badge - For Products Only */}
+          {!isShop && (item as Product).stock < 10 && (item as Product).stock > 0 && (
+            <View style={styles.lowStockBadge}>
+              <Text style={styles.lowStockText}>Low Stock</Text>
+            </View>
+          )}
+          {!isShop && (item as Product).stock === 0 && (
+            <View style={styles.outOfStockBadge}>
+              <Text style={styles.outOfStockText}>Out of Stock</Text>
+            </View>
+          )}
+        </View>
       );
     }
 
     return (
-      <View style={styles.imagePlaceholder}>
-        <Ionicons 
-          name={isShop ? "storefront" : "cube"} 
-          size={24} 
-          color={colors.accent} 
-        />
+      <View style={styles.productImageContainer}>
+        <View style={styles.imagePlaceholder}>
+          <Ionicons 
+            name={isShop ? "storefront" : "cube"} 
+            size={24} 
+            color={colors.accent} 
+          />
+        </View>
+        
+        {/* Favorite Button */}
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <Ionicons 
+            name={saved ? "heart" : "heart-outline"} 
+            size={20} 
+            color={saved ? colors.error : colors.surface} 
+          />
+        </TouchableOpacity>
       </View>
     );
   };
@@ -187,7 +236,7 @@ const ProductCard = React.memo(({
   return (
     <Animated.View
       style={[
-        styles.card,
+        styles.productCard,
         {
           opacity: cardAnim,
           transform: [
@@ -204,53 +253,79 @@ const ProductCard = React.memo(({
     >
       {renderImage()}
       
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>
+      <View style={styles.productInfo}>
+        {/* Product/Shop Name */}
+        <Text style={styles.productName} numberOfLines={2}>
           {isShop ? (item as Shop).shopName : (item as Product).name}
         </Text>
         
-        <Text style={styles.cardDescription} numberOfLines={2}>
+        {/* Description for Products, Owner for Shops */}
+        <Text style={styles.productDescription} numberOfLines={2}>
           {isShop ? `Owner: ${(item as Shop).ownerName}` : (item as Product).description}
         </Text>
         
-        <View style={styles.cardMeta}>
-          {!isShop && (item as Product).price && (item as Product).price > 0 && (
-            <Text style={styles.cardPrice}>${(item as Product).price}</Text>
-          )}
-          
-          {(item as Product).category && (
-            <Text style={styles.cardCategory}>#{(item as Product).category}</Text>
-          )}
+        {/* Pricing Row - For Products Only */}
+        {!isShop && (item as Product).price && (item as Product).price > 0 && (
+          <View style={styles.pricingContainer}>
+            <View style={styles.originalPriceContainer}>
+              <Text style={styles.originalPrice}>${originalPrice}</Text>
+              <Text style={styles.discountedPrice}>${(item as Product).price}</Text>
+            </View>
+          </View>
+        )}
+        
+        {/* Coupon Offer - For Products Only */}
+        {!isShop && (item as Product).price && (item as Product).price > 0 && (
+          <View style={styles.couponContainer}>
+            <Text style={styles.wowText}>Wow</Text>
+            <Text style={styles.couponPrice}>${couponPrice} with Coupon</Text>
+          </View>
+        )}
+        
+        {/* Location */}
+        <View style={styles.locationContainer}>
+          <Ionicons name="location" size={12} color={colors.textSecondary} />
+          <Text style={styles.locationText}>
+            {item.location || ('address' in item ? item.address : undefined) || 'Unknown Location'}
+          </Text>
         </View>
         
-        <View style={styles.cardFooter}>
-          <Text style={styles.cardAddress} numberOfLines={1}>
-            📍 {getLocationAddress(item)}
-          </Text>
-          
+        {/* Action Buttons */}
+        <View style={styles.productActions}>
           {isShop ? (
             <TouchableOpacity 
-              style={styles.viewDetailsButton}
+              style={styles.cartButton}
               onPress={() => onViewShopDetails(item as Shop)}
             >
-              <Ionicons name="eye-outline" size={14} color="#fff" />
-              <Text style={styles.viewDetailsButtonText}>View Shop</Text>
+              <Ionicons name="storefront" size={16} color={colors.surface} />
+              <Text style={styles.cartButtonText}>View Shop</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity 
-              style={styles.viewDetailsButton}
+              style={styles.cartButton}
               onPress={() => onViewProductDetails(item as Product)}
             >
-              <Ionicons name="cube-outline" size={14} color="#fff" />
-              <Text style={styles.viewDetailsButtonText}>View Product</Text>
+              <Ionicons name="cube" size={16} color={colors.surface} />
+              <Text style={styles.cartButtonText}>View Product</Text>
             </TouchableOpacity>
           )}
+          
+          {/* <TouchableOpacity 
+            style={styles.messageButton}
+            onPress={() => {
+              // Handle message action
+              console.log('Message pressed for:', item.id);
+            }}
+          > */}
+            {/* <Ionicons name="chatbubble" size={16} color={colors.accent} /> */}
+          {/* </TouchableOpacity> */}
         </View>
       </View>
     </Animated.View>
   );
 });
 
+// Enhanced Search Screen with Consistent Styling
 export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<(Product | Shop)[]>([]);
@@ -264,13 +339,24 @@ export default function SearchScreen() {
   const [selectedItem, setSelectedItem] = useState<Product | Shop | null>(null);
   const [locationPermission, setLocationPermission] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<FilterOptions>({
+    minPrice: null,
+    maxPrice: null,
+    category: null,
+    itemType: 'all',
+    sortBy: 'relevance',
+    locationRange: null
+  });
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  
   const router = useRouter();
 
   // Animation values
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(300))[0];
 
-  // Load initial data only once
+  // Load initial data
   useEffect(() => {
     const initializeData = async () => {
       if (dataLoaded) return;
@@ -308,6 +394,22 @@ export default function SearchScreen() {
 
     initializeData();
   }, []);
+
+  // Extract available categories
+  useEffect(() => {
+    const categories = new Set<string>();
+    products.forEach(product => {
+      if (product.category) {
+        categories.add(product.category);
+      }
+    });
+    shops.forEach(shop => {
+      if (shop.location) {
+        // You could extract location-based categories here if needed
+      }
+    });
+    setAvailableCategories(Array.from(categories));
+  }, [products, shops]);
 
   const loadShops = async () => {
     try {
@@ -358,6 +460,28 @@ export default function SearchScreen() {
     }
   };
 
+  // Add missing filter functions
+  const applyFilters = (filters: FilterOptions) => {
+    setActiveFilters(filters);
+    setFilterModalVisible(false);
+    // Trigger search again with new filters
+    if (searchQuery.trim()) {
+      handleSearch();
+    }
+  };
+
+  const clearFilters = () => {
+    setActiveFilters({
+      minPrice: null,
+      maxPrice: null,
+      category: null,
+      itemType: 'all',
+      sortBy: 'relevance',
+      locationRange: null
+    });
+  };
+
+  // Optimized search function
   const handleSearch = async (queryText: string = searchQuery) => {
     const searchText = queryText.trim();
     if (!searchText) {
@@ -377,20 +501,68 @@ export default function SearchScreen() {
 
       const searchLower = searchText.toLowerCase();
       
-      const filteredShops = shops.filter(shop =>
+      let filteredShops = shops.filter(shop =>
         shop.shopName?.toLowerCase().includes(searchLower) ||
         shop.ownerName?.toLowerCase().includes(searchLower) ||
         shop.location?.toLowerCase().includes(searchLower)
       );
 
-      const filteredProducts = products.filter(product =>
+      let filteredProducts = products.filter(product =>
         product.name?.toLowerCase().includes(searchLower) ||
         product.description?.toLowerCase().includes(searchLower) ||
         product.category?.toLowerCase().includes(searchLower)
       );
 
+      // Apply additional filters
+      if (activeFilters.itemType !== 'all') {
+        if (activeFilters.itemType === 'shops') {
+          filteredProducts = [];
+        } else if (activeFilters.itemType === 'products') {
+          filteredShops = [];
+        }
+      }
+
+      if (activeFilters.category) {
+        filteredProducts = filteredProducts.filter(product => 
+          product.category?.toLowerCase() === activeFilters.category?.toLowerCase()
+        );
+      }
+
+      if (activeFilters.minPrice !== null) {
+        filteredProducts = filteredProducts.filter(product => 
+          product.price >= activeFilters.minPrice!
+        );
+      }
+
+      if (activeFilters.maxPrice !== null) {
+        filteredProducts = filteredProducts.filter(product => 
+          product.price <= activeFilters.maxPrice!
+        );
+      }
+
+      // Apply sorting
+      if (activeFilters.sortBy !== 'relevance') {
+        filteredProducts.sort((a, b) => {
+          switch (activeFilters.sortBy) {
+            case 'price-low':
+              return a.price - b.price;
+            case 'price-high':
+              return b.price - a.price;
+            case 'name':
+              return a.name.localeCompare(b.name);
+            case 'newest':
+              return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+            default:
+              return 0;
+          }
+        });
+      }
+
+      // Combine results - shops first, then products
       const combinedResults = [...filteredShops, ...filteredProducts];
       setSearchResults(combinedResults);
+
+      console.log(`Found ${combinedResults.length} results for "${searchText}"`);
 
     } catch (err) {
       console.log("Error searching:", err);
@@ -399,6 +571,7 @@ export default function SearchScreen() {
     }
   };
 
+  // Optimized search with debounce
   useEffect(() => {
     if (searchQuery.trim()) {
       const timeoutId = setTimeout(() => {
@@ -409,7 +582,7 @@ export default function SearchScreen() {
     } else {
       setSearchResults([]);
     }
-  }, [searchQuery]);
+  }, [searchQuery, activeFilters]);
 
   const clearSearch = () => {
     setSearchQuery("");
@@ -417,6 +590,26 @@ export default function SearchScreen() {
     setSelectedItem(null);
   };
 
+  // Function to handle phone calls
+  const handleCall = (phoneNumber: string) => {
+    if (!phoneNumber) return;
+    
+    const phoneUrl = `tel:${phoneNumber}`;
+    Linking.canOpenURL(phoneUrl)
+      .then(supported => {
+        if (supported) {
+          Linking.openURL(phoneUrl);
+        } else {
+          Alert.alert('Error', 'Phone calls are not supported on this device');
+        }
+      })
+      .catch(err => {
+        console.log('Error making call:', err);
+        Alert.alert('Error', 'Unable to make phone call');
+      });
+  };
+
+  // Function to navigate to shop details
   const handleViewShopDetails = (shop: Shop) => {
     router.push({
       pathname: "../details/shop",
@@ -526,7 +719,7 @@ export default function SearchScreen() {
     return "Location not available";
   };
 
-  // Side Panel with Animation
+  // Enhanced Side Panel
   const SidePanel = () => {
     useEffect(() => {
       if (sidePanelVisible) {
@@ -561,14 +754,14 @@ export default function SearchScreen() {
         </TouchableOpacity>
         
         <View style={styles.sidePanelHeader}>
-          <Text style={styles.sidePanelTitle}>RAMSHOP</Text>
+          <Text style={styles.sidePanelTitle}>TownMart</Text>
           <Text style={styles.sidePanelSubtitle}>Discover • Connect • Shop</Text>
         </View>
         
         {[
           { name: "Home", icon: "home-outline", route: "/customer/home" as Href},
           { name: "Search", icon: "search", route: null },
-          { name: "Messages", icon: "chatbubble-outline", route: "/customer/messages" as Href},
+          // { name: "Messages", icon: "chatbubble-outline", route: "/customer/messages" as Href},
           { name: "Orders", icon: "list-outline", route: "/customer/myorders" as Href},
           { name: "Profile", icon: "person-outline", route: "/customer/profile" as Href},
         ].map((item, index) => (
@@ -590,6 +783,211 @@ export default function SearchScreen() {
     );
   };
 
+  // Enhanced Filter Modal Component
+  const FilterModal = () => {
+    const [localFilters, setLocalFilters] = useState<FilterOptions>(activeFilters);
+
+    const handleApply = () => {
+      applyFilters(localFilters);
+    };
+
+    const handleReset = () => {
+      setLocalFilters({
+        minPrice: null,
+        maxPrice: null,
+        category: null,
+        itemType: 'all',
+        sortBy: 'relevance',
+        locationRange: null
+      });
+    };
+
+    return (
+      <Modal
+        visible={filterModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter & Sort</Text>
+              <TouchableOpacity 
+                onPress={() => setFilterModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent}>
+              {/* Item Type Filter */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Item Type</Text>
+                <View style={styles.filterOptions}>
+                  {[
+                    { value: 'all', label: 'All Items' },
+                    { value: 'shops', label: 'Shops Only' },
+                    { value: 'products', label: 'Products Only' }
+                  ].map((type) => (
+                    <TouchableOpacity
+                      key={type.value}
+                      style={[
+                        styles.filterOption,
+                        localFilters.itemType === type.value && styles.activeFilterOption
+                      ]}
+                      onPress={() => setLocalFilters(prev => ({
+                        ...prev,
+                        itemType: type.value as any
+                      }))}
+                    >
+                      <Text style={[
+                        styles.filterOptionText,
+                        localFilters.itemType === type.value && styles.activeFilterOptionText
+                      ]}>
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Price Range */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Price Range</Text>
+                <View style={styles.priceInputs}>
+                  <View style={styles.priceInput}>
+                    <Text style={styles.priceLabel}>Min Price</Text>
+                    <TextInput
+                      style={styles.priceInputField}
+                      placeholder="$0"
+                      keyboardType="numeric"
+                      value={localFilters.minPrice?.toString() || ''}
+                      onChangeText={(text) => setLocalFilters(prev => ({
+                        ...prev,
+                        minPrice: text ? parseInt(text) : null
+                      }))}
+                    />
+                  </View>
+                  <View style={styles.priceInput}>
+                    <Text style={styles.priceLabel}>Max Price</Text>
+                    <TextInput
+                      style={styles.priceInputField}
+                      placeholder="$1000"
+                      keyboardType="numeric"
+                      value={localFilters.maxPrice?.toString() || ''}
+                      onChangeText={(text) => setLocalFilters(prev => ({
+                        ...prev,
+                        maxPrice: text ? parseInt(text) : null
+                      }))}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Category Filter */}
+              {availableCategories.length > 0 && (
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Category</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
+                    <TouchableOpacity
+                      style={[
+                        styles.categoryOption,
+                        !localFilters.category && styles.activeCategoryOption
+                      ]}
+                      onPress={() => setLocalFilters(prev => ({ ...prev, category: null }))}
+                    >
+                      <Text style={[
+                        styles.categoryOptionText,
+                        !localFilters.category && styles.activeCategoryOptionText
+                      ]}>
+                        All Categories
+                      </Text>
+                    </TouchableOpacity>
+                    {availableCategories.map((category) => (
+                      <TouchableOpacity
+                        key={category}
+                        style={[
+                          styles.categoryOption,
+                          localFilters.category === category && styles.activeCategoryOption
+                        ]}
+                        onPress={() => setLocalFilters(prev => ({ 
+                          ...prev, 
+                          category: localFilters.category === category ? null : category 
+                        }))}
+                      >
+                        <Text style={[
+                          styles.categoryOptionText,
+                          localFilters.category === category && styles.activeCategoryOptionText
+                        ]}>
+                          {category}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Sort Options */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Sort By</Text>
+                <View style={styles.sortOptions}>
+                  {[
+                    { value: 'relevance', label: 'Relevance', icon: 'star' },
+                    { value: 'price-low', label: 'Price: Low to High', icon: 'arrow-up' },
+                    { value: 'price-high', label: 'Price: High to Low', icon: 'arrow-down' },
+                    { value: 'name', label: 'Name', icon: 'text' },
+                    { value: 'newest', label: 'Newest First', icon: 'time' }
+                  ].map((sort) => (
+                    <TouchableOpacity
+                      key={sort.value}
+                      style={[
+                        styles.sortOption,
+                        localFilters.sortBy === sort.value && styles.activeSortOption
+                      ]}
+                      onPress={() => setLocalFilters(prev => ({
+                        ...prev,
+                        sortBy: sort.value as any
+                      }))}
+                    >
+                      <Ionicons 
+                        name={sort.icon as any} 
+                        size={16} 
+                        color={localFilters.sortBy === sort.value ? colors.surface : colors.accent} 
+                      />
+                      <Text style={[
+                        styles.sortOptionText,
+                        localFilters.sortBy === sort.value && styles.activeSortOptionText
+                      ]}>
+                        {sort.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={styles.resetButton}
+                onPress={handleReset}
+              >
+                <Text style={styles.resetButtonText}>Reset Filters</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.applyButton}
+                onPress={handleApply}
+              >
+                <Text style={styles.applyButtonText}>Apply Filters</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   const getMapItems = () => {
     if (searchQuery && searchResults.length > 0) {
       return searchResults.filter(item => 
@@ -601,10 +999,55 @@ export default function SearchScreen() {
 
   const mapItems = getMapItems();
 
+  // Check if any filters are active
+  const hasActiveFilters = 
+    activeFilters.minPrice !== null ||
+    activeFilters.maxPrice !== null ||
+    activeFilters.category !== null ||
+    activeFilters.itemType !== 'all' ||
+    activeFilters.sortBy !== 'relevance';
+
+  // FIXED: Render product cards in a FlatList for proper scrolling
+  const renderProductGrid = () => (
+    <FlatList
+      data={searchResults}
+      keyExtractor={(item) => item.id}
+      numColumns={2}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.productsGridContainer}
+      style={styles.productsGridFlatList}
+      renderItem={({ item, index }) => (
+        <ProductCard 
+          item={item} 
+          index={index}
+          onViewShopDetails={handleViewShopDetails}
+          onViewProductDetails={handleViewProductDetails}
+        />
+      )}
+      ListEmptyComponent={
+        searchQuery ? (
+          <View style={styles.noResultsContainer}>
+            <Ionicons name="search-outline" size={60} color={colors.textSecondary} />
+            <Text style={styles.noResultsText}>No results found for "{searchQuery}"</Text>
+            <Text style={styles.noResultsSubText}>Try different keywords or adjust filters</Text>
+          </View>
+        ) : (
+          <View style={styles.initialStateContainer}>
+            <Ionicons name="search-outline" size={80} color={colors.textSecondary} />
+            <Text style={styles.initialStateText}>Search for shops or products</Text>
+            <Text style={styles.initialStateSubText}>
+              Find what you're looking for by typing in the search bar above
+            </Text>
+          </View>
+        )
+      }
+    />
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <Animated.View style={[styles.animatedContainer, { opacity: fadeAnim }]}>
-        {/* Header */}
+        {/* CONSISTENT Header with TownMart */}
         <View style={styles.header}>
           <TouchableOpacity 
             onPress={() => setSidePanelVisible(true)}
@@ -612,44 +1055,118 @@ export default function SearchScreen() {
           >
             <Ionicons name="menu" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
+          
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>RAMSHOP</Text>
-            <Text style={styles.headerSubtitle}>Explore</Text>
+            <Text style={styles.headerTitle}>TownMart</Text>
+            <Text style={styles.headerSubtitle}>Search</Text>
           </View>
+          
           <View style={styles.headerButton} />
         </View>
 
         {/* Side Panel */}
         {sidePanelVisible && <SidePanel />}
 
-        {/* Search Bar */}
+        {/* Filter Modal */}
+        <FilterModal />
+
+        {/* Enhanced Search Bar with Filter Button */}
         <View style={styles.searchContainer}>
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={20} color={colors.accent} style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search shops, products, or locations..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              returnKeyType="search"
-              clearButtonMode="while-editing"
-              placeholderTextColor={colors.textSecondary}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-                <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            )}
+          <View style={styles.searchRow}>
+            <View style={styles.searchInputContainer}>
+              <Ionicons name="search" size={20} color={colors.accent} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search shops, products, or locations..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+                placeholderTextColor={colors.textSecondary}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+                  <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            <TouchableOpacity 
+              style={[styles.filterButton, hasActiveFilters && styles.activeFilterButton]}
+              onPress={() => setFilterModalVisible(true)}
+            >
+              <Ionicons 
+                name="filter" 
+                size={20} 
+                color={hasActiveFilters ? colors.surface : colors.accent} 
+              />
+              {hasActiveFilters && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>!</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
+
+          {/* Active Filters Display */}
+          {hasActiveFilters && (
+            <View style={styles.activeFiltersContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.activeFiltersScroll}>
+                {activeFilters.itemType !== 'all' && (
+                  <View style={styles.activeFilterTag}>
+                    <Text style={styles.activeFilterTagText}>
+                      {activeFilters.itemType === 'shops' ? 'Shops Only' : 'Products Only'}
+                    </Text>
+                    <TouchableOpacity onPress={() => setActiveFilters(prev => ({ ...prev, itemType: 'all' }))}>
+                      <Ionicons name="close" size={14} color={colors.surface} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {activeFilters.minPrice !== null && (
+                  <View style={styles.activeFilterTag}>
+                    <Text style={styles.activeFilterTagText}>
+                      Min: ${activeFilters.minPrice}
+                    </Text>
+                    <TouchableOpacity onPress={() => setActiveFilters(prev => ({ ...prev, minPrice: null }))}>
+                      <Ionicons name="close" size={14} color={colors.surface} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {activeFilters.maxPrice !== null && (
+                  <View style={styles.activeFilterTag}>
+                    <Text style={styles.activeFilterTagText}>
+                      Max: ${activeFilters.maxPrice}
+                    </Text>
+                    <TouchableOpacity onPress={() => setActiveFilters(prev => ({ ...prev, maxPrice: null }))}>
+                      <Ionicons name="close" size={14} color={colors.surface} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {activeFilters.category && (
+                  <View style={styles.activeFilterTag}>
+                    <Text style={styles.activeFilterTagText}>
+                      {activeFilters.category}
+                    </Text>
+                    <TouchableOpacity onPress={() => setActiveFilters(prev => ({ ...prev, category: null }))}>
+                      <Ionicons name="close" size={14} color={colors.surface} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <TouchableOpacity onPress={clearFilters} style={styles.clearAllFilters}>
+                  <Text style={styles.clearAllFiltersText}>Clear All</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          )}
         </View>
 
-        {/* View Toggle */}
+        {/* Enhanced View Toggle */}
         <View style={styles.viewToggleContainer}>
           <TouchableOpacity 
             style={[styles.viewToggleButton, !mapView && styles.activeViewToggle]}
             onPress={() => setMapView(false)}
           >
-            <Ionicons name="list" size={18} color={!mapView ? "#fff" : colors.accent} />
+            <Ionicons name="list" size={18} color={!mapView ? colors.surface : colors.accent} />
             <Text style={[styles.viewToggleText, !mapView && styles.activeViewToggleText]}>List</Text>
           </TouchableOpacity>
           
@@ -657,12 +1174,12 @@ export default function SearchScreen() {
             style={[styles.viewToggleButton, mapView && styles.activeViewToggle]}
             onPress={() => setMapView(true)}
           >
-            <Ionicons name="map" size={18} color={mapView ? "#fff" : colors.accent} />
+            <Ionicons name="map" size={18} color={mapView ? colors.surface : colors.accent} />
             <Text style={[styles.viewToggleText, mapView && styles.activeViewToggleText]}>Map</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Recent Searches */}
+        {/* Enhanced Recent Searches */}
         {!mapView && searchResults.length === 0 && recentSearches.length > 0 && !isSearching && !searchQuery && (
           <View style={styles.recentSearchesContainer}>
             <Text style={styles.sectionTitle}>Recent Searches</Text>
@@ -681,7 +1198,7 @@ export default function SearchScreen() {
           </View>
         )}
 
-        {/* Search Results */}
+        {/* Enhanced Search Results */}
         <View style={styles.resultsContainer}>
           {/* Results Count */}
           {(searchResults.length > 0 || (!searchQuery && mapView)) && (
@@ -700,7 +1217,7 @@ export default function SearchScreen() {
           )}
           
           {mapView ? (
-            // MAP VIEW
+            // Enhanced Map View
             <View style={styles.mapContainer}>
               <MapView 
                 style={styles.map}
@@ -751,7 +1268,7 @@ export default function SearchScreen() {
                 })}
               </MapView>
               
-              {/* Selected Item Info */}
+              {/* Enhanced Selected Item Info */}
               {selectedItem && (
                 <View style={styles.selectedItemCard}>
                   <View style={styles.selectedItemHeader}>
@@ -827,39 +1344,8 @@ export default function SearchScreen() {
               )}
             </View>
           ) : (
-            // LIST VIEW
-            <>
-              {searchResults.length > 0 ? (
-                <FlatList
-                  data={searchResults}
-                  keyExtractor={(item) => item.id}
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.listContent}
-                  renderItem={({ item, index }) => (
-                    <ProductCard 
-                      item={item} 
-                      index={index}
-                      onViewShopDetails={handleViewShopDetails}
-                      onViewProductDetails={handleViewProductDetails}
-                    />
-                  )}
-                />
-              ) : searchQuery ? (
-                <View style={styles.noResultsContainer}>
-                  <Ionicons name="search-outline" size={60} color={colors.textSecondary} />
-                  <Text style={styles.noResultsText}>No results found for "{searchQuery}"</Text>
-                  <Text style={styles.noResultsSubText}>Try different keywords</Text>
-                </View>
-              ) : (
-                <View style={styles.initialStateContainer}>
-                  <Ionicons name="search-outline" size={80} color={colors.textSecondary} />
-                  <Text style={styles.initialStateText}>Search for shops or products</Text>
-                  <Text style={styles.initialStateSubText}>
-                    Find what you're looking for by typing in the search bar above
-                  </Text>
-                </View>
-              )}
-            </>
+            // FIXED: Enhanced List View with Scrollable Product Cards
+            renderProductGrid()
           )}
         </View>
       </Animated.View>
@@ -875,16 +1361,25 @@ const styles = StyleSheet.create({
   animatedContainer: {
     flex: 1,
   },
+  // CONSISTENT Header with TownMart
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 15,
+    paddingTop: 19,
+    paddingBottom: 12,
     backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   headerButton: {
     width: 40,
@@ -898,14 +1393,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: colors.textPrimary,
+    color: colors.deepBlue,
     letterSpacing: 1,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.accent,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -914,22 +1409,28 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     backgroundColor: colors.surface,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   searchInputContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 3,
   },
   searchIcon: {
@@ -945,6 +1446,79 @@ const styles = StyleSheet.create({
   clearButton: {
     padding: 4,
   },
+  filterButton: {
+    width: 50,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+    position: 'relative',
+  },
+  activeFilterButton: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  activeFiltersContainer: {
+    marginTop: 12,
+  },
+  activeFiltersScroll: {
+    flexDirection: 'row',
+  },
+  activeFilterTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    gap: 6,
+  },
+  activeFilterTagText: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  clearAllFilters: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.lightBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  clearAllFiltersText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '500',
+  },
   viewToggleContainer: {
     flexDirection: 'row',
     marginHorizontal: 20,
@@ -952,15 +1526,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 4,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 3,
   },
   viewToggleButton: {
@@ -981,7 +1555,7 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   activeViewToggleText: {
-    color: '#fff',
+    color: colors.surface,
   },
   resultsContainer: {
     flex: 1,
@@ -1001,120 +1575,208 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: '600',
   },
-  listContent: {
+  // FIXED: Updated styles for scrollable product grid
+  productsGridFlatList: {
+    flex: 1,
+  },
+  productsGridContainer: {
+    paddingHorizontal: 15,
     paddingBottom: 20,
     paddingTop: 8,
   },
-  card: {
-    flexDirection: 'row',
+  // ENHANCED Product Card Styles - Consistent with Previous Code
+  productCard: {
     backgroundColor: colors.surface,
-    marginHorizontal: 20,
-    marginVertical: 6,
-    padding: 16,
     borderRadius: 12,
+    marginBottom: 16,
+    width: (width - 45) / 2,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(226, 232, 240, 0.8)',
+    overflow: 'hidden',
   },
-  itemImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    marginRight: 16,
+  productImageContainer: {
+    position: 'relative',
+    height: 140,
   },
-  hiddenImage: {
+  productImage: {
+    width: '100%',
+    height: '100%',
+  },
+  discountBadge: {
     position: 'absolute',
-    opacity: 0,
-  },
-  imageLoader: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: colors.lightBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-    zIndex: 1,
-  },
-  imagePlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: colors.lightBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 8,
-    lineHeight: 18,
-  },
-  cardMeta: {
+    top: 8,
+    left: 8,
+    backgroundColor: colors.success,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  cardPrice: {
-    fontSize: 16,
-    color: colors.success,
+  discountText: {
+    color: colors.surface,
+    fontSize: 10,
     fontWeight: '600',
   },
-  cardCategory: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    backgroundColor: colors.lightBackground,
+  saveButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 20,
+    padding: 6,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  lowStockBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: colors.error,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  cardFooter: {
+  lowStockText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  outOfStockBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: colors.error,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  outOfStockText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.lightBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  productInfo: {
+    padding: 12,
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 8,
+    lineHeight: 18,
+    minHeight: 36,
+  },
+  productDescription: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 8,
+    lineHeight: 16,
+  },
+  pricingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  originalPriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  originalPrice: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
+    marginRight: 6,
+  },
+  discountedPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  couponContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  wowText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: colors.success,
+    marginRight: 4,
+  },
+  couponPrice: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.success,
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  locationText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  productActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  cardAddress: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '500',
+  cartButton: {
     flex: 1,
-  },
-  viewDetailsButton: {
+    backgroundColor: colors.darkButton,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.darkButton,
+    justifyContent: 'center',
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    paddingVertical: 6,
     borderRadius: 8,
-    gap: 4,
+    marginRight: 8,
   },
-  viewDetailsButtonText: {
-    color: '#fff',
+  cartButtonText: {
+    color: colors.surface,
     fontSize: 12,
     fontWeight: '600',
+    marginLeft: 4,
   },
+  messageButton: {
+    backgroundColor: colors.lightBackground,
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  // Rest of the styles remain the same
   mapContainer: {
     flex: 1,
     position: 'relative',
@@ -1132,11 +1794,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowColor: 'rgba(0, 0, 0, 0.3)',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 6,
@@ -1145,7 +1804,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   productMarker: {
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.accentLight,
   },
   selectedItemCard: {
     position: 'absolute',
@@ -1153,13 +1812,10 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 16,
     elevation: 12,
@@ -1178,14 +1834,14 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   selectedItemImagePlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
+    width: 50,
+    height: 50,
+    borderRadius: 12,
     backgroundColor: colors.lightBackground,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
   },
   selectedItemInfo: {
@@ -1193,7 +1849,7 @@ const styles = StyleSheet.create({
   },
   selectedItemTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.textPrimary,
     marginBottom: 2,
   },
@@ -1224,7 +1880,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
@@ -1237,12 +1893,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionButtonText: {
-    color: colors.textPrimary,
+    color: colors.accent,
     fontWeight: '600',
     fontSize: 14,
   },
   primaryActionButtonText: {
-    color: '#fff',
+    color: colors.surface,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -1255,10 +1911,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     zIndex: 1000,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 2,
-      height: 0,
-    },
+    shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 16,
@@ -1275,13 +1928,13 @@ const styles = StyleSheet.create({
   },
   sidePanelTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: colors.textPrimary,
     letterSpacing: 1,
   },
   sidePanelSubtitle: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.accent,
     fontWeight: '500',
     marginTop: 4,
   },
@@ -1326,7 +1979,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
   },
   recentSearchText: {
@@ -1343,7 +1996,7 @@ const styles = StyleSheet.create({
   },
   noResultsText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: colors.textPrimary,
     marginTop: 20,
     textAlign: 'center',
@@ -1383,7 +2036,7 @@ const styles = StyleSheet.create({
   },
   initialStateText: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: colors.textPrimary,
     marginTop: 20,
     textAlign: 'center',
@@ -1394,5 +2047,171 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  // Filter Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalContent: {
+    padding: 20,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 12,
+  },
+  filterOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterOption: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  activeFilterOption: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  filterOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activeFilterOptionText: {
+    color: colors.surface,
+  },
+  priceInputs: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  priceInput: {
+    flex: 1,
+  },
+  priceLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  priceInputField: {
+    backgroundColor: colors.lightBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  categoriesScroll: {
+    flexDirection: 'row',
+  },
+  categoryOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginRight: 8,
+  },
+  activeCategoryOption: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  categoryOptionText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  activeCategoryOptionText: {
+    color: colors.surface,
+  },
+  sortOptions: {
+    gap: 8,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  activeSortOption: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  sortOptionText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  activeSortOptionText: {
+    color: colors.surface,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: 12,
+  },
+  resetButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  applyButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.surface,
   },
 });
