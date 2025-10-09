@@ -386,7 +386,7 @@ export default function ProductDetails() {
             onPress={handleMessageShopkeeper}
           >
             <Ionicons name="chatbubble-ellipses" size={20} color={colors.accent} />
-            <Text style={styles.messageButtonText}>Message Shop</Text>
+            <Text style={styles.messageButtonText}>Message </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 

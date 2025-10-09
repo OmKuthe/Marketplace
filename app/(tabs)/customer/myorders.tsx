@@ -24,6 +24,32 @@ import { db } from '../../../firebaseConfig';
 
 const { width } = Dimensions.get('window');
 
+// Use the SAME color palette from search page
+const colors = {
+  background: '#f8fafc',
+  surface: '#ffffff',
+  textPrimary: '#1e293b',
+  textSecondary: '#64748b',
+  accent: '#3b82f6',
+  accentLight: '#60a5fa',
+  success: '#10b981',
+  warning: '#f59e0b',
+  error: '#ef4444',
+  border: '#e2e8f0',
+  darkButton: '#1e293b',
+  needColor: '#f97316',
+  offerColor: '#10b981',
+  gradientPrimary: ['#667eea', '#764ba2'],
+  gradientSecondary: ['#f093fb', '#f5576c'],
+  gradientSuccess: ['#10b981', '#34d399'],
+  gradientWarning: ['#f59e0b', '#fbbf24'],
+  needCard: 'rgba(249, 115, 22, 0.08)',
+  offerCard: 'rgba(16, 185, 129, 0.08)',
+  lightBackground: 'rgba(226, 232, 240, 0.4)',
+  electricPurple: '#8b5cf6',
+  deepBlue: '#1e40af',
+};
+
 export default function MyOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
@@ -98,13 +124,13 @@ export default function MyOrders() {
   }, [orders]);
 
   const getShopAvatarColor = (shopId: string | undefined) => {
-    const colors = ['#007AFF', '#34C759', '#FF9500', '#5856D6', '#FF3B30'];
-    const defaultColor = '#8E8E93';
+    const avatarColors = [colors.accent, colors.success, colors.warning, colors.electricPurple, colors.error];
+    const defaultColor = colors.textSecondary;
     
     if (!shopId) return defaultColor;
     
-    const colorIndex = shopId.charCodeAt(0) % colors.length;
-    return colors[colorIndex];
+    const colorIndex = shopId.charCodeAt(0) % avatarColors.length;
+    return avatarColors[colorIndex];
   };
 
   const getShopInitial = (shopId: string | undefined) => {
@@ -157,13 +183,13 @@ export default function MyOrders() {
 
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
-      case 'pending': return '#FFA500';
-      case 'confirmed': return '#007AFF';
-      case 'preparing': return '#5856D6';
-      case 'ready': return '#34C759';
-      case 'completed': return '#4CD964';
-      case 'cancelled': return '#FF3B30';
-      default: return '#8E8E93';
+      case 'pending': return colors.warning;
+      case 'confirmed': return colors.accent;
+      case 'preparing': return colors.electricPurple;
+      case 'ready': return colors.success;
+      case 'completed': return colors.success;
+      case 'cancelled': return colors.error;
+      default: return colors.textSecondary;
     }
   };
 
@@ -199,73 +225,42 @@ export default function MyOrders() {
     return `₹${amount?.toFixed(2) || '0.00'}`;
   };
 
+  // Enhanced Side Panel with Consistent Styling
   const SidePanel = () => (
     <View style={styles.sidePanel}>
       <TouchableOpacity 
         style={styles.sidePanelClose} 
         onPress={() => setSidePanelVisible(false)}
       >
-        <Ionicons name="close" size={24} color="#333" />
+        <Ionicons name="close" size={24} color={colors.textPrimary} />
       </TouchableOpacity>
       
       <View style={styles.sidePanelHeader}>
-        <Text style={styles.sidePanelTitle}>Menu</Text>
+        <Text style={styles.sidePanelTitle}>TownMart</Text>
+        <Text style={styles.sidePanelSubtitle}>Discover • Connect • Shop</Text>
       </View>
       
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/home");
-        }}
-      >
-        <Ionicons name="home" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Home</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/search");
-        }}
-      >
-        <Ionicons name="search" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Search</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/messages");
-        }}
-      >
-        <Ionicons name="chatbubbles" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Messages</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.menuItem, styles.activeMenuItem]}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/myorders");
-        }}
-      >
-        <Ionicons name="list" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Orders</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/customer/profile");
-        }}
-      >
-        <Ionicons name="person" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Profile</Text>
-      </TouchableOpacity>
+      {[
+        { name: "Home", icon: "home-outline", route: "/customer/home" },
+        { name: "Search", icon: "search", route: "/customer/search" },
+        { name: "Messages", icon: "chatbubble-outline", route: "/customer/messages" },
+        { name: "Orders", icon: "list-outline", route: "/customer/myorders" },
+        { name: "Profile", icon: "person-outline", route: "/customer/profile" },
+      ].map((item, index) => (
+        <TouchableOpacity 
+          key={index}
+          style={[styles.menuItem, item.name === "Orders" && styles.activeMenuItem]}
+          onPress={() => {
+            setSidePanelVisible(false);
+            if (item.route) {
+              router.push(item.route as any);
+            }
+          }}
+        >
+          <Ionicons name={item.icon as any} size={20} color={colors.accent} />
+          <Text style={styles.menuItemText}>{item.name}</Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 
@@ -329,12 +324,21 @@ export default function MyOrders() {
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
+        {/* CONSISTENT Header with TownMart */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-            <Ionicons name="menu" size={28} color="#333" />
+          <TouchableOpacity 
+            onPress={() => setSidePanelVisible(true)}
+            style={styles.headerButton}
+          >
+            <Ionicons name="menu" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>📦 My Orders</Text>
-          <View style={{ width: 28 }} />
+          
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>TownMart</Text>
+            <Text style={styles.headerSubtitle}>My Orders</Text>
+          </View>
+          
+          <View style={styles.headerButton} />
         </View>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Please sign in to view your orders</Text>
@@ -346,15 +350,24 @@ export default function MyOrders() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
+        {/* CONSISTENT Header with TownMart */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-            <Ionicons name="menu" size={28} color="#333" />
+          <TouchableOpacity 
+            onPress={() => setSidePanelVisible(true)}
+            style={styles.headerButton}
+          >
+            <Ionicons name="menu" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>📦 My Orders</Text>
-          <View style={{ width: 28 }} />
+          
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>TownMart</Text>
+            <Text style={styles.headerSubtitle}>My Orders</Text>
+          </View>
+          
+          <View style={styles.headerButton} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Loading your orders...</Text>
         </View>
       </SafeAreaView>
@@ -363,70 +376,66 @@ export default function MyOrders() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with menu button */}
+      {/* CONSISTENT Header with TownMart */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-          <Ionicons name="menu" size={28} color="#333" />
+        <TouchableOpacity 
+          onPress={() => setSidePanelVisible(true)}
+          style={styles.headerButton}
+        >
+          <Ionicons name="menu" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>📦 My Orders</Text>
-        <View style={{ width: 28 }} />
+        
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>TownMart</Text>
+          <Text style={styles.headerSubtitle}>My Orders</Text>
+        </View>
+        
+        <View style={styles.headerButton} />
       </View>
 
       {/* Side Panel */}
       {sidePanelVisible && <SidePanel />}
 
-      {/* Search Bar */}
+      {/* Enhanced Search Bar with Consistent Styling */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={20} color="#777" style={styles.searchIcon} />
+          <Ionicons name="search" size={20} color={colors.accent} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search orders, shops, or items..."
             value={searchQuery}
             onChangeText={setSearchQuery}
+            placeholderTextColor={colors.textSecondary}
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      {/* Order Filters */}
+      {/* Enhanced Order Filters with Consistent Styling */}
       <View style={styles.filterContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterOptions}>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "all" && styles.activeFilter]}
-            onPress={() => setActiveFilter("all")}
-          >
-            <Text style={[styles.filterText, activeFilter === "all" && styles.activeFilterText]}>All</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "pending" && styles.activeFilter]}
-            onPress={() => setActiveFilter("pending")}
-          >
-            <Text style={[styles.filterText, activeFilter === "pending" && styles.activeFilterText]}>Pending</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "confirmed" && styles.activeFilter]}
-            onPress={() => setActiveFilter("confirmed")}
-          >
-            <Text style={[styles.filterText, activeFilter === "confirmed" && styles.activeFilterText]}>Confirmed</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "preparing" && styles.activeFilter]}
-            onPress={() => setActiveFilter("preparing")}
-          >
-            <Text style={[styles.filterText, activeFilter === "preparing" && styles.activeFilterText]}>Preparing</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "ready" && styles.activeFilter]}
-            onPress={() => setActiveFilter("ready")}
-          >
-            <Text style={[styles.filterText, activeFilter === "ready" && styles.activeFilterText]}>Ready</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, activeFilter === "completed" && styles.activeFilter]}
-            onPress={() => setActiveFilter("completed")}
-          >
-            <Text style={[styles.filterText, activeFilter === "completed" && styles.activeFilterText]}>Completed</Text>
-          </TouchableOpacity>
+          {[
+            { value: "all", label: "All" },
+            { value: "pending", label: "Pending" },
+            { value: "confirmed", label: "Confirmed" },
+            { value: "preparing", label: "Preparing" },
+            { value: "ready", label: "Ready" },
+            { value: "completed", label: "Completed" }
+          ].map((filter) => (
+            <TouchableOpacity 
+              key={filter.value}
+              style={[styles.filterButton, activeFilter === filter.value && styles.activeFilter]}
+              onPress={() => setActiveFilter(filter.value)}
+            >
+              <Text style={[styles.filterText, activeFilter === filter.value && styles.activeFilterText]}>
+                {filter.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
 
@@ -441,7 +450,7 @@ export default function MyOrders() {
         />
       ) : (
         <View style={styles.emptyState}>
-          <Ionicons name="receipt-outline" size={64} color="#ccc" />
+          <Ionicons name="receipt-outline" size={64} color={colors.textSecondary} />
           <Text style={styles.emptyStateText}>No orders found</Text>
           <Text style={styles.emptyStateSubText}>
             {searchQuery || activeFilter !== "all" 
@@ -454,97 +463,96 @@ export default function MyOrders() {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9f9f9",
-    marginTop:27
+    backgroundColor: colors.background,
   },
+  // CONSISTENT Header with TownMart
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingHorizontal: 20,
+    paddingTop: 19,
+    paddingBottom: 12,
+    backgroundColor: colors.surface,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: colors.lightBackground,
+  },
+  headerTitleContainer: {
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  sidePanel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: width * 0.7,
-    height: '100%',
-    backgroundColor: '#fff',
-    zIndex: 100,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 2,
-      height: 0,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sidePanelClose: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-  },
-  sidePanelHeader: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingBottom: 15,
-    marginBottom: 20,
-  },
-  sidePanelTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
+    color: colors.deepBlue,
+    letterSpacing: 1,
   },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  activeMenuItem: {
-    backgroundColor: '#f0f7ff',
-  },
-  menuItemText: {
-    fontSize: 16,
-    marginLeft: 15,
+  headerSubtitle: {
+    fontSize: 12,
+    color: colors.accent,
+    fontWeight: '500',
+    marginTop: 2,
   },
   searchContainer: {
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    padding: 20,
+    paddingBottom: 12,
+    backgroundColor: colors.surface,
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 10,
     fontSize: 16,
+    color: colors.textPrimary,
+    padding: 0,
+    fontWeight: '500',
+  },
+  clearButton: {
+    padding: 4,
   },
   filterContainer: {
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: colors.border,
   },
   filterOptions: {
     flexDirection: 'row',
@@ -555,32 +563,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   activeFilter: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   filterText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
   activeFilterText: {
-    color: 'white',
-    fontWeight: '500',
+    color: colors.surface,
   },
   listContainer: {
     padding: 16,
     gap: 12,
   },
   orderCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   orderHeader: {
     flexDirection: 'row',
@@ -602,18 +617,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   shopAvatarText: {
-    color: '#fff',
+    color: colors.surface,
     fontSize: 16,
     fontWeight: 'bold',
   },
   shopName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
   },
   orderId: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   statusBadge: {
@@ -630,7 +645,7 @@ const styles = StyleSheet.create({
   },
   itemsText: {
     fontSize: 14,
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 8,
     fontWeight: '500',
   },
@@ -639,95 +654,116 @@ const styles = StyleSheet.create({
   },
   productText: {
     fontSize: 13,
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 2,
   },
   moreItemsText: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textSecondary,
     fontStyle: 'italic',
   },
   addressText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   paymentText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 8,
     fontWeight: '500',
   },
   dateText: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textSecondary,
     marginBottom: 4,
-  },
-  orderActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  actionButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  actionButtonOutline: {
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  actionButtonOutlineText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  detailsButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  detailsButtonText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.background,
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
+    backgroundColor: colors.background,
   },
   emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textPrimary,
     marginTop: 16,
     marginBottom: 8,
   },
   emptyStateSubText: {
     fontSize: 14,
-    color: '#999',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  // Consistent Side Panel Styles
+  sidePanel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: '80%',
+    backgroundColor: colors.surface,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  sidePanelClose: {
+    padding: 16,
+    alignSelf: 'flex-end',
+  },
+  sidePanelHeader: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  sidePanelTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: 1,
+  },
+  sidePanelSubtitle: {
+    fontSize: 12,
+    color: colors.accent,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    paddingLeft: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  activeMenuItem: {
+    backgroundColor: colors.lightBackground,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.accent,
+  },
+  menuItemText: {
+    marginLeft: 16,
+    fontSize: 16,
+    color: colors.textPrimary,
+    fontWeight: '500',
   },
 });
