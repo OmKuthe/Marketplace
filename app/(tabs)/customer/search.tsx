@@ -286,7 +286,7 @@ const ProductCard = React.memo(({
         <View style={styles.locationContainer}>
           <Ionicons name="location" size={12} color={colors.textSecondary} />
           <Text style={styles.locationText}>
-            {item.location || item.address || 'Unknown Location'}
+            {item.location || ('address' in item ? item.address : undefined) || 'Unknown Location'}
           </Text>
         </View>
         
