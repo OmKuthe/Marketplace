@@ -1387,28 +1387,8 @@ import {
   View
 } from "react-native";
 import MapView, { Marker } from 'react-native-maps';
+import * as Location from 'expo-location';
 import { db } from "../../../firebaseConfig";
-
-const { width, height } = Dimensions.get('window');
-
-// ENHANCED COLOR SCHEME
-const colors = {
-  background: '#f8fafc',
-  surface: '#ffffff',
-  textPrimary: '#1e293b',
-  textSecondary: '#64748b',
-  accent: '#3b82f6',
-  accentLight: '#60a5fa',
-  success: '#10b981',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  border: '#e2e8f0',
-  darkButton: '#1e293b',
-  lightBackground: 'rgba(226, 232, 240, 0.4)',
-  gradientPrimary: ['#3b82f6', '#6366f1'],
-  electricPurple: '#8b5cf6',
-  deepBlue: '#1e40af',
-};
 
 type Product = {
   id: string;
@@ -1448,17 +1428,9 @@ type Shop = {
   uid: string;
 };
 
-// Filter types
-interface FilterOptions {
-  minPrice: number | null;
-  maxPrice: number | null;
-  category: string | null;
-  itemType: 'all' | 'shops' | 'products';
-  sortBy: 'relevance' | 'price-low' | 'price-high' | 'name' | 'newest';
-  locationRange: number | null;
-}
+const { width, height } = Dimensions.get('window');
 
-// Enhanced Product Card Component
+// Product Card Component with Image Handling
 const ProductCard = React.memo(({ 
   item, 
   index, 
@@ -1474,6 +1446,7 @@ const ProductCard = React.memo(({
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [cardAnim] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0.9));
 
   const getImageUrl = (): string => {
     if (isShop) {
@@ -1488,12 +1461,21 @@ const ProductCard = React.memo(({
   const imageUrl = getImageUrl();
 
   useEffect(() => {
-    Animated.timing(cardAnim, {
-      toValue: 1,
-      duration: 300,
-      delay: index * 50,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(cardAnim, {
+        toValue: 1,
+        duration: 400,
+        delay: index * 80,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 7,
+        tension: 40,
+        delay: index * 80,
+        useNativeDriver: true,
+      })
+    ]).start();
   }, []);
 
   const handleImageLoad = () => {
@@ -1559,10 +1541,11 @@ const ProductCard = React.memo(({
         {
           opacity: cardAnim,
           transform: [
+            { scale: scaleAnim },
             {
               translateY: cardAnim.interpolate({
                 inputRange: [0, 1],
-                outputRange: [30, 0],
+                outputRange: [20, 0],
               }),
             },
           ],
@@ -1585,30 +1568,32 @@ const ProductCard = React.memo(({
         )}
         
         {(item as Product).category && (
-          <Text style={styles.cardCategory}>#{(item as Product).category}</Text>
+          <Text style={styles.cardCategory}>{(item as Product).category}</Text>
         )}
         
-        <Text style={styles.cardAddress} numberOfLines={1}>
-          📍 {getLocationAddress(item)}
-        </Text>
-        
-        {isShop ? (
-          <TouchableOpacity 
-            style={styles.viewDetailsButton}
-            onPress={() => onViewShopDetails(item as Shop)}
-          >
-            <Ionicons name="eye" size={14} color="#fff" />
-            <Text style={styles.viewDetailsButtonText}>View Shop</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity 
-            style={styles.viewDetailsButton}
-            onPress={() => onViewProductDetails(item as Product)}
-          >
-            <Ionicons name="cube" size={14} color="#fff" />
-            <Text style={styles.viewDetailsButtonText}>View Product</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.cardFooter}>
+          <Text style={styles.cardAddress} numberOfLines={1}>
+            📍 {getLocationAddress(item)}
+          </Text>
+          
+          {isShop ? (
+            <TouchableOpacity 
+              style={styles.viewDetailsButton}
+              onPress={() => onViewShopDetails(item as Shop)}
+            >
+              <Ionicons name="eye-outline" size={14} color="#fff" />
+              <Text style={styles.viewDetailsButtonText}>View Shop</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity 
+              style={styles.viewDetailsButton}
+              onPress={() => onViewProductDetails(item as Product)}
+            >
+              <Ionicons name="cube-outline" size={14} color="#fff" />
+              <Text style={styles.viewDetailsButtonText}>View Product</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </Animated.View>
   );
@@ -1651,13 +1636,11 @@ export default function SearchScreen() {
       if (dataLoaded) return;
 
       try {
-        // Load recent searches
         const savedSearches = await AsyncStorage.getItem("recentSearches");
         if (savedSearches) {
           setRecentSearches(JSON.parse(savedSearches));
         }
 
-        // Get location permission
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
           setLocationPermission(true);
@@ -1668,7 +1651,6 @@ export default function SearchScreen() {
           });
         }
 
-        // Load shops and products
         await loadShops();
         await loadProducts();
         
@@ -1752,7 +1734,7 @@ export default function SearchScreen() {
     }
   };
 
-  // Enhanced search function with filters
+  // Optimized search function
   const handleSearch = async (queryText: string = searchQuery) => {
     const searchText = queryText.trim();
     if (!searchText) {
@@ -1763,7 +1745,6 @@ export default function SearchScreen() {
     setIsSearching(true);
 
     try {
-      // Save to recent searches
       const updatedSearches = [
         searchText,
         ...recentSearches.filter(s => s !== searchText).slice(0, 4)
@@ -1771,7 +1752,6 @@ export default function SearchScreen() {
       setRecentSearches(updatedSearches);
       await AsyncStorage.setItem("recentSearches", JSON.stringify(updatedSearches));
 
-      // Search in shops and products
       const searchLower = searchText.toLowerCase();
       
       let filteredShops = shops.filter(shop =>
@@ -1786,39 +1766,11 @@ export default function SearchScreen() {
         product.category?.toLowerCase().includes(searchLower)
       );
 
-      // Apply filters
-      if (activeFilters.itemType !== 'all') {
-        if (activeFilters.itemType === 'shops') {
-          filteredProducts = [];
-        } else {
-          filteredShops = [];
-        }
-      }
-
-      // Apply price filter
-      if (activeFilters.minPrice !== null) {
-        filteredProducts = filteredProducts.filter(product => 
-          product.price >= activeFilters.minPrice!
-        );
-      }
-      if (activeFilters.maxPrice !== null) {
-        filteredProducts = filteredProducts.filter(product => 
-          product.price <= activeFilters.maxPrice!
-        );
-      }
-
-      // Apply category filter
-      if (activeFilters.category) {
-        filteredProducts = filteredProducts.filter(product => 
-          product.category === activeFilters.category
-        );
-      }
-
-      // Apply sorting
+      // Combine results - shops first, then products
       const combinedResults = [...filteredShops, ...filteredProducts];
-      const sortedResults = sortResults(combinedResults, activeFilters.sortBy);
-      
-      setSearchResults(sortedResults);
+      setSearchResults(combinedResults);
+
+      console.log(`Found ${combinedResults.length} results for "${searchText}"`);
 
     } catch (err) {
       console.log("Error searching:", err);
@@ -1827,39 +1779,7 @@ export default function SearchScreen() {
     }
   };
 
-  // Sort function
-  const sortResults = (results: (Product | Shop)[], sortBy: string) => {
-    switch (sortBy) {
-      case 'price-low':
-        return results.sort((a, b) => {
-          const priceA = 'price' in a ? a.price : 0;
-          const priceB = 'price' in b ? b.price : 0;
-          return priceA - priceB;
-        });
-      case 'price-high':
-        return results.sort((a, b) => {
-          const priceA = 'price' in a ? a.price : 0;
-          const priceB = 'price' in b ? b.price : 0;
-          return priceB - priceA;
-        });
-      case 'name':
-        return results.sort((a, b) => {
-          const nameA = 'shopName' in a ? a.shopName : a.name;
-          const nameB = 'shopName' in b ? b.shopName : b.name;
-          return nameA.localeCompare(nameB);
-        });
-      case 'newest':
-        return results.sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(0);
-          const dateB = b.createdAt?.toDate?.() || new Date(0);
-          return dateB.getTime() - dateA.getTime();
-        });
-      default: // relevance
-        return results;
-    }
-  };
-
-  // Debounced search
+  // Optimized search with debounce
   useEffect(() => {
     if (searchQuery.trim()) {
       const timeoutId = setTimeout(() => {
@@ -1878,23 +1798,26 @@ export default function SearchScreen() {
     setSelectedItem(null);
   };
 
-  const clearFilters = () => {
-    setActiveFilters({
-      minPrice: null,
-      maxPrice: null,
-      category: null,
-      itemType: 'all',
-      sortBy: 'relevance',
-      locationRange: null
-    });
+  // Function to handle phone calls
+  const handleCall = (phoneNumber: string) => {
+    if (!phoneNumber) return;
+    
+    const phoneUrl = `tel:${phoneNumber}`;
+    Linking.canOpenURL(phoneUrl)
+      .then(supported => {
+        if (supported) {
+          Linking.openURL(phoneUrl);
+        } else {
+          Alert.alert('Error', 'Phone calls are not supported on this device');
+        }
+      })
+      .catch(err => {
+        console.log('Error making call:', err);
+        Alert.alert('Error', 'Unable to make phone call');
+      });
   };
 
-  const applyFilters = (newFilters: FilterOptions) => {
-    setActiveFilters(newFilters);
-    setFilterModalVisible(false);
-  };
-
-  // Navigation handlers
+  // Function to navigate to shop details
   const handleViewShopDetails = (shop: Shop) => {
     router.push({
       pathname: "../details/shop",
@@ -2044,11 +1967,11 @@ export default function SearchScreen() {
         </View>
         
         {[
-          { name: "Home", icon: "home", route: "/customer/home" as Href},
+          { name: "Home", icon: "home-outline", route: "/customer/home" as Href},
           { name: "Search", icon: "search", route: null },
-          { name: "Messages", icon: "chatbubbles", route: "/customer/messages" as Href},
-          { name: "Orders", icon: "list", route: "/customer/myorders" as Href},
-          { name: "Profile", icon: "person", route: "/customer/profile" as Href},
+          { name: "Messages", icon: "chatbubble-outline", route: "/customer/messages" as Href},
+          { name: "Orders", icon: "list-outline", route: "/customer/myorders" as Href},
+          { name: "Profile", icon: "person-outline", route: "/customer/profile" as Href},
         ].map((item, index) => (
           <TouchableOpacity 
             key={index}
@@ -2273,7 +2196,6 @@ export default function SearchScreen() {
     );
   };
 
-  // Get items with location for map
   const getMapItems = () => {
     if (searchQuery && searchResults.length > 0) {
       return searchResults.filter(item => 
@@ -2305,7 +2227,7 @@ export default function SearchScreen() {
             <Ionicons name="menu" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>TownMart</Text>
+            <Text style={styles.headerTitle}>MARKETMATE</Text>
             <Text style={styles.headerSubtitle}>Search</Text>
           </View>
           <View style={styles.headerButton} />
@@ -2319,45 +2241,24 @@ export default function SearchScreen() {
 
         {/* Enhanced Search Bar with Filter Button */}
         <View style={styles.searchContainer}>
-          <View style={styles.searchRow}>
-            <View style={styles.searchInputContainer}>
-              <Ionicons name="search" size={20} color={colors.accent} style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search shops, products, or locations..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                returnKeyType="search"
-                clearButtonMode="while-editing"
-                placeholderTextColor={colors.textSecondary}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-                  <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              )}
-            </View>
-            
-            {/* Filter Button */}
-            <TouchableOpacity 
-              style={[
-                styles.filterButton,
-                hasActiveFilters && styles.activeFilterButton
-              ]}
-              onPress={() => setFilterModalVisible(true)}
-            >
-              <Ionicons 
-                name="filter" 
-                size={20} 
-                color={hasActiveFilters ? colors.surface : colors.accent} 
-              />
-              {hasActiveFilters && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>!</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+          <View style={styles.searchInputContainer}>
+            <Ionicons name="search" size={20} color="rgba(23, 104, 217, 1)" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search shops, products, or locations..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+              placeholderTextColor="rgba(144, 186, 242, 0.8)"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+                <Ionicons name="close-circle" size={20} color="rgba(144, 186, 242, 1)" />
+              </TouchableOpacity>
+            )}
           </View>
+        </View>
 
           {/* Active Filters Display */}
           {hasActiveFilters && (
@@ -2569,7 +2470,7 @@ export default function SearchScreen() {
                         style={[styles.actionButton, styles.primaryActionButton]}
                         onPress={() => handleViewShopDetails(selectedItem as Shop)}
                       >
-                        <Ionicons name="eye" size={14} color="#fff" />
+                        <Ionicons name="eye-outline" size={14} color="#fff" />
                         <Text style={styles.primaryActionButtonText}>View Shop</Text>
                       </TouchableOpacity>
                     ) : (
@@ -2577,7 +2478,7 @@ export default function SearchScreen() {
                         style={[styles.actionButton, styles.primaryActionButton]}
                         onPress={() => handleViewProductDetails(selectedItem as Product)}
                       >
-                        <Ionicons name="cube" size={14} color="#fff" />
+                        <Ionicons name="cube-outline" size={14} color="#fff" />
                         <Text style={styles.primaryActionButtonText}>View Product</Text>
                       </TouchableOpacity>
                     )}
@@ -2638,8 +2539,8 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-    marginTop: 27
+    backgroundColor: '#ffffff',
+    marginTop:27
   },
   animatedContainer: {
     flex: 1,
@@ -2666,6 +2567,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
     backgroundColor: colors.lightBackground,
+    backgroundColor: colors.lightBackground,
   },
   headerTitleContainer: {
     alignItems: 'center',
@@ -2685,6 +2587,12 @@ const styles = StyleSheet.create({
   searchContainer: {
     padding: 20,
     paddingBottom: 12,
+    backgroundColor: colors.surface,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   searchRow: {
     flexDirection: 'row',
@@ -2713,6 +2621,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
+    color: colors.textPrimary,
     color: colors.textPrimary,
     padding: 0,
     fontWeight: '500',
@@ -2795,6 +2704,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 16,
     backgroundColor: colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 4,
     borderWidth: 2,
@@ -2821,17 +2731,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.accent,
+    color: colors.accent,
   },
   activeViewToggleText: {
     color: '#fff',
   },
   resultsContainer: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   resultsCount: {
     paddingHorizontal: 20,
     paddingVertical: 12,
     fontSize: 14,
+    color: colors.textSecondary,
+    backgroundColor: colors.surface,
     color: colors.textSecondary,
     backgroundColor: colors.surface,
     fontWeight: '500',
@@ -2840,13 +2754,16 @@ const styles = StyleSheet.create({
   },
   mapResultsCount: {
     color: colors.accent,
+    color: colors.accent,
     fontWeight: '600',
   },
   listContent: {
     paddingBottom: 20,
+    paddingTop: 8,
   },
   card: {
     flexDirection: 'row',
+    backgroundColor: colors.surface,
     backgroundColor: colors.surface,
     marginHorizontal: 20,
     marginVertical: 6,
@@ -2855,15 +2772,15 @@ const styles = StyleSheet.create({
     shadowColor: 'rgba(0, 0, 0, 0.15)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowRadius: 4,
+    elevation: 3,
     borderWidth: 1,
     borderColor: colors.border,
   },
   itemImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
+    width: 80,
+    height: 80,
+    borderRadius: 8,
     marginRight: 16,
   },
   hiddenImage: {
@@ -2875,7 +2792,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 12,
-    backgroundColor: colors.lightBackground,
+    backgroundColor: 'rgba(208, 226, 250, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -2885,12 +2802,12 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 12,
-    backgroundColor: colors.lightBackground,
+    backgroundColor: 'rgba(208, 226, 250, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: 'rgba(144, 186, 242, 0.3)',
   },
   cardContent: {
     flex: 1,
@@ -2899,42 +2816,46 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: 'rgba(4, 18, 36, 1)',
     marginBottom: 4,
   },
   cardDescription: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: 'rgba(4, 18, 36, 0.7)',
     marginBottom: 6,
     lineHeight: 18,
   },
+  cardMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   cardPrice: {
     fontSize: 15,
-    color: colors.success,
+    color: 'rgba(23, 104, 217, 1)',
     fontWeight: '600',
-    marginBottom: 2,
   },
   cardCategory: {
     fontSize: 13,
-    color: colors.accent,
+    color: 'rgba(144, 186, 242, 1)',
     marginBottom: 2,
     fontWeight: '500',
   },
   cardAddress: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: 'rgba(4, 18, 36, 0.6)',
     marginBottom: 8,
     fontWeight: '500',
+    flex: 1,
   },
   viewDetailsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.accent,
+    backgroundColor: 'rgba(23, 104, 217, 1)',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginTop: 4,
     gap: 4,
   },
   viewDetailsButtonText: {
@@ -2959,7 +2880,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#fff',
-    shadowColor: 'rgba(0, 0, 0, 0.3)',
+    shadowColor: 'rgba(4, 18, 36, 0.3)',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -2969,17 +2890,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   productMarker: {
-    backgroundColor: colors.accentLight,
+    backgroundColor: 'rgba(144, 186, 242, 1)',
   },
   selectedItemCard: {
     position: 'absolute',
     bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: 20,
     padding: 20,
-    shadowColor: 'rgba(0, 0, 0, 0.2)',
+    shadowColor: 'rgba(4, 18, 36, 0.2)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 16,
@@ -2993,21 +2914,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   selectedItemImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
+    width: 60,
+    height: 60,
+    borderRadius: 8,
     marginRight: 12,
   },
   selectedItemImagePlaceholder: {
     width: 50,
     height: 50,
     borderRadius: 12,
-    backgroundColor: colors.lightBackground,
+    backgroundColor: 'rgba(208, 226, 250, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: 'rgba(144, 186, 242, 0.3)',
   },
   selectedItemInfo: {
     flex: 1,
@@ -3015,7 +2936,7 @@ const styles = StyleSheet.create({
   selectedItemTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: 'rgba(4, 18, 36, 1)',
     marginBottom: 2,
   },
   selectedItemPrice: {
@@ -3043,11 +2964,11 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 8,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: 'rgba(144, 186, 242, 0.4)',
+    backgroundColor: '#ffffff',
   },
   primaryActionButton: {
     backgroundColor: colors.accent,
@@ -3058,7 +2979,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionButtonText: {
-    color: colors.accent,
+    color: 'rgba(23, 104, 217, 1)',
     fontWeight: '600',
     fontSize: 14,
   },
@@ -3075,7 +2996,7 @@ const styles = StyleSheet.create({
     width: '80%',
     backgroundColor: colors.surface,
     zIndex: 1000,
-    shadowColor: 'rgba(0, 0, 0, 0.2)',
+    shadowColor: 'rgba(4, 18, 36, 0.2)',
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -3094,12 +3015,12 @@ const styles = StyleSheet.create({
   sidePanelTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: 'rgba(4, 18, 36, 1)',
     letterSpacing: 1,
   },
   sidePanelSubtitle: {
     fontSize: 12,
-    color: colors.accent,
+    color: 'rgba(23, 104, 217, 0.8)',
     fontWeight: '500',
     marginTop: 4,
   },
@@ -3124,6 +3045,7 @@ const styles = StyleSheet.create({
   },
   recentSearchesContainer: {
     padding: 20,
+    backgroundColor: colors.surface,
   },
   sectionTitle: {
     fontSize: 16,
@@ -3144,7 +3066,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: 'rgba(144, 186, 242, 0.4)',
   },
   recentSearchText: {
     marginLeft: 6,
@@ -3161,7 +3083,7 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 18,
     fontWeight: '600',
-    color: colors.textPrimary,
+    color: 'rgba(4, 18, 36, 1)',
     marginTop: 20,
     textAlign: 'center',
   },
@@ -3201,7 +3123,7 @@ const styles = StyleSheet.create({
   initialStateText: {
     fontSize: 20,
     fontWeight: '600',
-    color: colors.textPrimary,
+    color: 'rgba(4, 18, 36, 1)',
     marginTop: 20,
     textAlign: 'center',
   },
@@ -3212,181 +3134,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  // Filter Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
-    shadowColor: 'rgba(0, 0, 0, 0.3)',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  modalContent: {
-    padding: 20,
-  },
-  filterSection: {
-    marginBottom: 24,
-  },
-  filterSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 12,
-  },
-  filterOptions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  filterOption: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: colors.lightBackground,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  activeFilterOption: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  filterOptionText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  activeFilterOptionText: {
-    color: colors.surface,
-  },
-  priceInputs: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  priceInput: {
-    flex: 1,
-  },
-  priceLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  priceInputField: {
-    backgroundColor: colors.lightBackground,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-  categoriesScroll: {
-    flexDirection: 'row',
-  },
-  categoryOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: colors.lightBackground,
-    borderWidth: 2,
-    borderColor: colors.border,
-    marginRight: 8,
-  },
-  activeCategoryOption: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  categoryOptionText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  activeCategoryOptionText: {
-    color: colors.surface,
-  },
-  sortOptions: {
-    gap: 8,
-  },
-  sortOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: colors.lightBackground,
-    borderWidth: 2,
-    borderColor: colors.border,
-    gap: 12,
-  },
-  activeSortOption: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  sortOptionText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  activeSortOptionText: {
-    color: colors.surface,
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: 12,
-  },
-  resetButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: colors.lightBackground,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  resetButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  applyButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-  },
-  applyButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.surface,
-  },
 });
+
