@@ -18,7 +18,30 @@ import { db } from "../../../firebaseConfig";
 
 const { width, height } = Dimensions.get('window');
 
-// Types remain the same...
+// Consistent color constants
+const COLORS = {
+  primary: 'rgba(15, 177, 234, 1)',
+  primaryLight: 'rgba(15, 177, 234, 0.15)',
+  primaryDark: 'rgba(12, 142, 187, 1)',
+  secondary: 'rgba(9, 68, 89, 1)',
+  secondaryLight: 'rgba(9, 68, 89, 0.7)',
+  accent: 'rgba(247, 206, 38, 1)',
+  accentLight: 'rgba(247, 206, 38, 0.15)',
+  danger: 'rgba(255, 49, 49, 1)',
+  dangerLight: 'rgba(255, 49, 49, 0.15)',
+  success: 'rgba(76, 175, 80, 1)',
+  background: '#FFFFFF',
+  cardBackground: '#FFFFFF',
+  border: '#E0E0E0',
+  borderLight: '#F0F0F0',
+  textPrimary: 'rgba(9, 68, 89, 1)',
+  textSecondary: 'rgba(9, 68, 89, 0.7)',
+  textMuted: '#999',
+  inputBackground: '#F8F9FA',
+  overlay: 'rgba(9, 68, 89, 0.08)',
+  warning: 'rgba(255, 152, 0, 1)'
+};
+
 type PostType = 'NEED' | 'OFFER';
 type PostStatus = 'ACTIVE' | 'FULFILLED' | 'EXPIRED';
 type UrgencyLevel = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -72,7 +95,6 @@ type Product = {
   shopkeeper?: string;
 };
 
-// Union type for all post types
 type FeedItem = 
   | { id: string; type: 'customerPost'; data: CustomerPost }
   | { id: string; type: 'product'; data: Product };
@@ -95,7 +117,7 @@ export default function ShopkeeperHome() {
 
   const router = useRouter();
 
-  // Fetch functions remain the same...
+  
   const fetchCustomerPosts = async () => {
     try {
       const q = query(
@@ -238,12 +260,12 @@ export default function ShopkeeperHome() {
     return `${days}d ago`;
   };
 
-  // Customer Post Card Component - Removed social media buttons
+  // Customer Post Card Component
   const CustomerPostCard = ({ item }: { item: CustomerPost }) => (
     <View style={styles.customerPostCard}>
       <View style={styles.cardHeader}>
         <View style={styles.userInfo}>
-          <View style={[styles.avatar, { backgroundColor: 'rgba(15, 177, 234, 1)' }]}>
+          <View style={[styles.avatar, { backgroundColor: COLORS.primary }]}>
             <Ionicons name="person" size={16} color="white" />
           </View>
           <View style={styles.userInfoText}>
@@ -260,7 +282,7 @@ export default function ShopkeeperHome() {
           </View>
         </View>
         <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+          <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.textMuted} />
         </TouchableOpacity>
       </View>
 
@@ -276,7 +298,7 @@ export default function ShopkeeperHome() {
           />
         ) : (
           <View style={styles.noImagePlaceholder}>
-            <Ionicons name="image-outline" size={40} color="#ccc" />
+            <Ionicons name="image-outline" size={40} color={COLORS.textMuted} />
             <Text style={styles.noImageText}>No Image</Text>
           </View>
         )}
@@ -287,8 +309,8 @@ export default function ShopkeeperHome() {
               <Text style={styles.customerPostPrice}>💰 ₹{item.price}</Text>
             )}
             <View style={[styles.urgencyBadge, { 
-              backgroundColor: item.urgency === 'HIGH' ? 'rgba(255, 49, 49, 1)' : 
-                              item.urgency === 'MEDIUM' ? 'rgba(247, 206, 38, 1)' : 'rgba(15, 177, 234, 1)' 
+              backgroundColor: item.urgency === 'HIGH' ? COLORS.danger : 
+                              item.urgency === 'MEDIUM' ? COLORS.accent : COLORS.primary 
             }]}>
               <Text style={styles.urgencyText}>{item.urgency} URGENCY</Text>
             </View>
@@ -315,18 +337,19 @@ export default function ShopkeeperHome() {
       <View style={styles.singleActionButton}>
         <TouchableOpacity style={styles.contactButton}>
           <Ionicons name="chatbubble-ellipses" size={16} color="white" />
-          <Text style={styles.contactButtonText}>Contact Customer</Text>
+          <Text style={styles.contactButtonText}
+            onPress={() => router.push('/(tabs)/chat/[id]')}>Contact Customer</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  // Product Card Component - Removed social media buttons
+  // Product Card Component 
   const ProductCard = ({ item }: { item: Product }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.userInfo}>
-          <View style={[styles.avatar, { backgroundColor: 'rgba(15, 177, 234, 1)' }]}>
+          <View style={[styles.avatar, { backgroundColor: COLORS.primary }]}>
             <Ionicons name="business" size={16} color="white" />
           </View>
           <View style={styles.userInfoText}>
@@ -343,7 +366,7 @@ export default function ShopkeeperHome() {
           </View>
         </View>
         <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+          <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.textMuted} />
         </TouchableOpacity>
       </View>
 
@@ -359,14 +382,14 @@ export default function ShopkeeperHome() {
           />
         ) : (
           <View style={styles.imagePlaceholder}>
-            <Ionicons name="image" size={40} color="#ccc" />
+            <Ionicons name="image" size={40} color={COLORS.textMuted} />
             <Text style={styles.placeholderText}>No Image</Text>
           </View>
         )}
 
         <View style={styles.postDetails}>
           <View style={styles.detailsRow}>
-            <Text style={styles.productPrice}>${item.price}</Text>
+            <Text style={styles.productPrice}>₹{item.price}</Text>
             <Text style={styles.stockInfo}>{item.stock || 0} in stock</Text>
           </View>
           
@@ -381,7 +404,8 @@ export default function ShopkeeperHome() {
       <View style={styles.singleActionButton}>
         <TouchableOpacity style={styles.viewButton}>
           <Ionicons name="eye" size={16} color="white" />
-          <Text style={styles.viewButtonText}>View Details</Text>
+          <Text style={styles.viewButtonText}
+          onPress={() => router.push('/(tabs)/details/productdetails')}>View Details</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -402,11 +426,11 @@ export default function ShopkeeperHome() {
         style={styles.menuButton}
         onPress={() => router.push('/shopkeeper/profile')}
       >
-        <Ionicons name="person" size={28} color="rgba(9, 68, 89, 1)" />
+        <Ionicons name="person" size={28} color={COLORS.secondary}/>
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>🏪 Shop Feed</Text>
+      <Text style={styles.headerTitle}>Shop Feed</Text>
       <TouchableOpacity style={styles.notificationButton}>
-        <Ionicons name="notifications-outline" size={24} color="rgba(9, 68, 89, 1)" />
+        <Ionicons name="notifications-outline" size={24} color={COLORS.secondary} />
       </TouchableOpacity>
     </View>
   );
@@ -416,8 +440,8 @@ export default function ShopkeeperHome() {
     <View style={styles.statsContainer}>
       <View style={styles.statsBackground}>
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(15, 177, 234, 0.1)' }]}>
-            <Ionicons name="cart" size={20} color="rgba(15, 177, 234, 1)" />
+          <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
+            <Ionicons name="cart" size={20} color={COLORS.primary} />
           </View>
           <Text style={styles.statValue}>{stats.totalOrders}</Text>
           <Text style={styles.statLabel}>Orders</Text>
@@ -426,8 +450,8 @@ export default function ShopkeeperHome() {
         <View style={styles.statDivider} />
         
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(255, 49, 49, 0.1)' }]}>
-            <Ionicons name="time" size={20} color="rgba(255, 49, 49, 1)" />
+          <View style={[styles.statIcon, { backgroundColor: COLORS.dangerLight }]}>
+            <Ionicons name="time" size={20} color={COLORS.danger} />
           </View>
           <Text style={styles.statValue}>{stats.pendingOrders}</Text>
           <Text style={styles.statLabel}>Pending</Text>
@@ -436,8 +460,8 @@ export default function ShopkeeperHome() {
         <View style={styles.statDivider} />
         
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(247, 206, 38, 0.1)' }]}>
-            <Ionicons name="cash" size={20} color="rgba(247, 206, 38, 1)" />
+          <View style={[styles.statIcon, { backgroundColor: COLORS.accentLight }]}>
+            <Ionicons name="cash" size={20} color={COLORS.accent} />
           </View>
           <Text style={styles.statValue}>${stats.totalRevenue}</Text>
           <Text style={styles.statLabel}>Revenue</Text>
@@ -446,8 +470,8 @@ export default function ShopkeeperHome() {
         <View style={styles.statDivider} />
         
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(9, 68, 89, 0.1)' }]}>
-            <Ionicons name="cube" size={20} color="rgba(9, 68, 89, 1)" />
+          <View style={[styles.statIcon, { backgroundColor: COLORS.overlay }]}>
+            <Ionicons name="cube" size={20} color={COLORS.secondary} />
           </View>
           <Text style={styles.statValue}>{stats.totalProducts}</Text>
           <Text style={styles.statLabel}>Products</Text>
@@ -466,7 +490,7 @@ export default function ShopkeeperHome() {
         <Ionicons 
           name="grid" 
           size={16} 
-          color={activeTab === "all" ? "#FFFFFF" : "rgba(9, 68, 89, 0.7)"} 
+          color={activeTab === "all" ? "#FFFFFF" : COLORS.secondaryLight} 
         />
         <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>All</Text>
       </TouchableOpacity>
@@ -477,7 +501,7 @@ export default function ShopkeeperHome() {
         <Ionicons 
           name="people" 
           size={16} 
-          color={activeTab === "need" ? "#FFFFFF" : "rgba(9, 68, 89, 0.7)"} 
+          color={activeTab === "need" ? "#FFFFFF" : COLORS.secondaryLight} 
         />
         <Text style={[styles.tabText, activeTab === "need" && styles.activeTabText]}>Needs</Text>
       </TouchableOpacity>
@@ -488,7 +512,7 @@ export default function ShopkeeperHome() {
         <Ionicons 
           name="storefront" 
           size={16} 
-          color={activeTab === "offer" ? "#FFFFFF" : "rgba(9, 68, 89, 0.7)"} 
+          color={activeTab === "offer" ? "#FFFFFF" : COLORS.secondaryLight} 
         />
         <Text style={[styles.tabText, activeTab === "offer" && styles.activeTabText]}>My Offers</Text>
       </TouchableOpacity>
@@ -548,7 +572,7 @@ export default function ShopkeeperHome() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['rgba(15, 177, 234, 1)']}
+            colors={[COLORS.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -559,7 +583,7 @@ export default function ShopkeeperHome() {
         scrollEventThrottle={16}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={64} color="#ccc" />
+            <Ionicons name="document-text-outline" size={64} color={COLORS.textMuted} />
             <Text style={styles.emptyStateText}>
               {activeTab === "need" ? "No customer needs found" : "No products found"}
             </Text>
@@ -568,7 +592,7 @@ export default function ShopkeeperHome() {
             </Text>
           </View>
         }
-        // Add margin top to account for fixed header
+
         style={styles.postsList}
       />
     </SafeAreaView>
@@ -578,7 +602,7 @@ export default function ShopkeeperHome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: COLORS.inputBackground,
   },
   // Header Styles
   header: {
@@ -601,31 +625,31 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: COLORS.border,
   },
   menuButton: {
     padding: 8,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: COLORS.primaryLight,
   },
   notificationButton: {
     padding: 8,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: COLORS.primaryLight,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: "bold",
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.textPrimary,
   },
   // Fixed Header Section
   fixedHeader: {
     marginTop: 100, // Space for main header
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: COLORS.border,
     paddingBottom: 8,
   },
   // Stats Section with Background Container
@@ -636,11 +660,11 @@ const styles = StyleSheet.create({
   statsBackground: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(248, 249, 250, 1)',
+    backgroundColor: COLORS.inputBackground,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: COLORS.border,
   },
   statItem: {
     flex: 1,
@@ -657,24 +681,24 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.secondary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.secondaryLight,
     fontWeight: '500',
   },
   statDivider: {
     width: 1,
     height: 40,
-    backgroundColor: '#E5E5E5',
+    backgroundColor: COLORS.border,
     marginHorizontal: 8,
   },
   // Tab Styles
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: COLORS.inputBackground,
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 12,
@@ -691,11 +715,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   activeTab: {
-    backgroundColor: 'rgba(15, 177, 234, 1)',
+    backgroundColor: COLORS.primary,
   },
   tabText: {
     fontSize: 14,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.secondaryLight,
     fontWeight: '500',
     marginLeft: 6,
   },
@@ -714,7 +738,7 @@ const styles = StyleSheet.create({
   },
   // Card Styles
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.cardBackground,
     marginHorizontal: 12,
     marginVertical: 6,
     borderRadius: 16,
@@ -726,7 +750,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   customerPostCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.cardBackground,
     marginHorizontal: 12,
     marginVertical: 6,
     borderRadius: 16,
@@ -737,7 +761,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: 'hidden',
     borderLeftWidth: 4,
-    borderLeftColor: 'rgba(15, 177, 234, 1)',
+    borderLeftColor: COLORS.primary,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -765,7 +789,7 @@ const styles = StyleSheet.create({
   username: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.textPrimary,
   },
   metaInfo: {
     flexDirection: 'row',
@@ -774,12 +798,12 @@ const styles = StyleSheet.create({
   },
   userLocation: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     marginRight: 8,
   },
   timeAgo: {
     fontSize: 12,
-    color: '#999',
+    color: COLORS.textMuted,
   },
   moreButton: {
     padding: 4,
@@ -791,24 +815,24 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   customerPostTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   productDescription: {
     fontSize: 14,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     marginBottom: 12,
     lineHeight: 20,
   },
   customerPostDescription: {
     fontSize: 14,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     marginBottom: 12,
     lineHeight: 20,
   },
@@ -827,7 +851,7 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: '100%',
     height: 150,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: COLORS.inputBackground,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 12,
@@ -836,7 +860,7 @@ const styles = StyleSheet.create({
   noImagePlaceholder: {
     width: '100%',
     height: 150,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: COLORS.inputBackground,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 12,
@@ -844,12 +868,12 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     marginTop: 8,
-    color: '#999',
+    color: COLORS.textMuted,
     fontSize: 14,
   },
   noImageText: {
     marginTop: 8,
-    color: '#999',
+    color: COLORS.textMuted,
     fontSize: 14,
   },
   // Post Details
@@ -865,17 +889,17 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'rgba(15, 177, 234, 1)',
+    color: COLORS.primary,
   },
   customerPostPrice: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'rgba(15, 177, 234, 1)',
+    color: COLORS.primary,
   },
   productCategory: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
-    backgroundColor: '#F0F0F0',
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.borderLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -883,8 +907,8 @@ const styles = StyleSheet.create({
   },
   customerPostCategory: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
-    backgroundColor: '#F0F0F0',
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.borderLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -892,17 +916,17 @@ const styles = StyleSheet.create({
   },
   stockInfo: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     fontWeight: '500',
   },
   productType: {
     fontSize: 12,
-    color: 'rgba(255, 49, 49, 1)',
+    color: COLORS.danger,
     fontWeight: '500',
   },
   customerPostType: {
     fontSize: 12,
-    color: 'rgba(255, 49, 49, 1)',
+    color: COLORS.danger,
     fontWeight: '500',
   },
   urgencyBadge: {
@@ -922,7 +946,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   tag: {
-    backgroundColor: 'rgba(247, 206, 38, 0.1)',
+    backgroundColor: COLORS.accentLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -931,7 +955,7 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 10,
-    color: 'rgba(9, 68, 89, 0.8)',
+    color: COLORS.textPrimary,
     fontWeight: '500',
   },
   // Single Action Button Container
@@ -939,12 +963,12 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: COLORS.borderLight,
   },
   contactButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 177, 234, 1)',
+    backgroundColor: COLORS.primary,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -959,7 +983,7 @@ const styles = StyleSheet.create({
   viewButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(247, 206, 38, 1)',
+    backgroundColor: COLORS.accent,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -980,13 +1004,13 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     marginTop: 16,
     fontWeight: '500',
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
+    color: COLORS.textMuted,
     marginTop: 8,
     textAlign: 'center',
   },

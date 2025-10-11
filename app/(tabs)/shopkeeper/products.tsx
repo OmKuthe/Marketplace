@@ -610,7 +610,7 @@ export default function ProductsScreen() {
                           style={styles.buttonIcon}
                         />
                         <Text style={styles.submitButtonText}>
-                          {isEdit ? "Update Product" : "Add Product"}
+                          {isEdit ? "Update" : "Add Product"}
                         </Text>
                       </>
                     )}
@@ -1195,13 +1195,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(9, 68, 89, 0.6)',
-    padding: 16,
+    padding: 10,
+    
   },
   modalContent: {
     backgroundColor: COLORS.background,
     borderRadius: 20,
-    width: '100%',
-    maxHeight: '90%',
+    width: '99%',
+    maxHeight: '99%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -1372,7 +1373,6 @@ const styles = StyleSheet.create({
   activeModalCategoryText: {
     color: '#fff',
   },
-  // Enhanced Modal Buttons - E-commerce style
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1381,7 +1381,7 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    padding: 16,
+    padding: 8,
     borderRadius: 12,
     alignItems: 'center',
     flexDirection: 'row',
