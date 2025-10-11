@@ -2773,7 +2773,6 @@
 //   },
 // });
 
-
 import { useAuth } from '@/hooks/useAuth';
 import { conversationService } from '@/utils/conversationService';
 import { Ionicons } from '@expo/vector-icons';
@@ -2790,7 +2789,9 @@ import {
   query,
   Timestamp,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  where,
+  limit
 } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -2862,11 +2863,35 @@ type Product = {
   category: string;
   type: string;
   imageUrl?: string;
+  image?: string;
   createdAt?: any;
   shopkeeperId?: string;
   shopId?: string;
+  shopName?: string;
+  ownerName?: string;
+  location?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
   rating?: number;
   reviewCount?: number;
+};
+
+type Shop = {
+  id: string;
+  shopName: string;
+  ownerName: string;
+  email: string;
+  phone: string;
+  latitude: number;
+  longitude: number;
+  location: string;
+  shopLogo: string;
+  createdAt: any;
+  updatedAt: any;
+  uid: string;
 };
 
 type PostType = 'NEED' | 'OFFER';
@@ -2920,31 +2945,6 @@ const CATEGORIES = [
   { id: '8', name: 'Beauty', icon: 'sparkles', value: 'beauty' },
   { id: '9', name: 'Toys', icon: 'game-controller', value: 'toys' },
   { id: '10', name: 'Jewelry', icon: 'diamond', value: 'jewelry' },
-];
-
-// Mock ad data
-const AD_PRODUCTS = [
-  {
-    id: 'ad-1',
-    name: 'AMICO Men Sandals',
-    originalPrice: 1499,
-    price: 356,
-    discount: 76,
-    rating: 3.7,
-    imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400',
-    isAd: true
-  },
-  {
-    id: 'ad-2', 
-    name: 'AMICO BLZ',
-    originalPrice: 2499,
-    price: 374,
-    discount: 84,
-    rating: 3.9,
-    reviewCount: 6000,
-    imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400',
-    isAd: true
-  }
 ];
 
 // API Functions
@@ -3082,6 +3082,42 @@ const getCustomerPosts = async (filters: PostFilter = {}): Promise<{ posts: Cust
   }
 };
 
+// NEW: Function to get random products for ads
+const getRandomProductsForAds = async (count: number = 1): Promise<Product[]> => {
+  try {
+    const q = query(collection(db, "products"), limit(20));
+    const snapshot = await getDocs(q);
+    const products = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Product[];
+    
+    // Shuffle and take required count
+    const shuffled = products.sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+  } catch (error) {
+    console.error('Error fetching ads products:', error);
+    return [];
+  }
+};
+
+// NEW: Function to get shop details
+const getShopDetails = async (shopId: string): Promise<Shop | null> => {
+  try {
+    const shopDoc = await getDoc(doc(db, "shopkeepers", shopId));
+    if (shopDoc.exists()) {
+      return {
+        id: shopDoc.id,
+        ...shopDoc.data()
+      } as Shop;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching shop details:', error);
+    return null;
+  }
+};
+
 // SMOOTH ANIMATION COMPONENTS
 const FadeInView = ({ children, delay = 0, duration = 500, style = {} }: any) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -3141,7 +3177,73 @@ const StarRating = ({ rating, size = 14 }: { rating: number; size?: number }) =>
   return <View style={styles.starsContainer}>{stars}</View>;
 };
 
-// ENHANCED Offer Banner Component with smooth animations
+// NEW: Ads Component
+const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
+  const discountPercentage = Math.floor(Math.random() * 50) + 10;
+  const originalPrice = Math.round(product.price * (1 + discountPercentage / 100));
+  const rating = product.rating ? parseFloat(product.rating.toFixed(1)) : 4.5;
+  const reviewCount = product.reviewCount || Math.floor(Math.random() * 100) + 1;
+
+  return (
+    <View style={styles.adsCard}>
+      <View style={styles.adsHeader}>
+        <Text style={styles.adsBadge}>AD</Text>
+        <Text style={styles.adsTitle}>Top picks!</Text>
+      </View>
+      
+      <TouchableOpacity 
+        style={styles.adsContent}
+        onPress={() => {
+          router.push("C:\Users\lilha\OneDrive\Desktop\Mrket\App\Marketplace\app\(tabs)\details\productdetails.tsx");
+        }}
+      >
+        <Image 
+          source={{ uri: product.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' }}
+          style={styles.adsImage}
+          resizeMode="cover"
+        />
+        
+        <View style={styles.adsInfo}>
+          <Text style={styles.adsProductName} numberOfLines={2}>{product.name}</Text>
+          
+          <View style={styles.adsRatingContainer}>
+            <StarRating rating={rating} size={12} />
+            <Text style={styles.adsRatingText}>({rating.toFixed(1)})</Text>
+            <Text style={styles.adsReviewCount}>({reviewCount})</Text>
+          </View>
+          
+          <View style={styles.adsPricing}>
+            <Text style={styles.adsOriginalPrice}>${originalPrice}</Text>
+            <Text style={styles.adsDiscountedPrice}>${product.price}</Text>
+            <View style={styles.adsDiscountBadge}>
+              <Text style={styles.adsDiscountText}>✔ {discountPercentage}% OFF</Text>
+            </View>
+          </View>
+          
+          <Text style={styles.adsDelivery}>Delivery by 15th Oct</Text>
+        </View>
+      </TouchableOpacity>
+      
+      {shop && (
+        <TouchableOpacity 
+          style={styles.adsShopSection}
+          onPress={() => {
+            router.push("C:\\Users\\lilha\\OneDrive\\Desktop\\Mrket\\App\\Marketplace\\app\\(tabs)\\details\\shop.tsx");
+          }}
+        >
+          <Text style={styles.adsShopText}>Shop: {shop.shopName}</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+        </TouchableOpacity>
+      )}
+      
+      <TouchableOpacity style={styles.adsShopNowButton}>
+        <Text style={styles.adsShopNowText}>Shop now →</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+// UPDATED: Enhanced Offer Banner Component with shop redirect
 const OfferBanner = () => {
   const [currentOffer, setCurrentOffer] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -3149,22 +3251,25 @@ const OfferBanner = () => {
 
   const offers = [
     { 
-      text: 'Free Shipping', 
-      subtext: 'On orders over ₹500',
-      buttonText: 'See Details →',
-      gradient: colors.gradientSecondary 
+      text: 'Buy 2 Get 1 Free', 
+      subtext: 'On selected items',
+      buttonText: 'Shop Now →',
+      gradient: colors.gradientSecondary,
+      shopName: 'Fashion Hub'
     },
     { 
       text: '75% OFF', 
       subtext: 'Limited Time Offer',
-      buttonText: 'Shop Now →',
-      gradient: colors.gradientPrimary 
+      buttonText: 'Explore →',
+      gradient: colors.gradientPrimary,
+      shopName: 'Electro World'
     },
     { 
-      text: 'Buy 2 Get 1', 
-      subtext: 'Special Collection',
-      buttonText: 'Explore →',
-      gradient: colors.gradientSuccess 
+      text: 'Free Shipping', 
+      subtext: 'On orders over $50',
+      buttonText: 'See Details →',
+      gradient: colors.gradientSuccess,
+      shopName: 'Home Essentials'
     }
   ];
 
@@ -3205,7 +3310,12 @@ const OfferBanner = () => {
 
   return (
     <FadeInView delay={200}>
-      <View style={styles.offerBanner}>
+      <TouchableOpacity 
+        style={styles.offerBanner}
+        onPress={() => {
+          router.push("C:\\Users\\lilha\\OneDrive\\Desktop\\Mrket\\App\\Marketplace\\app\\(tabs)\\details\\shop.tsx");
+        }}
+      >
         <LinearGradient
           colors={offers[currentOffer].gradient}
           style={styles.offerGradient}
@@ -3222,18 +3332,19 @@ const OfferBanner = () => {
             <View style={styles.offerTextContainer}>
               <Text style={styles.offerMainText}>{offers[currentOffer].text}</Text>
               <Text style={styles.offerSubtext}>{offers[currentOffer].subtext}</Text>
+              <Text style={styles.offerShopText}>at {offers[currentOffer].shopName}</Text>
             </View>
             <TouchableOpacity style={styles.offerButton}>
               <Text style={styles.offerButtonText}>{offers[currentOffer].buttonText}</Text>
             </TouchableOpacity>
           </Animated.View>
         </LinearGradient>
-      </View>
+      </TouchableOpacity>
     </FadeInView>
   );
 };
 
-// ENHANCED Category Item Component with smooth animations
+// ENHANCED Category Item Component
 const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: boolean; onPress: () => void }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -3302,102 +3413,7 @@ const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: bo
   );
 };
 
-// NEW: Ad Product Card Component
-const AdProductCard = ({ item, index }: { item: any; index: number }) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        delay: index * 150,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 60,
-        friction: 7,
-        delay: index * 150,
-        useNativeDriver: true,
-      })
-    ]).start();
-  }, []);
-
-  const handleAdPress = () => {
-    // Navigate to product details page
-    router.push({
-      pathname: '../productdetails',
-      params: { 
-        product: JSON.stringify({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          originalPrice: item.originalPrice,
-          imageUrl: item.imageUrl,
-          isAd: true
-        })
-      }
-    });
-  };
-
-  return (
-    <Animated.View 
-      style={[
-        styles.adProductCard,
-        {
-          opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }]
-        }
-      ]}
-    >
-      <TouchableOpacity onPress={handleAdPress}>
-        <View style={styles.adCardContent}>
-          <Image 
-            source={{ uri: item.imageUrl }} 
-            style={styles.adProductImage}
-            resizeMode="cover"
-          />
-          
-          <View style={styles.adProductInfo}>
-            {/* Brand and Product Name */}
-            <Text style={styles.adProductBrand}>AMICO</Text>
-            <Text style={styles.adProductName} numberOfLines={2}>{item.name}</Text>
-            
-            {/* Rating */}
-            <View style={styles.adRatingContainer}>
-              <StarRating rating={item.rating} size={12} />
-              <Text style={styles.adRatingText}> {item.rating.toFixed(1)}</Text>
-              {item.reviewCount && (
-                <Text style={styles.adReviewCount}> | {item.reviewCount >= 1000 ? `${(item.reviewCount/1000).toFixed(1)}k` : item.reviewCount}</Text>
-              )}
-            </View>
-            
-            {/* Pricing */}
-            <View style={styles.adPricingContainer}>
-              <Text style={styles.adOriginalPrice}>₹{item.originalPrice}</Text>
-              <Text style={styles.adDiscountPrice}>₹{item.price}</Text>
-              <View style={styles.adDiscountBadge}>
-                <Text style={styles.adDiscountText}>{item.discount}% off</Text>
-              </View>
-            </View>
-            
-            {/* Additional Offer */}
-            <View style={styles.adOfferContainer}>
-              <Text style={styles.adOfferText}>Wow ₹{Math.round(item.price * 0.95)} with Coupon offer</Text>
-            </View>
-            
-            {/* Delivery Info */}
-            <Text style={styles.adDeliveryText}>Delivery by 15th Oct</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-// UPDATED: Enhanced Product Card with Indian Rupee and new structure
+// UPDATED: Enhanced Product Card with click functionality
 const AnimatedProductCard = ({ 
   item, 
   index, 
@@ -3454,46 +3470,30 @@ const AnimatedProductCard = ({
     setSaved(!saved);
   };
 
-  const handleProductPress = () => {
-    const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-    router.push({
-          pathname: '/(tabs)/details/productdetails',
-      params: { 
-        product: JSON.stringify({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          imageUrl: item.imageUrl,
-          shopName: shopkeeperData?.shopName || 'Local Store',
-          shopId: shopkeeperId || 'shop-001',
-          description: item.description,
-          stock: item.stock,
-          category: item.category
-        })
-      }
-    });
-  };
-
-  // Mock data for e-commerce features
   const discountPercentage = Math.floor(Math.random() * 50) + 10;
   const originalPrice = Math.round(item.price * (1 + discountPercentage / 100));
   const rating = item.rating ? parseFloat(item.rating.toFixed(1)) : 4.5;
-  const reviewCount = item.reviewCount || Math.floor(Math.random() * 1000) + 100;
+  const reviewCount = item.reviewCount || Math.floor(Math.random() * 100) + 1;
 
   return (
-    <Animated.View 
-      style={[
-        styles.productCard,
-        {
-          opacity: fadeAnim,
-          transform: [
-            { scale: scaleAnim },
-            { translateY: slideAnim }
-          ]
-        }
-      ]}
+    <TouchableOpacity 
+      onPress={() => {
+        router.push("C:\\Users\\lilha\\OneDrive\\Desktop\\Mrket\\App\\Marketplace\\app\\(tabs)\\details\\productdetails.tsx");
+      }}
+      activeOpacity={0.9}
     >
-      <TouchableOpacity onPress={handleProductPress}>
+      <Animated.View 
+        style={[
+          styles.productCard,
+          {
+            opacity: fadeAnim,
+            transform: [
+              { scale: scaleAnim },
+              { translateY: slideAnim }
+            ]
+          }
+        ]}
+      >
         <View style={styles.productImageContainer}>
           <Image 
             source={{ 
@@ -3508,9 +3508,25 @@ const AnimatedProductCard = ({
             {/* Discount Badge */}
             <FadeInView delay={300 + index * 50}>
               <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>✔ {discountPercentage}%</Text>
+                <Text style={styles.discountText}>✔ {discountPercentage}% OFF</Text>
               </View>
             </FadeInView>
+
+            {/* Stock Badge */}
+            {item.stock < 10 && item.stock > 0 && (
+              <FadeInView delay={400 + index * 50}>
+                <View style={styles.lowStockBadge}>
+                  <Text style={styles.lowStockText}>Low Stock</Text>
+                </View>
+              </FadeInView>
+            )}
+            {item.stock === 0 && (
+              <FadeInView delay={400 + index * 50}>
+                <View style={styles.outOfStockBadge}>
+                  <Text style={styles.outOfStockText}>Out of Stock</Text>
+                </View>
+              </FadeInView>
+            )}
           </View>
           
           {/* Favorite Button */}
@@ -3526,46 +3542,39 @@ const AnimatedProductCard = ({
         </View>
         
         <View style={styles.productInfo}>
-          {/* Brand Name */}
-          <FadeInView delay={550 + index * 50}>
-            <Text style={styles.productBrand}>ABRAS</Text>
-          </FadeInView>
-
           {/* Product Name */}
-          <FadeInView delay={600 + index * 50}>
+          <FadeInView delay={550 + index * 50}>
             <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
           </FadeInView>
 
           {/* Rating Section */}
-          <FadeInView delay={650 + index * 50}>
+          <FadeInView delay={600 + index * 50}>
             <View style={styles.ratingContainer}>
-              <Text style={styles.ratingText}>{rating.toFixed(1)} ▼</Text>
-              <Text style={styles.reviewCount}>| {reviewCount >= 1000 ? `${(reviewCount/1000).toFixed(1)}k` : reviewCount}</Text>
+              <StarRating rating={rating} />
+              <Text style={styles.ratingText}>({rating.toFixed(1)})</Text>
+              <Text style={styles.reviewCount}>({reviewCount})</Text>
             </View>
+          </FadeInView>
+
+          {/* Description */}
+          <FadeInView delay={650 + index * 50}>
+            <Text style={styles.productDescription} numberOfLines={2}>
+              {item.description || 'A stylish, versatile piece with premium finish.'}
+            </Text>
           </FadeInView>
           
           {/* Pricing Row */}
           <FadeInView delay={700 + index * 50}>
             <View style={styles.pricingContainer}>
-              <Text style={styles.originalPrice}>₹{originalPrice}</Text>
-              <Text style={styles.discountedPrice}>₹{item.price}</Text>
+              <View style={styles.originalPriceContainer}>
+                <Text style={styles.originalPrice}>${originalPrice}</Text>
+                <Text style={styles.discountedPrice}>${item.price}</Text>
+              </View>
             </View>
-          </FadeInView>
-          
-          {/* Additional Offer */}
-          <FadeInView delay={750 + index * 50}>
-            <View style={styles.offerContainer}>
-              <Text style={styles.offerText}>Wow ₹{Math.round(item.price * 0.9)} with Coupon offer</Text>
-            </View>
-          </FadeInView>
-
-          {/* Delivery Info */}
-          <FadeInView delay={800 + index * 50}>
-            <Text style={styles.deliveryText}>Delivery by 15th Oct</Text>
           </FadeInView>
           
           {/* Action Buttons */}
-          <FadeInView delay={850 + index * 50}>
+          <FadeInView delay={750 + index * 50}>
             <View style={styles.productActions}>
               <TouchableOpacity 
                 style={[
@@ -3613,12 +3622,12 @@ const AnimatedProductCard = ({
             </View>
           </FadeInView>
         </View>
-      </TouchableOpacity>
-    </Animated.View>
+      </Animated.View>
+    </TouchableOpacity>
   );
 };
 
-// ENHANCED Customer Post Card Component with Indian Rupee
+// UPDATED: Enhanced Customer Post Card Component
 const CustomerPostCard = ({ 
   item, 
   index,
@@ -3855,7 +3864,7 @@ const CustomerPostCard = ({
                 <Ionicons name="pricetag" size={14} color={getTypeColor()} />
               </View>
               <Text style={styles.detailLabel}>Price:</Text>
-              <Text style={[styles.postPrice, { color: getTypeColor() }]}>₹{item.price}</Text>
+              <Text style={[styles.postPrice, { color: getTypeColor() }]}>${item.price}</Text>
             </View>
           )}
           <View style={styles.detailItem}>
@@ -3932,6 +3941,8 @@ export default function CustomerHome() {
   const [createPostModalVisible, setCreatePostModalVisible] = useState(false);
   const [editPostModalVisible, setEditPostModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [adsProducts, setAdsProducts] = useState<Product[]>([]);
+  const [shops, setShops] = useState<{[key: string]: Shop}>({});
   const router = useRouter();
   const { user } = useAuth();
   
@@ -3977,8 +3988,8 @@ export default function CustomerHome() {
       // Add mock ratings for demonstration with fixed decimal
       const productsWithRatings = data.map(product => ({
         ...product,
-        rating: parseFloat((3.5 + Math.random() * 1.5).toFixed(1)), // Fixed to one decimal
-        reviewCount: Math.floor(Math.random() * 1000) + 100
+        rating: parseFloat((3.5 + Math.random() * 1.5).toFixed(1)),
+        reviewCount: Math.floor(Math.random() * 100) + 1
       }));
       
       setProducts(productsWithRatings);
@@ -4007,6 +4018,29 @@ export default function CustomerHome() {
     }
   };
 
+  // NEW: Fetch ads products
+  const fetchAdsProducts = async () => {
+    try {
+      const ads = await getRandomProductsForAds(3); // Get 3 random products for variety
+      setAdsProducts(ads);
+      
+      // Fetch shop details for ads products
+      const shopsMap: {[key: string]: Shop} = {};
+      for (const product of ads) {
+        const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
+        if (shopkeeperId && !shopsMap[shopkeeperId]) {
+          const shopDetails = await getShopDetails(shopkeeperId);
+          if (shopDetails) {
+            shopsMap[shopkeeperId] = shopDetails;
+          }
+        }
+      }
+      setShops(shopsMap);
+    } catch (error) {
+      console.error('Error fetching ads products:', error);
+    }
+  };
+
   const fetchCustomerPosts = async (filters: PostFilter = {}) => {
     try {
       setLoadingPosts(true);
@@ -4024,6 +4058,7 @@ export default function CustomerHome() {
     setRefreshing(true);
     await fetchCustomerPosts(activeFilter);
     await fetchProductsAndShopkeepers();
+    await fetchAdsProducts();
     setRefreshing(false);
   };
 
@@ -4037,32 +4072,6 @@ export default function CustomerHome() {
       );
       setFilteredProducts(filtered);
     }
-  };
-
-  // Function to render products with ads
-  const renderProductsWithAds = (products: Product[]) => {
-    const items = [];
-    
-    // Add products and insert ads after every 2 products
-    for (let i = 0; i < products.length; i++) {
-      items.push({
-        type: 'product',
-        data: products[i],
-        index: i
-      });
-      
-      // Insert ad after every 2 products
-      if ((i + 1) % 2 === 0 && i < products.length - 1) {
-        const adIndex = Math.floor(i / 2) % AD_PRODUCTS.length;
-        items.push({
-          type: 'ad',
-          data: AD_PRODUCTS[adIndex],
-          index: `ad-${i}`
-        });
-      }
-    }
-    
-    return items;
   };
 
   const handleCreatePost = async () => {
@@ -4310,9 +4319,50 @@ export default function CustomerHome() {
     }
   };
 
+  // NEW: Function to render ads after every 8 products
+  const renderProductsWithAds = () => {
+    const items = [];
+    
+    for (let i = 0; i < filteredProducts.length; i++) {
+      // Add product
+      const product = filteredProducts[i];
+      const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
+      const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+      
+      items.push(
+        <AnimatedProductCard 
+          key={`product-${product.id}`}
+          item={product} 
+          index={i} 
+          shopkeeperData={shopkeeper}
+          onMessagePress={handleMessageButton}
+        />
+      );
+      
+      // Add ad after every 8 products
+      if ((i + 1) % 8 === 0 && adsProducts.length > 0) {
+        const adIndex = Math.floor((i / 8) % adsProducts.length);
+        const adProduct = adsProducts[adIndex];
+        const shopkeeperId = (adProduct as any).shopId || (adProduct as any).shopkeeperID || (adProduct as any).shopkeeper;
+        const shop = shopkeeperId ? shops[shopkeeperId] : undefined;
+        
+        items.push(
+          <AdsCard 
+            key={`ad-${i}`}
+            product={adProduct}
+            shop={shop}
+          />
+        );
+      }
+    }
+    
+    return items;
+  };
+
   useEffect(() => {
     fetchProductsAndShopkeepers();
     fetchCustomerPosts();
+    fetchAdsProducts();
   }, []);
 
   useEffect(() => {
@@ -4335,6 +4385,7 @@ export default function CustomerHome() {
         await fetchCustomerPosts(activeFilter);
       } else {
         await fetchProductsAndShopkeepers();
+        await fetchAdsProducts();
       }
       
       setRefreshing(false);
@@ -4433,8 +4484,6 @@ export default function CustomerHome() {
       );
     }
 
-    const productItems = renderProductsWithAds(filteredProducts);
-
     return (
       <Animated.View style={{ flex: 1, opacity: tabSlideAnim }}>
         <ScrollView 
@@ -4484,7 +4533,7 @@ export default function CustomerHome() {
             </FadeInView>
           )}
 
-          {/* Products Grid with Ads */}
+          {/* Recommended Products */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
@@ -4494,34 +4543,27 @@ export default function CustomerHome() {
                 <Text style={styles.seeAllText}>See all</Text>
               </TouchableOpacity>
             </View>
-            
-            {productItems.length > 0 ? (
-              <View style={styles.productsGrid}>
-                {productItems.map((item, index) => {
-                  if (item.type === 'ad') {
-                    return (
-                      <AdProductCard 
-                        key={item.index}
-                        item={item.data}
-                        index={index}
-                      />
-                    );
-                  } else {
-                    const shopkeeperId = (item.data as any).shopId || (item.data as any).shopkeeperID || (item.data as any).shopkeeper;
-                    const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
-                    
-                    return (
-                      <AnimatedProductCard 
-                        key={item.data.id}
-                        item={item.data} 
-                        index={index} 
-                        shopkeeperData={shopkeeper}
-                        onMessagePress={handleMessageButton}
-                      />
-                    );
-                  }
-                })}
-              </View>
+            {filteredProducts.length > 0 ? (
+              <FlatList
+                data={filteredProducts.slice(0, 5)}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                renderItem={({ item, index }) => {
+                  const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+                  const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+                  
+                  return (
+                    <AnimatedProductCard 
+                      item={item} 
+                      index={index} 
+                      shopkeeperData={shopkeeper}
+                      onMessagePress={handleMessageButton}
+                    />
+                  );
+                }}
+                contentContainerStyle={styles.productsList}
+              />
             ) : (
               <View style={styles.noProducts}>
                 <Ionicons name="search" size={48} color={colors.textSecondary} />
@@ -4530,6 +4572,18 @@ export default function CustomerHome() {
               </View>
             )}
           </View>
+
+          {/* All Products Grid with Ads */}
+          {filteredProducts.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {selectedCategory === 'all' ? 'All Products' : `All ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
+              </Text>
+              <View style={styles.productsGrid}>
+                {renderProductsWithAds()}
+              </View>
+            </View>
+          )}
         </ScrollView>
       </Animated.View>
     );
@@ -4627,7 +4681,7 @@ export default function CustomerHome() {
               <View style={styles.rowInputs}>
                 <TextInput
                   style={[styles.formInput, styles.halfInput]}
-                  placeholder="Price (₹)"
+                  placeholder="Price ($)"
                   placeholderTextColor={colors.textSecondary}
                   keyboardType="numeric"
                   value={newPost.price}
@@ -4904,6 +4958,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     opacity: 0.9,
   },
+  offerShopText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '400',
+    opacity: 0.8,
+    marginTop: 4,
+  },
   offerButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 20,
@@ -4915,6 +4976,142 @@ const styles = StyleSheet.create({
   offerButtonText: {
     color: colors.surface,
     fontSize: 14,
+    fontWeight: '600',
+  },
+  // NEW: Ads Card Styles
+  adsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    marginBottom: 16,
+    marginHorizontal: 15,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    width: width - 30,
+  },
+  adsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: colors.lightBackground,
+  },
+  adsBadge: {
+    backgroundColor: colors.accent,
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  adsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  adsContent: {
+    flexDirection: 'row',
+    padding: 16,
+  },
+  adsImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  adsInfo: {
+    flex: 1,
+  },
+  adsProductName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  adsRatingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  adsRatingText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  adsReviewCount: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  adsPricing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  adsOriginalPrice: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
+    marginRight: 6,
+  },
+  adsDiscountedPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginRight: 8,
+  },
+  adsDiscountBadge: {
+    backgroundColor: colors.success,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  adsDiscountText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  adsDelivery: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  adsShopSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.lightBackground,
+  },
+  adsShopText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  adsShopNowButton: {
+    backgroundColor: colors.accent,
+    margin: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  adsShopNowText: {
+    color: colors.surface,
+    fontSize: 16,
     fontWeight: '600',
   },
   section: {
@@ -5071,14 +5268,30 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 4,
   },
+  lowStockBadge: {
+    backgroundColor: colors.error,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  lowStockText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  outOfStockBadge: {
+    backgroundColor: colors.error,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  outOfStockText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '600',
+  },
   productInfo: {
     padding: 12,
-  },
-  productBrand: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-    marginBottom: 4,
   },
   productName: {
     fontSize: 14,
@@ -5098,17 +5311,28 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
-    color: colors.textPrimary,
-    fontWeight: '600',
+    color: colors.textSecondary,
+    marginLeft: 4,
   },
   reviewCount: {
     fontSize: 12,
     color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  productDescription: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+    marginBottom: 8,
   },
   pricingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  originalPriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   originalPrice: {
     fontSize: 12,
@@ -5120,19 +5344,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.textPrimary,
-  },
-  offerContainer: {
-    marginBottom: 8,
-  },
-  offerText: {
-    fontSize: 12,
-    color: colors.success,
-    fontWeight: '500',
-  },
-  deliveryText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 12,
   },
   productActions: {
     flexDirection: 'row',
@@ -5162,106 +5373,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  // NEW: Ad Product Card Styles
-  adProductCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    marginBottom: 16,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.8)',
-    overflow: 'hidden',
-  },
-  adCardContent: {
-    flexDirection: 'row',
-    padding: 12,
-  },
-  adProductImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  adProductInfo: {
-    flex: 1,
-  },
-  adProductBrand: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  adProductName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  adRatingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  adRatingText: {
-    fontSize: 12,
-    color: colors.textPrimary,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  adReviewCount: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginLeft: 4,
-  },
-  adPricingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  adOriginalPrice: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textDecorationLine: 'line-through',
-    marginRight: 8,
-  },
-  adDiscountPrice: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginRight: 8,
-  },
-  adDiscountBadge: {
-    backgroundColor: colors.success,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  adDiscountText: {
-    color: colors.surface,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  adOfferContainer: {
-    marginBottom: 8,
-  },
-  adOfferText: {
-    fontSize: 12,
-    color: colors.success,
-    fontWeight: '500',
-  },
-  adDeliveryText: {
-    fontSize: 12,
-    color: colors.textSecondary,
   },
   // ENHANCED: Modern Post Card Styles
   postCard: {
