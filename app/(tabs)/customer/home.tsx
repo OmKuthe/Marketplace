@@ -459,8 +459,8 @@ const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
             router.push("/(tabs)/details/shop");
           }}
         >
-          <Text style={styles.adsShopText}>Shop: {shop.shopName}</Text>
-          <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          {/* <Text style={styles.adsShopText}>Shop: {shop.shopName}</Text> */}
+          {/* <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} /> */}
         </TouchableOpacity>
       )}
       
@@ -2018,9 +2018,9 @@ export default function CustomerHome() {
             >
               <Ionicons name="add-circle" size={24} color={colors.accent} />
             </TouchableOpacity>
-            {/* <TouchableOpacity style={styles.headerButton}>
+            <TouchableOpacity style={styles.headerButton}>
               <Ionicons name="cart" size={22} color={colors.textPrimary} />
-            </TouchableOpacity> */}
+            </TouchableOpacity>
           </View>
         </View>
       </FadeInView>
