@@ -3457,7 +3457,7 @@ const AnimatedProductCard = ({
   const handleProductPress = () => {
     const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
     router.push({
-      pathname: '../productdetails',
+          pathname: '/(tabs)/details/productdetails',
       params: { 
         product: JSON.stringify({
           id: item.id,
