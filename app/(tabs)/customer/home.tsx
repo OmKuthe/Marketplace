@@ -448,7 +448,7 @@ const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
             </View>
           </View>
           
-          <Text style={styles.adsDelivery}>Delivery by 15th Oct</Text>
+          {/* <Text style={styles.adsDelivery}>Delivery by 15th Oct</Text> */}
         </View>
       </TouchableOpacity>
       
@@ -464,9 +464,9 @@ const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
         </TouchableOpacity>
       )}
       
-      <TouchableOpacity style={styles.adsShopNowButton}>
+      {/* <TouchableOpacity style={styles.adsShopNowButton}>
         <Text style={styles.adsShopNowText}>Shop now →</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   );
 };
@@ -1785,7 +1785,7 @@ export default function CustomerHome() {
                 {selectedCategory === 'all' ? 'Recommended for you' : `Top ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
               </Text>
               <TouchableOpacity>
-                <Text style={styles.seeAllText}>See all</Text>
+                {/* <Text style={styles.seeAllText}>See all</Text> */}
               </TouchableOpacity>
             </View>
             {filteredProducts.length > 0 ? (
@@ -2018,9 +2018,9 @@ export default function CustomerHome() {
             >
               <Ionicons name="add-circle" size={24} color={colors.accent} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.headerButton}>
+            {/* <TouchableOpacity style={styles.headerButton}>
               <Ionicons name="cart" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
       </FadeInView>

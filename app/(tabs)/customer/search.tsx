@@ -46,6 +46,8 @@ type Product = {
   address?: string;
   latitude?: number;
   longitude?: number;
+  rating?: number;
+  reviewCount?: number;
 };
 
 type Shop = {
@@ -73,7 +75,7 @@ type FilterOptions = {
   locationRange: number | null;
 };
 
-// Use the SAME color palette from previous code
+// UPDATED: Use the EXACT SAME color palette from Homepage
 const colors = {
   background: '#f8fafc',
   surface: '#ffffff',
@@ -86,22 +88,46 @@ const colors = {
   error: '#ef4444',
   border: '#e2e8f0',
   darkButton: '#1e293b',
-  needColor: '#f97316',
-  offerColor: '#10b981',
-  gradientPrimary: ['#667eea', '#764ba2'],
-  gradientSecondary: ['#f093fb', '#f5576c'],
-  gradientSuccess: ['#10b981', '#34d399'],
-  gradientWarning: ['#f59e0b', '#fbbf24'],
-  needCard: 'rgba(249, 115, 22, 0.08)',
-  offerCard: 'rgba(16, 185, 129, 0.08)',
+  needColor: '#8b5cf6',
+  offerColor: '#06b6d4',
+  gradientPrimary: ['#5f73ccff', '#b8df2cff'] as const,
+  gradientSecondary: ['#9776d3ff', '#f5576c'] as const,
+  gradientSuccess: ['#10b981', '#34d399'] as const,
+  gradientWarning: ['#f59e0b', '#fbbf24'] as const,
+  gradientNeed: ['#8b5cf6', '#a78bfa'] as const,
+  gradientOffer: ['#06b6d4', '#22d3ee'] as const,
+  needCard: 'rgba(139, 92, 246, 0.08)',
+  offerCard: 'rgba(6, 182, 212, 0.08)',
   lightBackground: 'rgba(226, 232, 240, 0.4)',
-  electricPurple: '#8b5cf6',
+  electricPurple: '#7bf65cff',
   deepBlue: '#1e40af',
 };
 
+
+
+
 const { width, height } = Dimensions.get('window');
 
-// ENHANCED Product Card Component with Consistent Styling
+// NEW: Star Rating Component (from Homepage)
+const StarRating = ({ rating, size = 14 }: { rating: number; size?: number }) => {
+  const stars = [];
+  const fullStars = Math.floor(rating);
+  const hasHalfStar = rating % 1 >= 0.5;
+
+  for (let i = 1; i <= 5; i++) {
+    if (i <= fullStars) {
+      stars.push(<Ionicons key={i} name="star" size={size} color="#FFD700" />);
+    } else if (i === fullStars + 1 && hasHalfStar) {
+      stars.push(<Ionicons key={i} name="star-half" size={size} color="#FFD700" />);
+    } else {
+      stars.push(<Ionicons key={i} name="star-outline" size={size} color="#FFD700" />);
+    }
+  }
+
+  return <View style={styles.starsContainer}>{stars}</View>;
+};
+
+// UPDATED: Enhanced Product Card Component with HOMEPAGE STYLE
 const ProductCard = React.memo(({ 
   item, 
   index, 
@@ -120,10 +146,11 @@ const ProductCard = React.memo(({
   const [cardAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(0.9));
 
-  // Mock data for e-commerce features (for products)
+  // Mock data for e-commerce features (for products) - MATCHING HOMEPAGE
   const discountPercentage = Math.floor(Math.random() * 50) + 10;
   const originalPrice = isShop ? 0 : Math.round((item as Product).price * (1 + discountPercentage / 100));
-  const couponPrice = isShop ? 0 : Math.round((item as Product).price * 0.9);
+  const rating = isShop ? 4.5 : ((item as Product).rating ? parseFloat((item as Product).rating.toFixed(1)) : 4.5);
+  const reviewCount = isShop ? Math.floor(Math.random() * 100) + 1 : ((item as Product).reviewCount || Math.floor(Math.random() * 100) + 1);
 
   const getImageUrl = (): string => {
     if (isShop) {
@@ -180,14 +207,29 @@ const ProductCard = React.memo(({
             onError={handleImageError}
           />
           
-          {/* Discount Badge - For Products Only */}
-          {!isShop && (
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>✔ {discountPercentage}% OFF</Text>
-            </View>
-          )}
+          {/* UPDATED: Top Badges Container - MATCHING HOMEPAGE */}
+          <View style={styles.topBadgesContainer}>
+            {/* Discount Badge - For Products Only */}
+            {!isShop && (
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountText}>✔ {discountPercentage}% OFF</Text>
+              </View>
+            )}
 
-          {/* Favorite Button */}
+            {/* Stock Badge - For Products Only */}
+            {!isShop && (item as Product).stock < 10 && (item as Product).stock > 0 && (
+              <View style={styles.lowStockBadge}>
+                <Text style={styles.lowStockText}>Low Stock</Text>
+              </View>
+            )}
+            {!isShop && (item as Product).stock === 0 && (
+              <View style={styles.outOfStockBadge}>
+                <Text style={styles.outOfStockText}>Out of Stock</Text>
+              </View>
+            )}
+          </View>
+          
+          {/* UPDATED: Favorite Button - MATCHING HOMEPAGE */}
           <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
             <Ionicons 
               name={saved ? "heart" : "heart-outline"} 
@@ -195,18 +237,6 @@ const ProductCard = React.memo(({
               color={saved ? colors.error : colors.surface} 
             />
           </TouchableOpacity>
-
-          {/* Stock Badge - For Products Only */}
-          {!isShop && (item as Product).stock < 10 && (item as Product).stock > 0 && (
-            <View style={styles.lowStockBadge}>
-              <Text style={styles.lowStockText}>Low Stock</Text>
-            </View>
-          )}
-          {!isShop && (item as Product).stock === 0 && (
-            <View style={styles.outOfStockBadge}>
-              <Text style={styles.outOfStockText}>Out of Stock</Text>
-            </View>
-          )}
         </View>
       );
     }
@@ -258,13 +288,20 @@ const ProductCard = React.memo(({
         <Text style={styles.productName} numberOfLines={2}>
           {isShop ? (item as Shop).shopName : (item as Product).name}
         </Text>
-        
-        {/* Description for Products, Owner for Shops */}
+
+        {/* UPDATED: Rating Section - MATCHING HOMEPAGE */}
+        <View style={styles.ratingContainer}>
+          <StarRating rating={rating} />
+          <Text style={styles.ratingText}>({rating.toFixed(1)})</Text>
+          <Text style={styles.reviewCount}>({reviewCount})</Text>
+        </View>
+
+        {/* Description */}
         <Text style={styles.productDescription} numberOfLines={2}>
-          {isShop ? `Owner: ${(item as Shop).ownerName}` : (item as Product).description}
+          {isShop ? `Owner: ${(item as Shop).ownerName}` : (item as Product).description || 'A stylish, versatile piece with premium finish.'}
         </Text>
         
-        {/* Pricing Row - For Products Only */}
+        {/* UPDATED: Pricing Row - MATCHING HOMEPAGE */}
         {!isShop && (item as Product).price && (item as Product).price > 0 && (
           <View style={styles.pricingContainer}>
             <View style={styles.originalPriceContainer}>
@@ -274,23 +311,7 @@ const ProductCard = React.memo(({
           </View>
         )}
         
-        {/* Coupon Offer - For Products Only */}
-        {!isShop && (item as Product).price && (item as Product).price > 0 && (
-          <View style={styles.couponContainer}>
-            <Text style={styles.wowText}>Wow</Text>
-            <Text style={styles.couponPrice}>${couponPrice} with Coupon</Text>
-          </View>
-        )}
-        
-        {/* Location */}
-        <View style={styles.locationContainer}>
-          <Ionicons name="location" size={12} color={colors.textSecondary} />
-          <Text style={styles.locationText}>
-            {item.location || ('address' in item ? item.address : undefined) || 'Unknown Location'}
-          </Text>
-        </View>
-        
-        {/* Action Buttons */}
+        {/* UPDATED: Action Buttons - MATCHING HOMEPAGE */}
         <View style={styles.productActions}>
           {isShop ? (
             <TouchableOpacity 
@@ -302,23 +323,21 @@ const ProductCard = React.memo(({
             </TouchableOpacity>
           ) : (
             <TouchableOpacity 
-              style={styles.cartButton}
+              style={[
+                styles.cartButton,
+                (item as Product).stock === 0 && styles.disabledButton
+              ]}
               onPress={() => onViewProductDetails(item as Product)}
+              disabled={(item as Product).stock === 0}
             >
               <Ionicons name="cube" size={16} color={colors.surface} />
-              <Text style={styles.cartButtonText}>View Product</Text>
+              <Text style={styles.cartButtonText}>
+                {(item as Product).stock > 0 ? 'View Product' : 'Out of Stock'}
+              </Text>
             </TouchableOpacity>
           )}
           
-          {/* <TouchableOpacity 
-            style={styles.messageButton}
-            onPress={() => {
-              // Handle message action
-              console.log('Message pressed for:', item.id);
-            }}
-          > */}
-            {/* <Ionicons name="chatbubble" size={16} color={colors.accent} /> */}
-          {/* </TouchableOpacity> */}
+          {/* Message Button removed to match homepage style */}
         </View>
       </View>
     </Animated.View>
@@ -451,7 +470,9 @@ export default function SearchScreen() {
           email: data.email,
           address: data.address,
           latitude: data.latitude,
-          longitude: data.longitude
+          longitude: data.longitude,
+          rating: data.rating ? parseFloat(data.rating.toFixed(1)) : 4.5,
+          reviewCount: data.reviewCount || Math.floor(Math.random() * 100) + 1
         };
       });
       setProducts(productsData);
@@ -672,7 +693,9 @@ export default function SearchScreen() {
             ownerName: shopData?.ownerName || 'Shop Owner',
             location: shopData?.location || product.address || 'Unknown Location',
             phone: shopData?.phone || '',
-            email: shopData?.email || ''
+            email: shopData?.email || '',
+            rating: product.rating || 4.5,
+            reviewCount: product.reviewCount || Math.floor(Math.random() * 100) + 1
           })
         }
       });
@@ -699,7 +722,9 @@ export default function SearchScreen() {
             ownerName: 'Shop Owner',
             location: product.address || 'Unknown Location',
             phone: '',
-            email: ''
+            email: '',
+            rating: product.rating || 4.5,
+            reviewCount: product.reviewCount || Math.floor(Math.random() * 100) + 1
           })
         }
       });
@@ -761,7 +786,6 @@ export default function SearchScreen() {
         {[
           { name: "Home", icon: "home-outline", route: "/customer/home" as Href},
           { name: "Search", icon: "search", route: null },
-          // { name: "Messages", icon: "chatbubble-outline", route: "/customer/messages" as Href},
           { name: "Orders", icon: "list-outline", route: "/customer/myorders" as Href},
           { name: "Profile", icon: "person-outline", route: "/customer/profile" as Href},
         ].map((item, index) => (
@@ -1353,6 +1377,7 @@ export default function SearchScreen() {
   );
 }
 
+// UPDATED: ENHANCED MODERN STYLES with HOMEPAGE CONSISTENCY
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1361,7 +1386,7 @@ const styles = StyleSheet.create({
   animatedContainer: {
     flex: 1,
   },
-  // CONSISTENT Header with TownMart
+  // CONSISTENT Header with TownMart - MATCHING HOMEPAGE
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1584,7 +1609,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingTop: 8,
   },
-  // ENHANCED Product Card Styles - Consistent with Previous Code
+  // UPDATED: ENHANCED Product Card Styles - EXACTLY MATCHING HOMEPAGE
   productCard: {
     backgroundColor: colors.surface,
     borderRadius: 12,
@@ -1610,10 +1635,16 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  discountBadge: {
+  // UPDATED: Top Badges Container - MATCHING HOMEPAGE
+  topBadgesContainer: {
     position: 'absolute',
     top: 8,
     left: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  discountBadge: {
     backgroundColor: colors.success,
     paddingHorizontal: 6,
     paddingVertical: 3,
@@ -1643,9 +1674,6 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   lowStockBadge: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
     backgroundColor: colors.error,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -1657,9 +1685,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   outOfStockBadge: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
     backgroundColor: colors.error,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -1690,16 +1715,37 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     minHeight: 36,
   },
+  // UPDATED: Rating Section - MATCHING HOMEPAGE
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    marginRight: 4,
+  },
+  ratingText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  reviewCount: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
   productDescription: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 8,
     lineHeight: 16,
+    marginBottom: 8,
   },
+  // UPDATED: Pricing Container - MATCHING HOMEPAGE
   pricingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 12,
   },
   originalPriceContainer: {
     flexDirection: 'row',
@@ -1716,37 +1762,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.textPrimary,
   },
-  couponContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  wowText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.success,
-    marginRight: 4,
-  },
-  couponPrice: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.success,
-  },
-  locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  locationText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginLeft: 4,
-  },
+  // UPDATED: Product Actions - MATCHING HOMEPAGE
   productActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1763,18 +1779,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginRight: 8,
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
   cartButtonText: {
     color: colors.surface,
     fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
-  },
-  messageButton: {
-    backgroundColor: colors.lightBackground,
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   // Rest of the styles remain the same
   mapContainer: {
