@@ -40,7 +40,7 @@ import { db } from "../../../firebaseConfig";
 
 const { width, height } = Dimensions.get('window');
 
-// ENHANCED MODERN COLOR SCHEME
+// UPDATED COLOR SCHEME - No Purple
 const colors = {
   background: '#f8fafc',
   surface: '#ffffff',
@@ -53,18 +53,18 @@ const colors = {
   error: '#ef4444',
   border: '#e2e8f0',
   darkButton: '#1e293b',
-  needColor: '#8b5cf6',
-  offerColor: '#06b6d4',
-  gradientPrimary: ['#667eea', '#764ba2'] as const,
-  gradientSecondary: ['#f093fb', '#f5576c'] as const,
-  gradientSuccess: ['#10b981', '#34d399'] as const,
-  gradientWarning: ['#f59e0b', '#fbbf24'] as const,
-  gradientNeed: ['#8b5cf6', '#a78bfa'] as const,
-  gradientOffer: ['#06b6d4', '#22d3ee'] as const,
-  needCard: 'rgba(139, 92, 246, 0.08)',
-  offerCard: 'rgba(6, 182, 212, 0.08)',
+  needColor: '#06b6d4', // Changed from purple to blue
+  offerColor: '#f59e0b', // Changed to orange
+  gradientPrimary: ['#3b82f6', '#1e40af'] as const, // Blue gradient
+  gradientSecondary: ['#f59e0b', '#d97706'] as const, // Orange gradient
+  gradientSuccess: ['#10b981', '#059669'] as const, // Green gradient
+  gradientWarning: ['#f59e0b', '#d97706'] as const, // Orange gradient
+  gradientNeed: ['#06b6d4', '#0891b2'] as const, // Cyan gradient
+  gradientOffer: ['#f59e0b', '#d97706'] as const, // Orange gradient
+  gradientCategory: ['#3b82f6', '#2563eb'] as const, // Blue category gradient
+  needCard: 'rgba(6, 182, 212, 0.08)',
+  offerCard: 'rgba(245, 158, 11, 0.08)',
   lightBackground: 'rgba(226, 232, 240, 0.4)',
-  electricPurple: '#8b5cf6',
   deepBlue: '#1e40af',
 };
 
@@ -158,7 +158,7 @@ interface PostFilter {
   searchQuery?: string;
 }
 
-// Enhanced categories with modern icons
+// Enhanced categories with updated icons and colors
 const CATEGORIES = [
   { id: '1', name: 'All', icon: 'grid', value: 'all' },
   { id: '2', name: 'Electronics', icon: 'phone-portrait', value: 'electronics' },
@@ -172,7 +172,7 @@ const CATEGORIES = [
   { id: '10', name: 'Jewelry', icon: 'diamond', value: 'jewelry' },
 ];
 
-// API Functions
+// API Functions (same as before)
 const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
     const postWithTimestamps = {
@@ -441,14 +441,12 @@ const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
           </View>
           
           <View style={styles.adsPricing}>
-            <Text style={styles.adsOriginalPrice}>${originalPrice}</Text>
-            <Text style={styles.adsDiscountedPrice}>${product.price}</Text>
+            <Text style={styles.adsOriginalPrice}>₹{originalPrice}</Text>
+            <Text style={styles.adsDiscountedPrice}>₹{product.price}</Text>
             <View style={styles.adsDiscountBadge}>
               <Text style={styles.adsDiscountText}>✔ {discountPercentage}% OFF</Text>
             </View>
           </View>
-          
-          {/* <Text style={styles.adsDelivery}>Delivery by 15th Oct</Text> */}
         </View>
       </TouchableOpacity>
       
@@ -459,120 +457,170 @@ const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
             router.push("/(tabs)/details/shop");
           }}
         >
-          {/* <Text style={styles.adsShopText}>Shop: {shop.shopName}</Text> */}
-          {/* <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} /> */}
         </TouchableOpacity>
       )}
-      
-      {/* <TouchableOpacity style={styles.adsShopNowButton}>
-        <Text style={styles.adsShopNowText}>Shop now →</Text>
-      </TouchableOpacity> */}
     </View>
   );
 };
 
-// Enhanced Offer Banner Component with shop redirect
-const OfferBanner = () => {
-  const [currentOffer, setCurrentOffer] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
+// UPDATED: Minimal Offers Banner Component
+const OffersBanner = () => {
+  const [offers, setOffers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
 
-  const offers = [
-    { 
-      text: 'Buy 2 Get 1 Free', 
-      subtext: 'On selected items',
-      buttonText: 'Shop Now →',
-      gradient: colors.gradientSecondary,
-      shopName: 'Fashion Hub'
-    },
-    { 
-      text: '75% OFF', 
-      subtext: 'Limited Time Offer',
-      buttonText: 'Explore →',
-      gradient: colors.gradientPrimary,
-      shopName: 'Electro World'
-    },
-    { 
-      text: 'Free Shipping', 
-      subtext: 'On orders over $50',
-      buttonText: 'See Details →',
-      gradient: colors.gradientSuccess,
-      shopName: 'Home Essentials'
+  // Function to format Firestore Timestamp
+  const formatTimestamp = (timestamp: any) => {
+    if (!timestamp) return 'Limited Time';
+    
+    try {
+      if (timestamp.seconds && timestamp.nanoseconds) {
+        const date = new Date(timestamp.seconds * 1000);
+        return date.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric'
+        });
+      }
+      
+      if (typeof timestamp === 'string') {
+        return timestamp;
+      }
+      
+      return 'Limited Time';
+    } catch (error) {
+      return 'Limited Time';
     }
-  ];
+  };
 
   useEffect(() => {
-    const offerInterval = setInterval(() => {
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(slideAnim, {
-            toValue: -50,
-            duration: 300,
-            useNativeDriver: true,
-          })
-        ]),
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(slideAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          })
-        ])
-      ]).start();
-      
-      setCurrentOffer((prev) => (prev + 1) % offers.length);
-    }, 5000);
+    const fetchOffers = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'offers'));
+        const offerList: any[] = [];
+        querySnapshot.forEach((doc) => {
+          offerList.push({ id: doc.id, ...doc.data() });
+        });
+        setOffers(offerList);
+      } catch (error) {
+        console.error('Error fetching offers:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    return () => clearInterval(offerInterval);
+    fetchOffers();
   }, []);
+
+  const handleScroll = (event: any) => {
+    const contentOffset = event.nativeEvent.contentOffset.x;
+    const currentIndex = Math.round(contentOffset / (width - 40));
+    setCurrentIndex(currentIndex);
+  };
+
+  const scrollToIndex = (index: number) => {
+    flatListRef.current?.scrollToIndex({ index, animated: true });
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.offersLoadingContainer}>
+        <ActivityIndicator size="small" color={colors.accent} />
+        <Text style={styles.offersLoadingText}>Loading offers...</Text>
+      </View>
+    );
+  }
+
+  if (offers.length === 0) {
+    return null;
+  }
 
   return (
     <FadeInView delay={200}>
-      <TouchableOpacity 
-        style={styles.offerBanner}
-        onPress={() => {
-          router.push("/(tabs)/details/shop");
-        }}
-      >
-        <LinearGradient
-          colors={offers[currentOffer].gradient}
-          style={styles.offerGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Animated.View style={[
-            styles.offerContent,
-            { 
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }
-          ]}>
-            <View style={styles.offerTextContainer}>
-              <Text style={styles.offerMainText}>{offers[currentOffer].text}</Text>
-              <Text style={styles.offerSubtext}>{offers[currentOffer].subtext}</Text>
-              <Text style={styles.offerShopText}>at {offers[currentOffer].shopName}</Text>
-            </View>
-            <TouchableOpacity style={styles.offerButton}>
-              <Text style={styles.offerButtonText}>{offers[currentOffer].buttonText}</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </LinearGradient>
-      </TouchableOpacity>
+      <View style={styles.offersBannerContainer}>
+        <View style={styles.offersHeader}>
+          <Text style={styles.offersTitle}>🔥 Special Offers</Text>
+          <TouchableOpacity 
+            style={styles.seeAllButton}
+            onPress={() => router.push('../details/orders')}
+          >
+            <Text style={styles.seeAllText}>See All</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.accent} />
+          </TouchableOpacity>
+        </View>
+        
+        <FlatList
+          ref={flatListRef}
+          data={offers}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          pagingEnabled
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.offersListContent}
+          renderItem={({ item, index }) => {
+            const discountPercentage = Math.round((1 - item.discountPrice / item.originalPrice) * 100);
+            
+            return (
+              <TouchableOpacity 
+                style={styles.offerCard}
+                onPress={() => router.push('../details/orders')}
+              >
+                <LinearGradient
+                  colors={index % 2 === 0 ? colors.gradientPrimary : colors.gradientSecondary}
+                  style={styles.offerGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  {/* Minimal Content Layout */}
+                  <View style={styles.offerContent}>
+                    {/* Image Section */}
+                    <View style={styles.offerImageContainer}>
+                      <Image 
+                        source={{ uri: item.imageUrl || 'https://images.unsplash.com/photo-1607082350899-7e105aa886ae?w=300' }} 
+                        style={styles.offerImage}
+                        resizeMode="cover"
+                      />
+                    </View>
+                    
+                    {/* Minimal Info Section */}
+                    <View style={styles.offerMinimalInfo}>
+                      <Text style={styles.offerDiscountBadge}>{discountPercentage}% OFF</Text>
+                      <Text style={styles.offerShopName} numberOfLines={1}>{item.shopName}</Text>
+                      <View style={styles.offerPricing}>
+                        <Text style={styles.offerOriginalPrice}>₹{item.originalPrice}</Text>
+                        <Text style={styles.offerDiscountPrice}>₹{item.discountPrice}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          }}
+        />
+        
+        {/* Pagination Dots */}
+        {offers.length > 1 && (
+          <View style={styles.paginationContainer}>
+            {offers.map((_, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.paginationDot,
+                  currentIndex === index && styles.paginationDotActive
+                ]}
+                onPress={() => scrollToIndex(index)}
+              />
+            ))}
+          </View>
+        )}
+      </View>
     </FadeInView>
   );
 };
 
-// ENHANCED Category Item Component
+// UPDATED: Category Item Component with Blue Gradient
 const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: boolean; onPress: () => void }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -622,7 +670,7 @@ const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: bo
           isSelected && styles.categoryItemSelected
         ]}>
           <LinearGradient
-            colors={isSelected ? colors.gradientPrimary : ['#f1f5f9', '#e2e8f0']}
+            colors={isSelected ? colors.gradientCategory : ['#f1f5f9', '#e2e8f0']}
             style={styles.categoryIcon}
           >
             <Ionicons 
@@ -641,7 +689,7 @@ const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: bo
   );
 };
 
-// UPDATED: Enhanced Product Card with proper navigation
+// UPDATED: Product Card with Indian Rupee
 const AnimatedProductCard = ({ 
   item, 
   index, 
@@ -706,7 +754,6 @@ const AnimatedProductCard = ({
   return (
     <TouchableOpacity 
       onPress={() => {
-        console.log('🔄 Navigating to product details with:', item.id, item.name);
         router.push({
           pathname: "/(tabs)/details/productdetails",
           params: { 
@@ -755,16 +802,13 @@ const AnimatedProductCard = ({
             resizeMode="cover"
           />
           
-          {/* TOP BADGES CONTAINER */}
           <View style={styles.topBadgesContainer}>
-            {/* Discount Badge */}
             <FadeInView delay={300 + index * 50}>
               <View style={styles.discountBadge}>
                 <Text style={styles.discountText}>✔ {discountPercentage}% OFF</Text>
               </View>
             </FadeInView>
 
-            {/* Stock Badge */}
             {item.stock < 10 && item.stock > 0 && (
               <FadeInView delay={400 + index * 50}>
                 <View style={styles.lowStockBadge}>
@@ -781,7 +825,6 @@ const AnimatedProductCard = ({
             )}
           </View>
           
-          {/* Favorite Button */}
           <Animated.View style={[styles.saveButtonContainer, { transform: [{ scale: saveScale }] }]}>
             <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
               <Ionicons 
@@ -794,12 +837,10 @@ const AnimatedProductCard = ({
         </View>
         
         <View style={styles.productInfo}>
-          {/* Product Name */}
           <FadeInView delay={550 + index * 50}>
             <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
           </FadeInView>
 
-          {/* Rating Section */}
           <FadeInView delay={600 + index * 50}>
             <View style={styles.ratingContainer}>
               <StarRating rating={rating} />
@@ -808,24 +849,21 @@ const AnimatedProductCard = ({
             </View>
           </FadeInView>
 
-          {/* Description */}
           <FadeInView delay={650 + index * 50}>
             <Text style={styles.productDescription} numberOfLines={2}>
               {item.description || 'A stylish, versatile piece with premium finish.'}
             </Text>
           </FadeInView>
           
-          {/* Pricing Row */}
           <FadeInView delay={700 + index * 50}>
             <View style={styles.pricingContainer}>
               <View style={styles.originalPriceContainer}>
-                <Text style={styles.originalPrice}>${originalPrice}</Text>
-                <Text style={styles.discountedPrice}>${item.price}</Text>
+                <Text style={styles.originalPrice}>₹{originalPrice}</Text>
+                <Text style={styles.discountedPrice}>₹{item.price}</Text>
               </View>
             </View>
           </FadeInView>
           
-          {/* Action Buttons */}
           <FadeInView delay={750 + index * 50}>
             <View style={styles.productActions}>
               <TouchableOpacity 
@@ -879,7 +917,7 @@ const AnimatedProductCard = ({
   );
 };
 
-// ENHANCED: Completely Restructured Customer Post Card Component
+// UPDATED: Customer Post Card with new colors
 const CustomerPostCard = ({ 
   item, 
   index,
@@ -1011,7 +1049,6 @@ const CustomerPostCard = ({
         }
       ]}
     >
-      {/* Enhanced Post Header */}
       <View style={styles.postHeader}>
         <View style={styles.postUserInfo}>
           <LinearGradient
@@ -1056,7 +1093,6 @@ const CustomerPostCard = ({
         </View>
       </View>
 
-      {/* Action Menu for Own Posts */}
       {showActions && isOwnPost && (
         <View style={styles.actionMenu}>
           <TouchableOpacity 
@@ -1079,7 +1115,6 @@ const CustomerPostCard = ({
         </View>
       )}
 
-      {/* Enhanced Post Content */}
       <View style={styles.postContent}>
         {item.imageUrl ? (
           <View style={styles.postImageContainer}>
@@ -1116,13 +1151,12 @@ const CustomerPostCard = ({
           <Text style={styles.postDescription}>{item.description}</Text>
         </View>
         
-        {/* Enhanced Post Details Grid */}
         <View style={styles.postDetailsGrid}>
           {item.price && (
             <View style={styles.detailChip}>
               <Ionicons name="pricetag" size={14} color={getTypeColor()} />
               <Text style={[styles.detailChipText, { color: getTypeColor() }]}>
-                ${item.price}
+                ₹{item.price}
               </Text>
             </View>
           )}
@@ -1146,7 +1180,6 @@ const CustomerPostCard = ({
         </View>
       </View>
 
-      {/* Enhanced Post Footer */}
       <View style={styles.postFooter}>
         <TouchableOpacity 
           style={[
@@ -1741,8 +1774,8 @@ export default function CustomerHome() {
             />
           }
         >
-          {/* Enhanced Offer Banner */}
-          <OfferBanner />
+          {/* UPDATED: Special Offers Banner */}
+          <OffersBanner />
 
           {/* Categories Section */}
           <View style={styles.section}>
@@ -1926,7 +1959,7 @@ export default function CustomerHome() {
               <View style={styles.rowInputs}>
                 <TextInput
                   style={[styles.formInput, styles.halfInput]}
-                  placeholder="Price ($)"
+                  placeholder="Price (₹)"
                   placeholderTextColor={colors.textSecondary}
                   keyboardType="numeric"
                   value={newPost.price}
@@ -2000,7 +2033,7 @@ export default function CustomerHome() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header - REMOVED CART ICON */}
       <FadeInView duration={800}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -2018,9 +2051,7 @@ export default function CustomerHome() {
             >
               <Ionicons name="add-circle" size={24} color={colors.accent} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.headerButton}>
-              <Ionicons name="cart" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
+            {/* Cart icon removed as requested */}
           </View>
         </View>
       </FadeInView>
@@ -2073,7 +2104,7 @@ export default function CustomerHome() {
   );
 }
 
-// ENHANCED MODERN STYLES with Improved Design
+// UPDATED STYLES with new color scheme
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -2161,10 +2192,38 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: colors.surface,
   },
-  // Enhanced Offer Banner Styles
-  offerBanner: {
+  // UPDATED: Offers Banner Styles - Minimal Design
+  offersBannerContainer: {
     marginHorizontal: 20,
     marginVertical: 15,
+  },
+  offersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  offersTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  seeAllText: {
+    fontSize: 14,
+    color: colors.accent,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  offersListContent: {
+    paddingRight: 20,
+  },
+  offerCard: {
+    width: width - 40,
+    marginRight: 15,
     borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -2175,53 +2234,101 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 12,
+    height: 140, // Reduced height for minimal design
   },
   offerGradient: {
-    padding: 24,
+    flex: 1,
+    padding: 16,
+  },
+  offerContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  offerContent: {
-    flex: 1,
-  },
-  offerTextContainer: {
-    marginBottom: 16,
-  },
-  offerMainText: {
-    color: colors.surface,
-    fontSize: 28,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 4,
-    marginBottom: 4,
-  },
-  offerSubtext: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: '500',
-    opacity: 0.9,
-  },
-  offerShopText: {
-    color: colors.surface,
-    fontSize: 14,
-    fontWeight: '400',
-    opacity: 0.8,
-    marginTop: 4,
-  },
-  offerButton: {
+  offerImageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  offerButtonText: {
+  offerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  offerMinimalInfo: {
+    flex: 1,
+    marginLeft: 16,
+    justifyContent: 'center',
+  },
+  offerDiscountBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  offerShopName: {
     color: colors.surface,
     fontSize: 14,
     fontWeight: '600',
+    marginBottom: 6,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 4,
+  },
+  offerPricing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  offerOriginalPrice: {
+    color: colors.surface,
+    fontSize: 14,
+    textDecorationLine: 'line-through',
+    opacity: 0.8,
+    marginRight: 8,
+  },
+  offerDiscountPrice: {
+    color: colors.surface,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+  },
+  paginationDotActive: {
+    backgroundColor: colors.accent,
+    width: 20,
+  },
+  offersLoadingContainer: {
+    marginHorizontal: 20,
+    marginVertical: 15,
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  offersLoadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   // Ads Card Styles
   adsCard: {
@@ -2327,11 +2434,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
-  adsDelivery: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
   adsShopSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2341,23 +2443,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.lightBackground,
-  },
-  adsShopText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  adsShopNowButton: {
-    backgroundColor: colors.accent,
-    margin: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  adsShopNowText: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: '600',
   },
   section: {
     marginBottom: 25,
@@ -2392,6 +2477,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   categoryItemSelected: {},
+  // UPDATED: Category Icon with Blue Gradient
   categoryIcon: {
     width: 64,
     height: 64,
@@ -2619,7 +2705,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  // ENHANCED: Completely Restructured Post Card Styles
+  // Post Card Styles
   postCard: {
     marginHorizontal: 20,
     marginVertical: 8,
