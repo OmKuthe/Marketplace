@@ -54,7 +54,6 @@ export default function ShopkeeperOrdersScreen() {
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -184,80 +183,14 @@ export default function ShopkeeperOrdersScreen() {
       Alert.alert(
         "Update Order Status",
         `Choose action for order ${order.id}:`,
-        [...options, { text: 'Cancel', style: 'cancel' }]
+
       );
     }
   };
 
-  // Enhanced Side Panel
-  const SidePanel = () => (
-    <View style={styles.sidePanel}>
-      <View style={styles.sidePanelHeader}>
-        <TouchableOpacity 
-          style={styles.sidePanelClose} 
-          onPress={() => setSidePanelVisible(false)}
-        >
-          <Ionicons name="close" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.sidePanelTitle}>Shop Menu</Text>
-      </View>
-      
-      <View style={styles.menuItems}>
-        <TouchableOpacity 
-          style={styles.menuItem}
-          onPress={() => {
-            setSidePanelVisible(false);
-            router.push("/shopkeeper/home");
-          }}
-        >
-          <Ionicons name="home" size={22} color={COLORS.primary} />
-          <Text style={styles.menuItemText}>Dashboard</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.menuItem}
-          onPress={() => {
-            setSidePanelVisible(false);
-            router.push("/shopkeeper/products");
-          }}
-        >
-          <Ionicons name="cube" size={22} color={COLORS.primary} />
-          <Text style={styles.menuItemText}>Products</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.menuItem}
-          onPress={() => {
-            setSidePanelVisible(false);
-            router.push("/shopkeeper/messages");
-          }}
-        >
-          <Ionicons name="chatbubbles" size={22} color={COLORS.primary} />
-          <Text style={styles.menuItemText}>Messages</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.menuItem, styles.activeMenuItem]}
-          onPress={() => setSidePanelVisible(false)}
-        >
-          <Ionicons name="receipt" size={22} color={COLORS.primary} />
-          <Text style={[styles.menuItemText, styles.activeMenuItemText]}>Orders</Text>
-          <View style={styles.activeMenuItemDot} />
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.menuItem}
-          onPress={() => {
-            setSidePanelVisible(false);
-            router.push("/shopkeeper/profile");
-          }}
-        >
-          <Ionicons name="person" size={22} color={COLORS.primary} />
-          <Text style={styles.menuItemText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  const handleBack = () => {
+    router.push("/shopkeeper/home");
+  };
 
   // Enhanced Order Card
   const renderOrderItem = ({ item }: { item: Order }) => (
@@ -281,16 +214,16 @@ export default function ShopkeeperOrdersScreen() {
           </View>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-          <Ionicons 
-            name={getStatusIcon(item.status)} 
-            size={14} 
-            color={getStatusColor(item.status)} 
-            style={styles.statusIcon}
-          />
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {getStatusText(item.status)}
-          </Text>
-        </View>
+  <Ionicons 
+    name={getStatusIcon(item.status)} 
+    size={14} 
+    color={getStatusColor(item.status)} 
+    style={styles.statusIcon}
+  />
+  <Text style={[styles.statusText,]}>
+    {getStatusText(item.status)}
+  </Text>
+</View>
       </View>
 
       <View style={styles.orderDetails}>
@@ -365,10 +298,10 @@ export default function ShopkeeperOrdersScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity 
-            style={styles.menuButton}
-            onPress={() => setSidePanelVisible(true)}
+            style={styles.backButton}
+            onPress={handleBack}
           >
-            <Ionicons name="menu" size={24} color={COLORS.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Customer Orders</Text>
           <View style={styles.headerPlaceholder} />
@@ -388,10 +321,10 @@ export default function ShopkeeperOrdersScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity 
-            style={styles.menuButton}
-            onPress={() => setSidePanelVisible(true)}
+            style={styles.backButton}
+            onPress={handleBack}
           >
-            <Ionicons name="menu" size={24} color={COLORS.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Customer Orders</Text>
           <View style={styles.headerPlaceholder} />
@@ -409,10 +342,10 @@ export default function ShopkeeperOrdersScreen() {
       {/* Enhanced Header */}
       <View style={styles.header}>
         <TouchableOpacity 
-          style={styles.menuButton}
-          onPress={() => setSidePanelVisible(true)}
+          style={styles.backButton}
+          onPress={handleBack}
         >
-          <Ionicons name="menu" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
         </TouchableOpacity>
         
         <View style={styles.headerCenter}>
@@ -424,10 +357,6 @@ export default function ShopkeeperOrdersScreen() {
         
         <View style={styles.headerPlaceholder} />
       </View>
-
-      {/* Side Panel */}
-      {sidePanelVisible && <SidePanel />}
-      {sidePanelVisible && <View style={styles.overlay} />}
 
       {/* Enhanced Search Bar */}
       <View style={styles.searchContainer}>
@@ -549,7 +478,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  menuButton: {
+  backButton: {
     padding: 8,
     borderRadius: 10,
     backgroundColor: COLORS.primaryLight,
@@ -571,82 +500,6 @@ const styles = StyleSheet.create({
   },
   headerPlaceholder: {
     width: 40,
-  },
-  // Enhanced Side Panel
-  sidePanel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: width * 0.75,
-    height: '100%',
-    backgroundColor: COLORS.background,
-    zIndex: 1000,
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 10,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.border,
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: 999,
-  },
-  sidePanelHeader: {
-    padding: 20,
-    paddingTop: 60,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  sidePanelClose: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    padding: 4,
-  },
-  sidePanelTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-  },
-  menuItems: {
-    padding: 20,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 4,
-  },
-  activeMenuItem: {
-    backgroundColor: COLORS.primaryLight,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
-  },
-  activeMenuItemText: {
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  activeMenuItemDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.primary,
-    marginLeft: 'auto',
-  },
-  menuItemText: {
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    marginLeft: 16,
-    fontWeight: '500',
   },
   // Enhanced Search
   searchContainer: {
@@ -813,11 +666,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusIcon: {
-    marginRight: 6,
+    marginRight:-10,
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '800',
+    color:'#fff'
   },
   orderDetails: {
     marginBottom: 20,

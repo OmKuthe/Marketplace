@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { collection, getDocs, orderBy, query, doc, getDoc, where } from "firebase/firestore";
+import { getAuth } from 'firebase/auth'; // Add this import
 import React, { useEffect, useState , useCallback} from "react";
 import {
   Dimensions,
@@ -18,7 +19,30 @@ import { db } from "../../../firebaseConfig";
 
 const { width, height } = Dimensions.get('window');
 
-// Types remain the same...
+// Consistent color constants
+const COLORS = {
+  primary: 'rgba(15, 177, 234, 1)',
+  primaryLight: 'rgba(15, 177, 234, 0.15)',
+  primaryDark: 'rgba(12, 142, 187, 1)',
+  secondary: 'rgba(9, 68, 89, 1)',
+  secondaryLight: 'rgba(9, 68, 89, 0.7)',
+  accent: 'rgba(247, 206, 38, 1)',
+  accentLight: 'rgba(247, 206, 38, 0.15)',
+  danger: 'rgba(255, 49, 49, 1)',
+  dangerLight: 'rgba(255, 49, 49, 0.15)',
+  success: 'rgba(76, 175, 80, 1)',
+  background: '#FFFFFF',
+  cardBackground: '#FFFFFF',
+  border: '#E0E0E0',
+  borderLight: '#F0F0F0',
+  textPrimary: 'rgba(9, 68, 89, 1)',
+  textSecondary: 'rgba(9, 68, 89, 0.7)',
+  textMuted: '#999',
+  inputBackground: '#F8F9FA',
+  overlay: 'rgba(9, 68, 89, 0.08)',
+  warning: 'rgba(255, 152, 0, 1)'
+};
+
 type PostType = 'NEED' | 'OFFER';
 type PostStatus = 'ACTIVE' | 'FULFILLED' | 'EXPIRED';
 type UrgencyLevel = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -33,7 +57,7 @@ interface CustomerPost {
   price?: number;
   category: string;
   type: PostType;
-  imageUrl?: string;
+  imageUrl?: string | null;
   location: string;
   status: PostStatus;
   createdAt: any;
@@ -57,6 +81,27 @@ type ShopkeeperData = {
   createdAt: any;
 };
 
+type Offer = {
+  id: string;
+  shopkeeperId: string;
+  shopkeeperName: string;
+  shopName: string;
+  title: string;
+  description: string;
+  originalPrice?: number;
+  discountPrice: number;
+  category: string;
+  terms?: string;
+  imageUrl?: string | null;
+  expiryDate: any;
+  status: 'ACTIVE' | 'EXPIRED';
+  createdAt: any;
+  updatedAt: any;
+  isExpired: boolean;
+  location?: string;
+  tags?: string[];
+};
+
 type Product = {
   id: string;
   name: string;
@@ -65,23 +110,31 @@ type Product = {
   stock: number;
   category: string;
   type: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
   createdAt?: any;
   shopkeeperId?: string;
   shopId?: string;
   shopkeeper?: string;
+  originalPrice?: number;
+  discountPrice?: number;
+  expiryDate?: any;
+  terms?: string;
+  isExpired?: boolean;
+  status?: 'ACTIVE' | 'EXPIRED';
 };
 
-// Union type for all post types
 type FeedItem = 
   | { id: string; type: 'customerPost'; data: CustomerPost }
-  | { id: string; type: 'product'; data: Product };
+  | { id: string; type: 'product'; data: Product }
+  | { id: string; type: 'offer'; data: Offer };
 
 export default function ShopkeeperHome() {
   const [posts, setPosts] = useState<Product[]>([]);
   const [customerPosts, setCustomerPosts] = useState<CustomerPost[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]); // Move this inside the component
   const [filteredPosts, setFilteredPosts] = useState<Product[]>([]);
   const [filteredCustomerPosts, setFilteredCustomerPosts] = useState<CustomerPost[]>([]);
+  const [filteredOffers, setFilteredOffers] = useState<Offer[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [stats, setStats] = useState({
     totalOrders: 24,
@@ -95,7 +148,6 @@ export default function ShopkeeperHome() {
 
   const router = useRouter();
 
-  // Fetch functions remain the same...
   const fetchCustomerPosts = async () => {
     try {
       const q = query(
@@ -135,6 +187,60 @@ export default function ShopkeeperHome() {
       setFilteredCustomerPosts(posts);
     } catch (error) {
       console.error('Error fetching customer posts:', error);
+    }
+  };
+
+  const headerBackgroundOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+
+  const fetchOffers = async () => {
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      
+      if (!user) return;
+
+      const q = query(
+        collection(db, "offers"),
+        where('shopkeeperId', '==', user.uid),
+        orderBy('createdAt', 'desc')
+      );
+
+      const snapshot = await getDocs(q);
+      const offersData: Offer[] = [];
+      
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        offersData.push({
+          id: doc.id,
+          shopkeeperId: data.shopkeeperId,
+          shopkeeperName: data.shopkeeperName,
+          shopName: data.shopName,
+          title: data.title,
+          description: data.description,
+          originalPrice: data.originalPrice,
+          discountPrice: data.discountPrice,
+          category: data.category,
+          terms: data.terms,
+          imageUrl: data.imageUrl,
+          expiryDate: data.expiryDate,
+          status: data.status,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          isExpired: data.isExpired,
+          location: data.location,
+          tags: data.tags || [],
+        } as Offer);
+      });
+
+      setOffers(offersData);
+      setFilteredOffers(offersData);
+    } catch (error) {
+      console.error('Error fetching offers:', error);
     }
   };
 
@@ -179,6 +285,7 @@ export default function ShopkeeperHome() {
   useEffect(() => {
     fetchProductsAndShopkeepers();
     fetchCustomerPosts();
+    fetchOffers();
   }, []);
 
   const onRefresh = useCallback(async () => {
@@ -186,6 +293,8 @@ export default function ShopkeeperHome() {
     try {
       if (activeTab === "need") {
         await fetchCustomerPosts();
+      } else if (activeTab === "offer") {
+        await fetchOffers();
       } else {
         await fetchProductsAndShopkeepers();
       }
@@ -200,30 +309,17 @@ export default function ShopkeeperHome() {
     if (activeTab === "all") {
       setFilteredPosts(posts);
       setFilteredCustomerPosts([]);
+      setFilteredOffers([]);
     } else if (activeTab === "need") {
       setFilteredPosts([]);
       setFilteredCustomerPosts(customerPosts);
+      setFilteredOffers([]);
     } else if (activeTab === "offer") {
-      setFilteredPosts(posts.filter(post => post.type === 'OFFER'));
+      setFilteredPosts([]);
       setFilteredCustomerPosts([]);
+      setFilteredOffers(offers);
     }
-  }, [activeTab, posts, customerPosts]);
-
-  const getShopkeeperName = (product: Product) => {
-    const shopkeeperId = product.shopkeeperId || product.shopId || product.shopkeeper;
-    if (shopkeeperId && shopkeeperData[shopkeeperId]) {
-      return shopkeeperData[shopkeeperId].shopName || shopkeeperData[shopkeeperId].ownerName || "Unknown Shop";
-    }
-    return "Unknown Shop";
-  };
-
-  const getShopkeeperLocation = (product: Product) => {
-    const shopkeeperId = product.shopkeeperId || product.shopId || product.shopkeeper;
-    if (shopkeeperId && shopkeeperData[shopkeeperId]) {
-      return shopkeeperData[shopkeeperId].location || "Unknown Location";
-    }
-    return "Unknown Location";
-  };
+  }, [activeTab, posts, customerPosts, offers]);
 
   // Helper function to get time ago
   const getTimeAgo = (timestamp: number) => {
@@ -238,12 +334,144 @@ export default function ShopkeeperHome() {
     return `${days}d ago`;
   };
 
-  // Customer Post Card Component - Removed social media buttons
+  // Offer Card Component
+  const OfferCard = ({ item }: { item: Offer }) => {
+    const isExpired = item.isExpired || (item.expiryDate && item.expiryDate.toDate() < new Date());
+    const discountPercent = item.originalPrice 
+      ? Math.round(((item.originalPrice - item.discountPrice) / item.originalPrice) * 100)
+      : 0;
+
+    return (
+      <View style={[styles.card, styles.offerCard]}>
+        {/* Offer Badge */}
+        <View style={styles.offerBadge}>
+          <Ionicons name="flash" size={12} color="white" />
+          <Text style={styles.offerBadgeText}>SPECIAL OFFER</Text>
+          {discountPercent > 0 && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>{discountPercent}% OFF</Text>
+            </View>
+          )}
+        </View>
+        
+        {isExpired && (
+          <View style={styles.expiredOverlay}>
+            <Text style={styles.expiredText}>EXPIRED</Text>
+          </View>
+        )}
+
+        <View style={styles.cardHeader}>
+          <View style={styles.userInfo}>
+            <View style={[styles.avatar, { backgroundColor: COLORS.accent }]}>
+              <Ionicons name="flash" size={16} color={COLORS.secondary} />
+            </View>
+            <View style={styles.userInfoText}>
+              <Text style={styles.username}>{item.shopName}</Text>
+              <View style={styles.metaInfo}>
+                <Text style={styles.userLocation}>📍 {item.location}</Text>
+                <Text style={styles.timeAgo}>
+                  {item.createdAt ? 
+                    getTimeAgo(item.createdAt.seconds * 1000) : 
+                    'Recently'
+                  }
+                </Text>
+              </View>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.moreButton}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.postContent}>
+          <Text style={styles.offerTitle}>{item.title}</Text>
+          <Text style={styles.offerDescription}>{item.description}</Text>
+          
+          {item.imageUrl ? (
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={styles.productImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="image" size={40} color={COLORS.textMuted} />
+              <Text style={styles.placeholderText}>No Image</Text>
+            </View>
+          )}
+
+          <View style={styles.postDetails}>
+            {/* Price Section */}
+            <View style={styles.offerPriceSection}>
+              <View style={styles.priceRow}>
+                {item.originalPrice && (
+                  <Text style={styles.originalPrice}>₹{item.originalPrice}</Text>
+                )}
+                <Text style={styles.discountPrice}>₹{item.discountPrice}</Text>
+              </View>
+              {item.expiryDate && (
+                <View style={styles.expiryRow}>
+                  <Ionicons 
+                    name="time" 
+                    size={14} 
+                    color={isExpired ? COLORS.danger : COLORS.textMuted} 
+                  />
+                  <Text style={[
+                    styles.expiryText,
+                    isExpired && styles.expiredDateText
+                  ]}>
+                    {isExpired ? 'Expired' : 'Expires'}: {item.expiryDate.toDate().toLocaleDateString()}
+                  </Text>
+                </View>
+              )}
+            </View>
+            
+            <View style={styles.detailsRow}>
+              <Text style={styles.productCategory}>#{item.category}</Text>
+              <Text style={styles.offerType}>Special Offer</Text>
+            </View>
+
+            {item.terms && (
+              <Text style={styles.termsText}>Terms: {item.terms}</Text>
+            )}
+
+            {item.tags && item.tags.length > 0 && (
+              <View style={styles.tagsContainer}>
+                {item.tags.slice(0, 3).map((tag, index) => (
+                  <View key={index} style={styles.tag}>
+                    <Text style={styles.tagText}>#{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Action Button */}
+        <View style={styles.singleActionButton}>
+          <TouchableOpacity 
+            style={[
+              styles.viewButton, 
+              isExpired && styles.disabledButton
+            ]}
+            disabled={isExpired}
+          >
+            <Ionicons name="eye" size={16} color="white" />
+            <Text style={styles.viewButtonText}>
+              {isExpired ? 'Offer Expired' : 'View Offer'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  // Customer Post Card Component
   const CustomerPostCard = ({ item }: { item: CustomerPost }) => (
     <View style={styles.customerPostCard}>
       <View style={styles.cardHeader}>
         <View style={styles.userInfo}>
-          <View style={[styles.avatar, { backgroundColor: 'rgba(15, 177, 234, 1)' }]}>
+          <View style={[styles.avatar, { backgroundColor: COLORS.primary }]}>
             <Ionicons name="person" size={16} color="white" />
           </View>
           <View style={styles.userInfoText}>
@@ -260,7 +488,7 @@ export default function ShopkeeperHome() {
           </View>
         </View>
         <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+          <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.textMuted} />
         </TouchableOpacity>
       </View>
 
@@ -276,7 +504,7 @@ export default function ShopkeeperHome() {
           />
         ) : (
           <View style={styles.noImagePlaceholder}>
-            <Ionicons name="image-outline" size={40} color="#ccc" />
+            <Ionicons name="image-outline" size={40} color={COLORS.textMuted} />
             <Text style={styles.noImageText}>No Image</Text>
           </View>
         )}
@@ -287,8 +515,8 @@ export default function ShopkeeperHome() {
               <Text style={styles.customerPostPrice}>💰 ₹{item.price}</Text>
             )}
             <View style={[styles.urgencyBadge, { 
-              backgroundColor: item.urgency === 'HIGH' ? 'rgba(255, 49, 49, 1)' : 
-                              item.urgency === 'MEDIUM' ? 'rgba(247, 206, 38, 1)' : 'rgba(15, 177, 234, 1)' 
+              backgroundColor: item.urgency === 'HIGH' ? COLORS.danger : 
+                              item.urgency === 'MEDIUM' ? COLORS.accent : COLORS.primary 
             }]}>
               <Text style={styles.urgencyText}>{item.urgency} URGENCY</Text>
             </View>
@@ -315,84 +543,200 @@ export default function ShopkeeperHome() {
       <View style={styles.singleActionButton}>
         <TouchableOpacity style={styles.contactButton}>
           <Ionicons name="chatbubble-ellipses" size={16} color="white" />
-          <Text style={styles.contactButtonText}>Contact Customer</Text>
+          <Text style={styles.contactButtonText}
+            onPress={() => router.push('/(tabs)/chat/[id]')}>Contact Customer</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  // Product Card Component - Removed social media buttons
-  const ProductCard = ({ item }: { item: Product }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.userInfo}>
-          <View style={[styles.avatar, { backgroundColor: 'rgba(15, 177, 234, 1)' }]}>
-            <Ionicons name="business" size={16} color="white" />
-          </View>
-          <View style={styles.userInfoText}>
-            <Text style={styles.username}>{getShopkeeperName(item)}</Text>
-            <View style={styles.metaInfo}>
-              <Text style={styles.userLocation}>📍 {getShopkeeperLocation(item)}</Text>
-              <Text style={styles.timeAgo}>
-                {item.createdAt ? 
-                  getTimeAgo(item.createdAt.seconds * 1000) : 
-                  'Recently'
-                }
-              </Text>
-            </View>
-          </View>
-        </View>
-        <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.postContent}>
-        <Text style={styles.productName}>{item.name}</Text>
-        <Text style={styles.productDescription}>{item.description}</Text>
-        
-        {item.imageUrl ? (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Ionicons name="image" size={40} color="#ccc" />
-            <Text style={styles.placeholderText}>No Image</Text>
+  // Product Card Component 
+  const ProductCard = ({ item }: { item: Product }) => {
+    const isOffer = item.type === 'OFFER';
+    const isExpired = item.isExpired || (item.expiryDate && item.expiryDate.toDate() < new Date());
+    
+    return (
+      <View style={[styles.card, isOffer && styles.offerCard]}>
+        {isOffer && (
+          <View style={styles.offerBadge}>
+            <Ionicons name="flash" size={12} color="white" />
+            <Text style={styles.offerBadgeText}>SPECIAL OFFER</Text>
           </View>
         )}
-
-        <View style={styles.postDetails}>
-          <View style={styles.detailsRow}>
-            <Text style={styles.productPrice}>${item.price}</Text>
-            <Text style={styles.stockInfo}>{item.stock || 0} in stock</Text>
+        
+        {isExpired && (
+          <View style={styles.expiredOverlay}>
+            <Text style={styles.expiredText}>EXPIRED</Text>
           </View>
+        )}
+  
+        <View style={styles.cardHeader}>
+          <View style={styles.userInfo}>
+            <View style={[styles.avatar, { backgroundColor: COLORS.primary }]}>
+              <Ionicons name="business" size={16} color="white" />
+            </View>
+            <View style={styles.userInfoText}>
+              <Text style={styles.username}>{getShopkeeperName(item)}</Text>
+              <View style={styles.metaInfo}>
+                <Text style={styles.userLocation}>📍 {getShopkeeperLocation(item)}</Text>
+                <Text style={styles.timeAgo}>
+                  {item.createdAt ? 
+                    getTimeAgo(item.createdAt.seconds * 1000) : 
+                    'Recently'
+                  }
+                </Text>
+              </View>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.moreButton}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        </View>
+  
+        <View style={styles.postContent}>
+          <Text style={styles.productName}>{item.name}</Text>
+          <Text style={styles.productDescription}>{item.description}</Text>
           
-          <View style={styles.detailsRow}>
-            <Text style={styles.productCategory}>#{item.category || 'General'}</Text>
-            <Text style={styles.productType}>{item.type || 'Product'}</Text>
+          {item.imageUrl ? (
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={styles.productImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="image" size={40} color={COLORS.textMuted} />
+              <Text style={styles.placeholderText}>No Image</Text>
+            </View>
+          )}
+  
+          <View style={styles.postDetails}>
+            {/* Price Section - Different for offers */}
+            {isOffer ? (
+              <View style={styles.offerPriceSection}>
+                <View style={styles.priceRow}>
+                  {item.originalPrice && (
+                    <Text style={styles.originalPrice}>₹{item.originalPrice}</Text>
+                  )}
+                  <Text style={styles.discountPrice}>₹{item.discountPrice}</Text>
+                </View>
+                {item.expiryDate && (
+                  <View style={styles.expiryRow}>
+                    <Ionicons name="time" size={14} color={COLORS.textMuted} />
+                    <Text style={styles.expiryText}>
+                      Expires: {item.expiryDate.toDate().toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={styles.detailsRow}>
+                <Text style={styles.productPrice}>₹{item.price}</Text>
+                <Text style={styles.stockInfo}>{item.stock || 0} in stock</Text>
+              </View>
+            )}
+            
+            <View style={styles.detailsRow}>
+              <Text style={styles.productCategory}>#{item.category || 'General'}</Text>
+              <Text style={styles.productType}>{item.type || 'Product'}</Text>
+            </View>
+  
+            {isOffer && item.terms && (
+              <Text style={styles.termsText}>Terms: {item.terms}</Text>
+            )}
           </View>
         </View>
+  
+        {/* Single Action Button for Products */}
+            <View style={styles.singleActionButton}>
+              <TouchableOpacity 
+                style={[
+                  styles.viewButton, 
+                  isExpired && styles.disabledButton
+                ]}
+                disabled={isExpired}
+                onPress={() => {
+                  // Pass product data to the details page
+                  router.push({
+                    pathname: '/(tabs)/details/shop-prod-details',
+                    params: { 
+                      product: JSON.stringify({
+                        id: item.id,
+                        name: item.name,
+                        price: item.price,
+                        imageUrl: item.imageUrl || '',
+                        description: item.description,
+                        shopName: getShopkeeperName(item),
+                        shopId: item.shopkeeperId || item.shopId || item.shopkeeper,
+                        stock: item.stock,
+                        category: item.category,
+                        type: item.type,
+                        location: getShopkeeperLocation(item),
+                    })
+                  }});
+                }}
+              >
+                <Ionicons name="eye" size={16} color="white" />
+                <Text style={styles.viewButtonText}>
+                  {isExpired ? 'Offer Expired' : 'View Details'}
+                </Text>
+              </TouchableOpacity>
+            </View>
       </View>
+    );
+  };
 
-      {/* Single Action Button for Products */}
-      <View style={styles.singleActionButton}>
-        <TouchableOpacity style={styles.viewButton}>
-          <Ionicons name="eye" size={16} color="white" />
-          <Text style={styles.viewButtonText}>View Details</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  // Helper functions for shopkeeper info
+  const getShopkeeperName = (product: Product) => {
+    const shopkeeperId = product.shopkeeperId || product.shopId || product.shopkeeper;
+    if (shopkeeperId && shopkeeperData[shopkeeperId]) {
+      return shopkeeperData[shopkeeperId].shopName || shopkeeperData[shopkeeperId].ownerName || "Unknown Shop";
+    }
+    return "Unknown Shop";
+  };
 
-  // Animated header background
-  const headerBackgroundOpacity = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
+  const getShopkeeperLocation = (product: Product) => {
+    const shopkeeperId = product.shopkeeperId || product.shopId || product.shopkeeper;
+    if (shopkeeperId && shopkeeperData[shopkeeperId]) {
+      return shopkeeperData[shopkeeperId].location || "Unknown Location";
+    }
+    return "Unknown Location";
+  };
+
+  // Prepare data for the main FlatList
+  const getListData = (): FeedItem[] => {
+    if (activeTab === "need") {
+      return filteredCustomerPosts.map(post => ({
+        id: post.id,
+        type: 'customerPost' as const,
+        data: post
+      }));
+    } else if (activeTab === "offer") {
+      return filteredOffers.map(offer => ({
+        id: offer.id,
+        type: 'offer' as const,
+        data: offer
+      }));
+    } else {
+      return filteredPosts.map(product => ({
+        id: product.id,
+        type: 'product' as const,
+        data: product
+      }));
+    }
+  };
+
+  // Render item function
+  const renderItem = ({ item }: { item: FeedItem }) => {
+    if (item.type === 'customerPost') {
+      return <CustomerPostCard item={item.data} />;
+    } else if (item.type === 'product') {
+      return <ProductCard item={item.data} />;
+    } else if (item.type === 'offer') {
+      return <OfferCard item={item.data} />;
+    }
+    return null;
+  };
 
   // Header Component
   const Header = () => (
@@ -402,11 +746,14 @@ export default function ShopkeeperHome() {
         style={styles.menuButton}
         onPress={() => router.push('/shopkeeper/profile')}
       >
-        <Ionicons name="person" size={28} color="rgba(9, 68, 89, 1)" />
+        <Ionicons name="person" size={28} color={COLORS.secondary}/>
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>🏪 Shop Feed</Text>
-      <TouchableOpacity style={styles.notificationButton}>
-        <Ionicons name="notifications-outline" size={24} color="rgba(9, 68, 89, 1)" />
+      <Text style={styles.headerTitle}>Shop Feed</Text>
+      <TouchableOpacity 
+        style={styles.addButton}
+        onPress={() => router.push('/(tabs)/offers/add-offers')}
+      >
+        <Ionicons name="add" size={24} color={COLORS.background} />
       </TouchableOpacity>
     </View>
   );
@@ -416,8 +763,8 @@ export default function ShopkeeperHome() {
     <View style={styles.statsContainer}>
       <View style={styles.statsBackground}>
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(15, 177, 234, 0.1)' }]}>
-            <Ionicons name="cart" size={20} color="rgba(15, 177, 234, 1)" />
+          <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
+            <Ionicons name="cart" size={20} color={COLORS.primary} />
           </View>
           <Text style={styles.statValue}>{stats.totalOrders}</Text>
           <Text style={styles.statLabel}>Orders</Text>
@@ -426,8 +773,8 @@ export default function ShopkeeperHome() {
         <View style={styles.statDivider} />
         
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(255, 49, 49, 0.1)' }]}>
-            <Ionicons name="time" size={20} color="rgba(255, 49, 49, 1)" />
+          <View style={[styles.statIcon, { backgroundColor: COLORS.dangerLight }]}>
+            <Ionicons name="time" size={20} color={COLORS.danger} />
           </View>
           <Text style={styles.statValue}>{stats.pendingOrders}</Text>
           <Text style={styles.statLabel}>Pending</Text>
@@ -436,8 +783,8 @@ export default function ShopkeeperHome() {
         <View style={styles.statDivider} />
         
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(247, 206, 38, 0.1)' }]}>
-            <Ionicons name="cash" size={20} color="rgba(247, 206, 38, 1)" />
+          <View style={[styles.statIcon, { backgroundColor: COLORS.accentLight }]}>
+            <Ionicons name="cash" size={20} color={COLORS.accent} />
           </View>
           <Text style={styles.statValue}>${stats.totalRevenue}</Text>
           <Text style={styles.statLabel}>Revenue</Text>
@@ -446,8 +793,8 @@ export default function ShopkeeperHome() {
         <View style={styles.statDivider} />
         
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(9, 68, 89, 0.1)' }]}>
-            <Ionicons name="cube" size={20} color="rgba(9, 68, 89, 1)" />
+          <View style={[styles.statIcon, { backgroundColor: COLORS.overlay }]}>
+            <Ionicons name="cube" size={20} color={COLORS.secondary} />
           </View>
           <Text style={styles.statValue}>{stats.totalProducts}</Text>
           <Text style={styles.statLabel}>Products</Text>
@@ -466,7 +813,7 @@ export default function ShopkeeperHome() {
         <Ionicons 
           name="grid" 
           size={16} 
-          color={activeTab === "all" ? "#FFFFFF" : "rgba(9, 68, 89, 0.7)"} 
+          color={activeTab === "all" ? "#FFFFFF" : COLORS.secondaryLight} 
         />
         <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>All</Text>
       </TouchableOpacity>
@@ -477,7 +824,7 @@ export default function ShopkeeperHome() {
         <Ionicons 
           name="people" 
           size={16} 
-          color={activeTab === "need" ? "#FFFFFF" : "rgba(9, 68, 89, 0.7)"} 
+          color={activeTab === "need" ? "#FFFFFF" : COLORS.secondaryLight} 
         />
         <Text style={[styles.tabText, activeTab === "need" && styles.activeTabText]}>Needs</Text>
       </TouchableOpacity>
@@ -488,7 +835,7 @@ export default function ShopkeeperHome() {
         <Ionicons 
           name="storefront" 
           size={16} 
-          color={activeTab === "offer" ? "#FFFFFF" : "rgba(9, 68, 89, 0.7)"} 
+          color={activeTab === "offer" ? "#FFFFFF" : COLORS.secondaryLight} 
         />
         <Text style={[styles.tabText, activeTab === "offer" && styles.activeTabText]}>My Offers</Text>
       </TouchableOpacity>
@@ -502,33 +849,6 @@ export default function ShopkeeperHome() {
       <TabsSection />
     </View>
   );
-
-  // Prepare data for the main FlatList (only posts, no header)
-  const getListData = (): FeedItem[] => {
-    if (activeTab === "need") {
-      return filteredCustomerPosts.map(post => ({
-        id: post.id,
-        type: 'customerPost' as const,
-        data: post
-      }));
-    } else {
-      return filteredPosts.map(product => ({
-        id: product.id,
-        type: 'product' as const,
-        data: product
-      }));
-    }
-  };
-
-  // Render item function that properly handles both types
-  const renderItem = ({ item }: { item: FeedItem }) => {
-    if (item.type === 'customerPost') {
-      return <CustomerPostCard item={item.data} />;
-    } else if (item.type === 'product') {
-      return <ProductCard item={item.data} />;
-    }
-    return null;
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -548,7 +868,7 @@ export default function ShopkeeperHome() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['rgba(15, 177, 234, 1)']}
+            colors={[COLORS.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -559,26 +879,26 @@ export default function ShopkeeperHome() {
         scrollEventThrottle={16}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={64} color="#ccc" />
+            <Ionicons name="document-text-outline" size={64} color={COLORS.textMuted} />
             <Text style={styles.emptyStateText}>
-              {activeTab === "need" ? "No customer needs found" : "No products found"}
+              {activeTab === "need" ? "No customer needs found" : 
+               activeTab === "offer" ? "No offers found" : "No products found"}
             </Text>
             <Text style={styles.emptyStateSubtext}>
-              {activeTab === "need" ? "Customer needs will appear here" : "Products will appear here"}
+              {activeTab === "need" ? "Customer needs will appear here" : 
+               activeTab === "offer" ? "Create your first special offer" : "Products will appear here"}
             </Text>
           </View>
         }
-        // Add margin top to account for fixed header
         style={styles.postsList}
       />
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: COLORS.inputBackground,
   },
   // Header Styles
   header: {
@@ -601,31 +921,31 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: COLORS.border,
   },
   menuButton: {
     padding: 8,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: COLORS.primaryLight,
   },
   notificationButton: {
     padding: 8,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: COLORS.primaryLight,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: "bold",
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.textPrimary,
   },
   // Fixed Header Section
   fixedHeader: {
     marginTop: 100, // Space for main header
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: COLORS.border,
     paddingBottom: 8,
   },
   // Stats Section with Background Container
@@ -636,11 +956,11 @@ const styles = StyleSheet.create({
   statsBackground: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(248, 249, 250, 1)',
+    backgroundColor: COLORS.inputBackground,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: COLORS.border,
   },
   statItem: {
     flex: 1,
@@ -657,24 +977,24 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.secondary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.secondaryLight,
     fontWeight: '500',
   },
   statDivider: {
     width: 1,
     height: 40,
-    backgroundColor: '#E5E5E5',
+    backgroundColor: COLORS.border,
     marginHorizontal: 8,
   },
   // Tab Styles
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: COLORS.inputBackground,
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 12,
@@ -691,11 +1011,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   activeTab: {
-    backgroundColor: 'rgba(15, 177, 234, 1)',
+    backgroundColor: COLORS.primary,
   },
   tabText: {
     fontSize: 14,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.secondaryLight,
     fontWeight: '500',
     marginLeft: 6,
   },
@@ -714,7 +1034,7 @@ const styles = StyleSheet.create({
   },
   // Card Styles
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.cardBackground,
     marginHorizontal: 12,
     marginVertical: 6,
     borderRadius: 16,
@@ -726,7 +1046,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   customerPostCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.cardBackground,
     marginHorizontal: 12,
     marginVertical: 6,
     borderRadius: 16,
@@ -737,7 +1057,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: 'hidden',
     borderLeftWidth: 4,
-    borderLeftColor: 'rgba(15, 177, 234, 1)',
+    borderLeftColor: COLORS.primary,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -765,7 +1085,7 @@ const styles = StyleSheet.create({
   username: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.textPrimary,
   },
   metaInfo: {
     flexDirection: 'row',
@@ -774,12 +1094,12 @@ const styles = StyleSheet.create({
   },
   userLocation: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     marginRight: 8,
   },
   timeAgo: {
     fontSize: 12,
-    color: '#999',
+    color: COLORS.textMuted,
   },
   moreButton: {
     padding: 4,
@@ -791,24 +1111,24 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   customerPostTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'rgba(9, 68, 89, 1)',
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   productDescription: {
     fontSize: 14,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     marginBottom: 12,
     lineHeight: 20,
   },
   customerPostDescription: {
     fontSize: 14,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     marginBottom: 12,
     lineHeight: 20,
   },
@@ -827,7 +1147,7 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: '100%',
     height: 150,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: COLORS.inputBackground,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 12,
@@ -836,7 +1156,7 @@ const styles = StyleSheet.create({
   noImagePlaceholder: {
     width: '100%',
     height: 150,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: COLORS.inputBackground,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 12,
@@ -844,12 +1164,12 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     marginTop: 8,
-    color: '#999',
+    color: COLORS.textMuted,
     fontSize: 14,
   },
   noImageText: {
     marginTop: 8,
-    color: '#999',
+    color: COLORS.textMuted,
     fontSize: 14,
   },
   // Post Details
@@ -865,17 +1185,17 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'rgba(15, 177, 234, 1)',
+    color: COLORS.primary,
   },
   customerPostPrice: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'rgba(15, 177, 234, 1)',
+    color: COLORS.primary,
   },
   productCategory: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
-    backgroundColor: '#F0F0F0',
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.borderLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -883,8 +1203,8 @@ const styles = StyleSheet.create({
   },
   customerPostCategory: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
-    backgroundColor: '#F0F0F0',
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.borderLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -892,17 +1212,17 @@ const styles = StyleSheet.create({
   },
   stockInfo: {
     fontSize: 12,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     fontWeight: '500',
   },
   productType: {
     fontSize: 12,
-    color: 'rgba(255, 49, 49, 1)',
+    color: COLORS.danger,
     fontWeight: '500',
   },
   customerPostType: {
     fontSize: 12,
-    color: 'rgba(255, 49, 49, 1)',
+    color: COLORS.danger,
     fontWeight: '500',
   },
   urgencyBadge: {
@@ -922,7 +1242,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   tag: {
-    backgroundColor: 'rgba(247, 206, 38, 0.1)',
+    backgroundColor: COLORS.accentLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -931,7 +1251,7 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 10,
-    color: 'rgba(9, 68, 89, 0.8)',
+    color: COLORS.textPrimary,
     fontWeight: '500',
   },
   // Single Action Button Container
@@ -939,12 +1259,12 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: COLORS.borderLight,
   },
   contactButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 177, 234, 1)',
+    backgroundColor: COLORS.primary,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -959,7 +1279,7 @@ const styles = StyleSheet.create({
   viewButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(247, 206, 38, 1)',
+    backgroundColor: COLORS.accent,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -980,14 +1300,129 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: 'rgba(9, 68, 89, 0.7)',
+    color: COLORS.textSecondary,
     marginTop: 16,
     fontWeight: '500',
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
+    color: COLORS.textMuted,
     marginTop: 8,
     textAlign: 'center',
   },
+  addButton: {
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+  },
+  offerCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.accent,
+  },
+  offerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    margin: 12,
+    marginBottom: 0,
+    borderRadius: 6,
+    gap: 4,
+  },
+  offerBadgeText: {
+    color: COLORS.secondary,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  expiredOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    borderRadius: 16,
+  },
+  expiredText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+    transform: [{ rotate: '-15deg' }],
+  },
+  offerPriceSection: {
+    marginBottom: 8,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  originalPrice: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textDecorationLine: 'line-through',
+  },
+  discountPrice: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.danger,
+  },
+  expiryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  expiryText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  termsText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  disabledButton: {
+    backgroundColor: COLORS.textMuted,
+  },
+  // Add to your styles
+offerTitle: {
+  fontSize: 18,
+  fontWeight: 'bold',
+  color: COLORS.textPrimary,
+  marginBottom: 8,
+},
+offerDescription: {
+  fontSize: 14,
+  color: COLORS.textSecondary,
+  marginBottom: 12,
+  lineHeight: 20,
+},
+offerType: {
+  fontSize: 12,
+  color: COLORS.accent,
+  fontWeight: 'bold',
+},
+discountBadge: {
+  backgroundColor: COLORS.danger,
+  paddingHorizontal: 6,
+  paddingVertical: 2,
+  borderRadius: 4,
+  marginLeft: 4,
+},
+discountText: {
+  color: 'white',
+  fontSize: 10,
+  fontWeight: 'bold',
+},
+expiredDateText: {
+  color: COLORS.danger,
+  fontWeight: '600',
+},
 } as const);

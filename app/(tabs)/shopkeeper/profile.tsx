@@ -17,11 +17,34 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "../../../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
-import { useAuth } from "../../../hooks/useAuth"; // Import your useAuth hook
+import { useAuth } from "../../../hooks/useAuth";
 
 const { width } = Dimensions.get('window');
 
-// Simplified type to match your Firebase data
+// Consistent color constants
+const COLORS = {
+  primary: 'rgba(15, 177, 234, 1)',
+  primaryLight: 'rgba(15, 177, 234, 0.15)',
+  primaryDark: 'rgba(12, 142, 187, 1)',
+  secondary: 'rgba(9, 68, 89, 1)',
+  secondaryLight: 'rgba(9, 68, 89, 0.7)',
+  accent: 'rgba(247, 206, 38, 1)',
+  accentLight: 'rgba(247, 206, 38, 0.15)',
+  danger: 'rgba(255, 49, 49, 1)',
+  dangerLight: 'rgba(255, 49, 49, 0.15)',
+  success: 'rgba(76, 175, 80, 1)',
+  background: '#FFFFFF',
+  cardBackground: '#FFFFFF',
+  border: '#E0E0E0',
+  borderLight: '#F0F0F0',
+  textPrimary: 'rgba(9, 68, 89, 1)',
+  textSecondary: 'rgba(9, 68, 89, 0.7)',
+  textMuted: '#999',
+  inputBackground: '#F8F9FA',
+  overlay: 'rgba(9, 68, 89, 0.08)',
+  warning: 'rgba(255, 152, 0, 1)'
+};
+
 type ShopkeeperData = {
   uid: string;
   email: string;
@@ -34,24 +57,20 @@ type ShopkeeperData = {
 
 export default function ShopkeeperProfileScreen() {
   const [user, setUser] = useState<ShopkeeperData | null>(null);
-  const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [orderAlertsEnabled, setOrderAlertsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const router = useRouter();
   
-  // Use your useAuth hook
   const { user: authUser, role, logout } = useAuth();
 
   useEffect(() => {
-    // If user is not authenticated, redirect to login
     if (!authUser && !isLoading) {
       router.replace("/");
       return;
     }
 
-    // If user is authenticated, fetch their profile data
     if (authUser) {
       fetchShopkeeperProfile();
     }
@@ -91,11 +110,8 @@ export default function ShopkeeperProfileScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              // Use the logout function from useAuth hook
               await logout();
-              // Clear any stored data
               await AsyncStorage.clear();
-              // The auth state change will handle navigation automatically
               console.log("Logout successful");
             } catch (error) {
               console.error("Logout error:", error);
@@ -105,6 +121,10 @@ export default function ShopkeeperProfileScreen() {
         }
       ]
     );
+  };
+
+  const handleBack = () => {
+    router.push("/shopkeeper/home");
   };
 
   const handleEditProfile = () => {
@@ -127,104 +147,40 @@ export default function ShopkeeperProfileScreen() {
     router.push("/shop_prof/support");
   };
 
-  const SidePanel = () => (
-    <View style={styles.sidePanel}>
-      <TouchableOpacity 
-        style={styles.sidePanelClose} 
-        onPress={() => setSidePanelVisible(false)}
-      >
-        <Ionicons name="close" size={24} color="#333" />
-      </TouchableOpacity>
-      
-      <View style={styles.sidePanelHeader}>
-        <Text style={styles.sidePanelTitle}>Shop Menu</Text>
-      </View>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/home");
-        }}
-      >
-        <Ionicons name="home" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Dashboard</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/products");
-        }}
-      >
-        <Ionicons name="cube" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Products</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/myorders");
-        }}
-      >
-        <Ionicons name="list" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Orders</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.menuItem}
-        onPress={() => {
-          setSidePanelVisible(false);
-          router.push("/shopkeeper/messages");
-        }}
-      >
-        <Ionicons name="chatbubbles" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Messages</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.menuItem, styles.activeMenuItem]}
-        onPress={() => setSidePanelVisible(false)}
-      >
-        <Ionicons name="person" size={20} color="#007AFF" />
-        <Text style={styles.menuItemText}>Profile</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  // Show loading state while useAuth is loading
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-            <Ionicons name="menu" size={28} color="#333" />
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={handleBack}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>👤 Shop Profile</Text>
+          <Text style={styles.headerTitle}>Shop Profile</Text>
           <View style={{ width: 28 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // If no auth user, show nothing (will redirect)
   if (!authUser) {
     return null;
   }
 
-  // If auth user exists but no shopkeeper profile data
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-            <Ionicons name="menu" size={28} color="#333" />
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={handleBack}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>👤 Shop Profile</Text>
           <View style={{ width: 28 }} />
@@ -244,19 +200,22 @@ export default function ShopkeeperProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with menu button */}
+      {/* Header with back button */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setSidePanelVisible(true)}>
-          <Ionicons name="menu" size={28} color="#333" />
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={handleBack}
+        >
+          <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>👤 Shop Profile</Text>
-        <TouchableOpacity onPress={handleEditProfile}>
-          <Ionicons name="create-outline" size={24} color="#007AFF" />
+        <Text style={styles.headerTitle}>Shop Profile</Text>
+        <TouchableOpacity 
+          style={styles.editButton}
+          onPress={handleEditProfile}
+        >
+          <Ionicons name="create-outline" size={24} color={COLORS.primary} />
         </TouchableOpacity>
       </View>
-
-      {/* Side Panel */}
-      {sidePanelVisible && <SidePanel />}
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Profile Header */}
@@ -275,18 +234,18 @@ export default function ShopkeeperProfileScreen() {
         {/* Business Info */}
         <View style={styles.businessInfo}>
           <View style={styles.infoItem}>
-            <Ionicons name="location-outline" size={18} color="#007AFF" />
+            <Ionicons name="location-outline" size={18} color={COLORS.primary} />
             <Text style={styles.infoText} numberOfLines={1}>
               {user.location}
             </Text>
           </View>
           <View style={styles.infoItem}>
-            <Ionicons name="call-outline" size={18} color="#007AFF" />
+            <Ionicons name="call-outline" size={18} color={COLORS.primary} />
             <Text style={styles.infoText}>{user.phone}</Text>
           </View>
         </View>
 
-        {/* Stats Section - Using placeholder data since not in Firebase */}
+        {/* Stats Section */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>0</Text>
@@ -312,34 +271,34 @@ export default function ShopkeeperProfileScreen() {
           
           <TouchableOpacity style={styles.menuItemCard} onPress={handleProductsManagement}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="cube-outline" size={22} color="#007AFF" />
+              <Ionicons name="cube-outline" size={22} color={COLORS.primary} />
               <Text style={styles.menuItemText}>Manage Products</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItemCard} onPress={handleOrderManagement}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="list-outline" size={22} color="#007AFF" />
+              <Ionicons name="list-outline" size={22} color={COLORS.primary} />
               <Text style={styles.menuItemText}>Order Management</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItemCard} onPress={handleEditProfile}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="create-outline" size={22} color="#007AFF" />
+              <Ionicons name="create-outline" size={22} color={COLORS.primary} />
               <Text style={styles.menuItemText}>Edit Profile</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItemCard} onPress={handleShopSettings}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="settings-outline" size={22} color="#007AFF" />
+              <Ionicons name="settings-outline" size={22} color={COLORS.primary} />
               <Text style={styles.menuItemText}>Shop Settings</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -349,40 +308,27 @@ export default function ShopkeeperProfileScreen() {
           
           <View style={styles.menuItemCard}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="notifications-outline" size={22} color="#007AFF" />
+              <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
               <Text style={styles.menuItemText}>Notifications</Text>
             </View>
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={notificationsEnabled ? '#007AFF' : '#f4f3f4'}
+              trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+              thumbColor={notificationsEnabled ? COLORS.primary : COLORS.background}
             />
           </View>
 
           <View style={styles.menuItemCard}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="alert-circle-outline" size={22} color="#007AFF" />
+              <Ionicons name="alert-circle-outline" size={22} color={COLORS.primary} />
               <Text style={styles.menuItemText}>Order Alerts</Text>
             </View>
             <Switch
               value={orderAlertsEnabled}
               onValueChange={setOrderAlertsEnabled}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={orderAlertsEnabled ? '#007AFF' : '#f4f3f4'}
-            />
-          </View>
-
-          <View style={styles.menuItemCard}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="moon-outline" size={22} color="#007AFF" />
-              <Text style={styles.menuItemText}>Dark Mode</Text>
-            </View>
-            <Switch
-              value={darkModeEnabled}
-              onValueChange={setDarkModeEnabled}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={darkModeEnabled ? '#007AFF' : '#f4f3f4'}
+              trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+              thumbColor={orderAlertsEnabled ? COLORS.primary : COLORS.background}
             />
           </View>
         </View>
@@ -393,24 +339,24 @@ export default function ShopkeeperProfileScreen() {
           
           <TouchableOpacity style={styles.menuItemCard} onPress={handleSupport}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="help-circle-outline" size={22} color="#007AFF" />
+              <Ionicons name="help-circle-outline" size={22} color={COLORS.primary} />
               <Text style={styles.menuItemText}>Help & Support</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItemCard}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="document-text-outline" size={22} color="#007AFF" />
+              <Ionicons name="document-text-outline" size={22} color={COLORS.primary} />
               <Text style={styles.menuItemText}>Terms & Policies</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={22} color="#FF3B30" />
+          <Ionicons name="log-out-outline" size={22} color={COLORS.danger} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
 
@@ -426,70 +372,41 @@ export default function ShopkeeperProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9f9f9",
-    marginTop:27,
+    backgroundColor: COLORS.inputBackground,
+    marginTop: 27,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  sidePanel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: width * 0.7,
-    height: '100%',
-    backgroundColor: '#fff',
-    zIndex: 100,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 2,
-      height: 0,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sidePanelClose: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-  },
-  sidePanelHeader: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingBottom: 15,
-    marginBottom: 20,
-  },
-  sidePanelTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  activeMenuItem: {
-    backgroundColor: '#f0f7ff',
+  backButton: {
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLight,
   },
   menuItemText: {
     fontSize: 16,
-    marginLeft: 15,
+    color: COLORS.textPrimary,
+    marginLeft: 16,
+    fontWeight: '500',
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLight,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+  },
+  scrollView: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -499,7 +416,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
+    color: COLORS.textSecondary,
   },
   centered: {
     flex: 1,
@@ -510,19 +427,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#fff',
+    color: COLORS.background,
     fontWeight: '500',
   },
   profileHeader: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     padding: 24,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
   },
   avatar: {
     width: 100,
@@ -533,25 +450,25 @@ const styles = StyleSheet.create({
   shopName: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#333',
+    color: COLORS.textPrimary,
     marginBottom: 4,
     textAlign: 'center',
   },
   userName: {
     fontSize: 16,
-    color: '#666',
+    color: COLORS.textSecondary,
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 14,
-    color: '#666',
+    color: COLORS.textSecondary,
     marginBottom: 2,
   },
   businessInfo: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
   },
   infoItem: {
     flexDirection: 'row',
@@ -560,16 +477,16 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#666',
+    color: COLORS.textSecondary,
     marginLeft: 8,
     flex: 1,
   },
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
   },
   statItem: {
     flex: 1,
@@ -578,26 +495,26 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: COLORS.primary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: COLORS.textSecondary,
     textAlign: 'center',
   },
   section: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     marginTop: 16,
     paddingHorizontal: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: COLORS.textPrimary,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.border,
   },
   menuItemCard: {
     flexDirection: 'row',
@@ -605,7 +522,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: COLORS.borderLight,
   },
   menuItemLeft: {
     flexDirection: 'row',
@@ -616,15 +533,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     marginTop: 16,
     padding: 16,
     borderRadius: 8,
     marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
   },
   logoutText: {
     fontSize: 16,
-    color: '#FF3B30',
+    color: COLORS.danger,
     fontWeight: '500',
     marginLeft: 8,
   },
@@ -634,11 +553,11 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 12,
-    color: '#999',
+    color: COLORS.textMuted,
     marginBottom: 4,
   },
   footerText: {
     fontSize: 12,
-    color: '#999',
+    color: COLORS.textMuted,
   },
 } as const);
