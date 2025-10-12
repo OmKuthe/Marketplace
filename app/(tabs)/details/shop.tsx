@@ -1,12 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons'; 
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import { collection, getDocs, query, where, orderBy, doc, getDoc } from 'firebase/firestore';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  Image,
   ScrollView,
   TouchableOpacity,
   FlatList,
@@ -48,56 +47,154 @@ type Shop = {
 
 const { width } = Dimensions.get('window');
 
+// FIXED: Safe default values and validation functions
+const getSafeNumber = (value: any, defaultValue: number = 0): number => {
+  if (value === undefined || value === null) return defaultValue;
+  const num = parseFloat(value);
+  return isNaN(num) ? defaultValue : num;
+};
+
+const getSafeString = (value: any, defaultValue: string = ''): string => {
+  if (value === undefined || value === null) return defaultValue;
+  return String(value);
+};
+
 export default function ShopScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  // Extract shop data from params
-  const shop: Shop = {
-    id: params.shopId as string,
-    shopName: params.shopName as string,
-    ownerName: params.ownerName as string,
-    email: params.email as string,
-    phone: params.phone as string,
-    latitude: parseFloat(params.latitude as string),
-    longitude: parseFloat(params.longitude as string),
-    location: params.location as string,
-    shopLogo: params.shopLogo as string,
-    uid: params.uid as string,
-  };
-
+  const [shop, setShop] = useState<Shop | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shopLoading, setShopLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'details' | 'products'>('details');
 
-  useEffect(() => {
-    loadShopProducts();
-  }, [shop.id]);
+  // FIXED: Extract individual params to avoid object reference issues
+  const shopId = getSafeString(params.shopId, 'unknown-shop');
+  const shopName = getSafeString(params.shopName, 'Unknown Shop');
+  const ownerName = getSafeString(params.ownerName, 'Unknown Owner');
+  const email = getSafeString(params.email, '');
+  const phone = getSafeString(params.phone, '');
+  // const latitude = getSafeNumber(params.latitude, 21.0957);
+  // const longitude = getSafeNumber(params.longitude, 78.9382);
+  const latitude = getSafeNumber(params.latitude, 21.1443);
+  const longitude = getSafeNumber(params.longitude, 79.0789);
+  const location = getSafeString(params.location, 'Unknown Location');
+  const shopLogo = getSafeString(params.shopLogo, '');
+  const uid = getSafeString(params.uid, shopId);
 
-  const loadShopProducts = async () => {
+  // FIXED: Stable fetchShopData function with specific dependencies
+  const fetchShopData = useCallback(async () => {
+    if (shopId === 'unknown-shop') {
+      console.log('❌ No valid shop ID provided');
+      setShopLoading(false);
+      return;
+    }
+
+    try {
+      console.log('🔄 Fetching shop data for ID:', shopId);
+      
+      // Try to get shop from shops collection first
+      const shopDocRef = doc(db, 'shops', shopId);
+      const shopDoc = await getDoc(shopDocRef);
+      
+      if (shopDoc.exists()) {
+        const shopData = shopDoc.data() as Shop;
+        console.log('✅ Shop data found in Firestore:', shopData);
+        setShop({
+          ...shopData,
+          id: shopDoc.id
+        });
+      } else {
+        // If shop not found in shops collection, use passed params with safe defaults
+        console.log('⚠️ Shop not found in Firestore, using passed params');
+        const safeShop: Shop = {
+          id: shopId,
+          shopName,
+          ownerName,
+          email,
+          phone,
+          latitude,
+          longitude,
+          location,
+          shopLogo,
+          uid
+        };
+        setShop(safeShop);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching shop data:', error);
+      // Fallback to params if Firestore fails
+      const safeShop: Shop = {
+        id: shopId,
+        shopName,
+        ownerName,
+        email,
+        phone,
+        latitude,
+        longitude,
+        location,
+        shopLogo,
+        uid
+      };
+      setShop(safeShop);
+    } finally {
+      setShopLoading(false);
+    }
+  }, [shopId, shopName, ownerName, email, phone, latitude, longitude, location, shopLogo, uid]);
+
+  // FIXED: Initialize shop data - only run once when component mounts
+  useEffect(() => {
+    console.log('🛍️ ShopScreen initialized with shopId:', shopId);
+    fetchShopData();
+  }, [fetchShopData]);
+
+  // FIXED: Load products with proper dependency
+  const loadShopProducts = useCallback(async () => {
+    if (!shop || !shop.id || shop.id === 'unknown-shop') {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
+      console.log('🔄 Loading products for shop:', shop.id);
+      
       const q = query(
         collection(db, 'products'),
         where('shopId', '==', shop.id),
         orderBy('createdAt', 'desc')
       );
+      
       const snapshot = await getDocs(q);
       const productsData: Product[] = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Product[];
+      
+      console.log(`✅ Loaded ${productsData.length} products`);
       setProducts(productsData);
     } catch (error) {
-      console.log('Error loading products:', error);
-      Alert.alert('Error', 'Failed to load products');
+      console.error('❌ Error loading products:', error);
+      Alert.alert('Error', 'Failed to load products. Please try again.');
+      setProducts([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [shop]);
+
+  // FIXED: Load products when shop data is available
+  useEffect(() => {
+    if (!shopLoading && shop) {
+      loadShopProducts();
+    }
+  }, [shop, shopLoading, loadShopProducts]);
 
   const handleCall = (phoneNumber: string) => {
-    if (!phoneNumber) return;
+    if (!phoneNumber) {
+      Alert.alert('Info', 'Phone number not available');
+      return;
+    }
     
     const phoneUrl = `tel:${phoneNumber}`;
     Linking.canOpenURL(phoneUrl)
@@ -115,7 +212,10 @@ export default function ShopScreen() {
   };
 
   const handleEmail = (email: string) => {
-    if (!email) return;
+    if (!email) {
+      Alert.alert('Info', 'Email not available');
+      return;
+    }
     
     const emailUrl = `mailto:${email}`;
     Linking.openURL(emailUrl).catch(err => {
@@ -124,53 +224,66 @@ export default function ShopScreen() {
     });
   };
 
-  // Function to handle view product details
+  // FIXED: Safe product navigation
   const handleViewProduct = (product: Product) => {
-    router.push({
-      pathname: '../details/productdetails',
-      params: {
-        product: JSON.stringify({
-          id: product.id,
-          name: product.name,
-          description: product.description,
-          price: product.price,
-          stock: product.stock,
-          category: product.category,
-          type: product.type,
-          imageUrl: product.imageUrl,
-          createdAt: product.createdAt,
-          shopkeeperId: shop.uid,
-          shopId: shop.id,
-          shopName: shop.shopName,
-          ownerName: shop.ownerName,
-          location: shop.location,
-          phone: shop.phone,
-          email: shop.email
-        })
-      }
-    });
+    if (!shop) return;
+    
+    try {
+      router.push({
+        pathname: '../details/productdetails',
+        params: {
+          product: JSON.stringify({
+            id: product.id,
+            name: product.name,
+            description: product.description,
+            price: product.price,
+            stock: product.stock,
+            category: product.category,
+            type: product.type,
+            imageUrl: product.imageUrl,
+            createdAt: product.createdAt,
+            shopkeeperId: shop.uid,
+            shopId: shop.id,
+            shopName: shop.shopName,
+            ownerName: shop.ownerName,
+            location: shop.location,
+            phone: shop.phone,
+            email: shop.email
+          })
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error navigating to product:', error);
+      Alert.alert('Error', 'Failed to open product details');
+    }
   };
 
+  // UPDATED: Product item without image dependency
   const renderProductItem = ({ item }: { item: Product }) => (
     <TouchableOpacity 
       style={styles.productCard}
       onPress={() => handleViewProduct(item)}
+      activeOpacity={0.7}
     >
-      {item.imageUrl ? (
-        <Image 
-          source={{ uri: item.imageUrl }} 
-          style={styles.productImage}
-          resizeMode="cover"
+      <View style={styles.productIconContainer}>
+        <Ionicons 
+          name="cube" 
+          size={32} 
+          color="rgba(23, 104, 217, 1)" 
         />
-      ) : (
-        <View style={styles.productImagePlaceholder}>
-          <Ionicons name="cube" size={32} color="rgba(23, 104, 217, 1)" />
-        </View>
-      )}
+        {item.stock === 0 && (
+          <View style={styles.outOfStockOverlay}>
+            <Ionicons name="close-circle" size={20} color="#ff6b6b" />
+          </View>
+        )}
+      </View>
+      
       <View style={styles.productInfo}>
-        <Text style={styles.productName}>{item.name}</Text>
+        <Text style={styles.productName} numberOfLines={1}>
+          {item.name || 'Unnamed Product'}
+        </Text>
         <Text style={styles.productDescription} numberOfLines={2}>
-          {item.description}
+          {item.description || 'No description available'}
         </Text>
         
         <View style={styles.productMetaContainer}>
@@ -197,7 +310,6 @@ export default function ShopScreen() {
             )}
           </View>
           
-          {/* View Button */}
           <TouchableOpacity 
             style={styles.viewButton}
             onPress={() => handleViewProduct(item)}
@@ -211,77 +323,87 @@ export default function ShopScreen() {
   );
 
   const renderDetailsTab = () => (
-    <ScrollView style={styles.tabContent}>
+    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
       {/* Shop Info Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Shop Information</Text>
         <View style={styles.infoRow}>
           <Ionicons name="person" size={20} color="rgba(23, 104, 217, 1)" />
-          <Text style={styles.infoText}>Owner: {shop.ownerName}</Text>
+          <Text style={styles.infoText}>Owner: {shop?.ownerName || 'Unknown'}</Text>
         </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="call" size={20} color="rgba(23, 104, 217, 1)" />
-          <Text style={styles.infoText}>Phone: {shop.phone}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="mail" size={20} color="rgba(23, 104, 217, 1)" />
-          <Text style={styles.infoText}>Email: {shop.email}</Text>
-        </View>
+        {shop?.phone && (
+          <View style={styles.infoRow}>
+            <Ionicons name="call" size={20} color="rgba(23, 104, 217, 1)" />
+            <Text style={styles.infoText}>Phone: {shop.phone}</Text>
+          </View>
+        )}
+        {shop?.email && (
+          <View style={styles.infoRow}>
+            <Ionicons name="mail" size={20} color="rgba(23, 104, 217, 1)" />
+            <Text style={styles.infoText}>Email: {shop.email}</Text>
+          </View>
+        )}
         <View style={styles.infoRow}>
           <Ionicons name="location" size={20} color="rgba(23, 104, 217, 1)" />
-          <Text style={styles.infoText}>Address: {shop.location}</Text>
+          <Text style={styles.infoText}>Address: {shop?.location || 'Unknown Location'}</Text>
         </View>
       </View>
 
       {/* Action Buttons */}
       <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.callButton]}
-          onPress={() => handleCall(shop.phone)}
-        >
-          <Ionicons name="call" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>Call Shop</Text>
-        </TouchableOpacity>
+        {shop?.phone && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.callButton]}
+            onPress={() => handleCall(shop.phone)}
+          >
+            <Ionicons name="call" size={20} color="#fff" />
+            <Text style={styles.actionButtonText}>Call Shop</Text>
+          </TouchableOpacity>
+        )}
         
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.emailButton]}
-          onPress={() => handleEmail(shop.email)}
-        >
-          <Ionicons name="mail" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>Send Email</Text>
-        </TouchableOpacity>
+        {shop?.email && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.emailButton]}
+            onPress={() => handleEmail(shop.email)}
+          >
+            <Ionicons name="mail" size={20} color="#fff" />
+            <Text style={styles.actionButtonText}>Send Email</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Map Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Location</Text>
-        <View style={styles.mapContainer}>
-          <MapView
-            style={styles.map}
-            initialRegion={{
-              latitude: shop.latitude,
-              longitude: shop.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }}
-            scrollEnabled={false}
-            zoomEnabled={false}
-          >
-            <Marker
-              coordinate={{
+      {/* Map Section - Only render if coordinates are valid */}
+      {shop && !isNaN(shop.latitude) && !isNaN(shop.longitude) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Location</Text>
+          <View style={styles.mapContainer}>
+            <MapView
+              style={styles.map}
+              initialRegion={{
                 latitude: shop.latitude,
                 longitude: shop.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
               }}
-              title={shop.shopName}
-              description={shop.location}
+              scrollEnabled={false}
+              zoomEnabled={false}
             >
-              <View style={styles.mapMarker}>
-                <Ionicons name="storefront" size={24} color="#fff" />
-              </View>
-            </Marker>
-          </MapView>
+              <Marker
+                coordinate={{
+                  latitude: shop.latitude,
+                  longitude: shop.longitude,
+                }}
+                title={shop.shopName}
+                description={shop.location}
+              >
+                <View style={styles.mapMarker}>
+                  <Ionicons name="storefront" size={24} color="#fff" />
+                </View>
+              </Marker>
+            </MapView>
+          </View>
         </View>
-      </View>
+      )}
     </ScrollView>
   );
 
@@ -312,6 +434,37 @@ export default function ShopScreen() {
     </View>
   );
 
+  if (shopLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="rgba(23, 104, 217, 1)" />
+          <Text style={styles.loadingText}>Loading shop information...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!shop) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={60} color="rgba(144, 186, 242, 1)" />
+          <Text style={styles.errorText}>Shop not found</Text>
+          <Text style={styles.errorSubText}>
+            The shop information could not be loaded.
+          </Text>
+          <TouchableOpacity 
+            style={styles.backButtonLarge}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -327,13 +480,9 @@ export default function ShopScreen() {
 
       {/* Shop Header */}
       <View style={styles.shopHeader}>
-        {shop.shopLogo ? (
-          <Image source={{ uri: shop.shopLogo }} style={styles.shopLogo} />
-        ) : (
-          <View style={styles.shopLogoPlaceholder}>
-            <Ionicons name="storefront" size={40} color="rgba(23, 104, 217, 1)" />
-          </View>
-        )}
+        <View style={styles.shopIconContainer}>
+          <Ionicons name="storefront" size={40} color="rgba(23, 104, 217, 1)" />
+        </View>
         <View style={styles.shopHeaderInfo}>
           <Text style={styles.shopName}>{shop.shopName}</Text>
           <Text style={styles.ownerName}>By {shop.ownerName}</Text>
@@ -370,11 +519,11 @@ export default function ShopScreen() {
   );
 }
 
+// ... (keep the same styles as before)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    marginTop:27
   },
   header: {
     flexDirection: 'row',
@@ -407,13 +556,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(144, 186, 242, 0.3)',
   },
-  shopLogo: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    marginRight: 16,
-  },
-  shopLogoPlaceholder: {
+  shopIconContainer: {
     width: 80,
     height: 80,
     borderRadius: 12,
@@ -551,13 +694,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(144, 186, 242, 0.2)',
   },
-  productImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    marginRight: 16,
-  },
-  productImagePlaceholder: {
+  productIconContainer: {
     width: 80,
     height: 80,
     borderRadius: 12,
@@ -567,6 +704,15 @@ const styles = StyleSheet.create({
     marginRight: 16,
     borderWidth: 2,
     borderColor: 'rgba(144, 186, 242, 0.3)',
+    position: 'relative',
+  },
+  outOfStockOverlay: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 2,
   },
   productInfo: {
     flex: 1,
@@ -674,5 +820,36 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: 'rgba(4, 18, 36, 0.8)',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorSubText: {
+    fontSize: 16,
+    color: 'rgba(144, 186, 242, 1)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  backButtonLarge: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(23, 104, 217, 1)',
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

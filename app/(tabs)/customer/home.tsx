@@ -12,7 +12,11 @@ import {
   getDocs,
   orderBy,
   query,
-  Timestamp
+  Timestamp,
+  updateDoc,
+  deleteDoc,
+  where,
+  limit
 } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -49,14 +53,16 @@ const colors = {
   error: '#ef4444',
   border: '#e2e8f0',
   darkButton: '#1e293b',
-  needColor: '#f97316',
-  offerColor: '#10b981',
-  gradientPrimary: ['#667eea', '#764ba2'],
-  gradientSecondary: ['#f093fb', '#f5576c'],
-  gradientSuccess: ['#10b981', '#34d399'],
-  gradientWarning: ['#f59e0b', '#fbbf24'],
-  needCard: 'rgba(249, 115, 22, 0.08)',
-  offerCard: 'rgba(16, 185, 129, 0.08)',
+  needColor: '#8b5cf6',
+  offerColor: '#06b6d4',
+  gradientPrimary: ['#667eea', '#764ba2'] as const,
+  gradientSecondary: ['#f093fb', '#f5576c'] as const,
+  gradientSuccess: ['#10b981', '#34d399'] as const,
+  gradientWarning: ['#f59e0b', '#fbbf24'] as const,
+  gradientNeed: ['#8b5cf6', '#a78bfa'] as const,
+  gradientOffer: ['#06b6d4', '#22d3ee'] as const,
+  needCard: 'rgba(139, 92, 246, 0.08)',
+  offerCard: 'rgba(6, 182, 212, 0.08)',
   lightBackground: 'rgba(226, 232, 240, 0.4)',
   electricPurple: '#8b5cf6',
   deepBlue: '#1e40af',
@@ -82,9 +88,35 @@ type Product = {
   category: string;
   type: string;
   imageUrl?: string;
+  image?: string;
   createdAt?: any;
   shopkeeperId?: string;
   shopId?: string;
+  shopName?: string;
+  ownerName?: string;
+  location?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  rating?: number;
+  reviewCount?: number;
+};
+
+type Shop = {
+  id: string;
+  shopName: string;
+  ownerName: string;
+  email: string;
+  phone: string;
+  latitude: number;
+  longitude: number;
+  location: string;
+  shopLogo: string;
+  createdAt: any;
+  updatedAt: any;
+  uid: string;
 };
 
 type PostType = 'NEED' | 'OFFER';
@@ -155,6 +187,29 @@ const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt
   } catch (error) {
     console.error('Error creating post:', error);
     throw new Error('Failed to create post');
+  }
+};
+
+const updateCustomerPost = async (postId: string, postData: Partial<CustomerPost>): Promise<void> => {
+  try {
+    const postWithTimestamps = {
+      ...postData,
+      updatedAt: Timestamp.now(),
+    };
+
+    await updateDoc(doc(db, "customerPosts", postId), postWithTimestamps);
+  } catch (error) {
+    console.error('Error updating post:', error);
+    throw new Error('Failed to update post');
+  }
+};
+
+const deleteCustomerPost = async (postId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, "customerPosts", postId));
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    throw new Error('Failed to delete post');
   }
 };
 
@@ -252,6 +307,42 @@ const getCustomerPosts = async (filters: PostFilter = {}): Promise<{ posts: Cust
   }
 };
 
+// Function to get random products for ads
+const getRandomProductsForAds = async (count: number = 1): Promise<Product[]> => {
+  try {
+    const q = query(collection(db, "products"), limit(20));
+    const snapshot = await getDocs(q);
+    const products = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Product[];
+    
+    // Shuffle and take required count
+    const shuffled = products.sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+  } catch (error) {
+    console.error('Error fetching ads products:', error);
+    return [];
+  }
+};
+
+// Function to get shop details
+const getShopDetails = async (shopId: string): Promise<Shop | null> => {
+  try {
+    const shopDoc = await getDoc(doc(db, "shopkeepers", shopId));
+    if (shopDoc.exists()) {
+      return {
+        id: shopDoc.id,
+        ...shopDoc.data()
+      } as Shop;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching shop details:', error);
+    return null;
+  }
+};
+
 // SMOOTH ANIMATION COMPONENTS
 const FadeInView = ({ children, delay = 0, duration = 500, style = {} }: any) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -292,7 +383,95 @@ const SlideInView = ({ children, direction = 'up', delay = 0, duration = 600, st
   );
 };
 
-// ENHANCED Offer Banner Component with smooth animations
+// Star Rating Component with fixed decimal places
+const StarRating = ({ rating, size = 14 }: { rating: number; size?: number }) => {
+  const stars = [];
+  const fullStars = Math.floor(rating);
+  const hasHalfStar = rating % 1 >= 0.5;
+
+  for (let i = 1; i <= 5; i++) {
+    if (i <= fullStars) {
+      stars.push(<Ionicons key={i} name="star" size={size} color="#FFD700" />);
+    } else if (i === fullStars + 1 && hasHalfStar) {
+      stars.push(<Ionicons key={i} name="star-half" size={size} color="#FFD700" />);
+    } else {
+      stars.push(<Ionicons key={i} name="star-outline" size={size} color="#FFD700" />);
+    }
+  }
+
+  return <View style={styles.starsContainer}>{stars}</View>;
+};
+
+// Ads Component
+const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
+  const discountPercentage = Math.floor(Math.random() * 50) + 10;
+  const originalPrice = Math.round(product.price * (1 + discountPercentage / 100));
+  const rating = product.rating ? parseFloat(product.rating.toFixed(1)) : 4.5;
+  const reviewCount = product.reviewCount || Math.floor(Math.random() * 100) + 1;
+
+  return (
+    <View style={styles.adsCard}>
+      <View style={styles.adsHeader}>
+        <Text style={styles.adsBadge}>AD</Text>
+        <Text style={styles.adsTitle}>Top picks!</Text>
+      </View>
+      
+      <TouchableOpacity 
+        style={styles.adsContent}
+        onPress={() => {
+          router.push({
+            pathname: "/(tabs)/details/productdetails",
+            params: { product: JSON.stringify(product) }
+          });
+        }}
+      >
+        <Image 
+          source={{ uri: product.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' }}
+          style={styles.adsImage}
+          resizeMode="cover"
+        />
+        
+        <View style={styles.adsInfo}>
+          <Text style={styles.adsProductName} numberOfLines={2}>{product.name}</Text>
+          
+          <View style={styles.adsRatingContainer}>
+            <StarRating rating={rating} size={12} />
+            <Text style={styles.adsRatingText}>({rating.toFixed(1)})</Text>
+            <Text style={styles.adsReviewCount}>({reviewCount})</Text>
+          </View>
+          
+          <View style={styles.adsPricing}>
+            <Text style={styles.adsOriginalPrice}>${originalPrice}</Text>
+            <Text style={styles.adsDiscountedPrice}>${product.price}</Text>
+            <View style={styles.adsDiscountBadge}>
+              <Text style={styles.adsDiscountText}>✔ {discountPercentage}% OFF</Text>
+            </View>
+          </View>
+          
+          {/* <Text style={styles.adsDelivery}>Delivery by 15th Oct</Text> */}
+        </View>
+      </TouchableOpacity>
+      
+      {shop && (
+        <TouchableOpacity 
+          style={styles.adsShopSection}
+          onPress={() => {
+            router.push("/(tabs)/details/shop");
+          }}
+        >
+          {/* <Text style={styles.adsShopText}>Shop: {shop.shopName}</Text> */}
+          {/* <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} /> */}
+        </TouchableOpacity>
+      )}
+      
+      {/* <TouchableOpacity style={styles.adsShopNowButton}>
+        <Text style={styles.adsShopNowText}>Shop now →</Text>
+      </TouchableOpacity> */}
+    </View>
+  );
+};
+
+// Enhanced Offer Banner Component with shop redirect
 const OfferBanner = () => {
   const [currentOffer, setCurrentOffer] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -300,22 +479,25 @@ const OfferBanner = () => {
 
   const offers = [
     { 
+      text: 'Buy 2 Get 1 Free', 
+      subtext: 'On selected items',
+      buttonText: 'Shop Now →',
+      gradient: colors.gradientSecondary,
+      shopName: 'Fashion Hub'
+    },
+    { 
       text: '75% OFF', 
       subtext: 'Limited Time Offer',
-      buttonText: 'Shop Now →',
-      gradient: colors.gradientPrimary 
+      buttonText: 'Explore →',
+      gradient: colors.gradientPrimary,
+      shopName: 'Electro World'
     },
     { 
       text: 'Free Shipping', 
       subtext: 'On orders over $50',
       buttonText: 'See Details →',
-      gradient: colors.gradientSecondary 
-    },
-    { 
-      text: 'Buy 2 Get 1', 
-      subtext: 'Special Collection',
-      buttonText: 'Explore →',
-      gradient: colors.gradientSuccess 
+      gradient: colors.gradientSuccess,
+      shopName: 'Home Essentials'
     }
   ];
 
@@ -356,7 +538,12 @@ const OfferBanner = () => {
 
   return (
     <FadeInView delay={200}>
-      <View style={styles.offerBanner}>
+      <TouchableOpacity 
+        style={styles.offerBanner}
+        onPress={() => {
+          router.push("/(tabs)/details/shop");
+        }}
+      >
         <LinearGradient
           colors={offers[currentOffer].gradient}
           style={styles.offerGradient}
@@ -373,22 +560,19 @@ const OfferBanner = () => {
             <View style={styles.offerTextContainer}>
               <Text style={styles.offerMainText}>{offers[currentOffer].text}</Text>
               <Text style={styles.offerSubtext}>{offers[currentOffer].subtext}</Text>
+              <Text style={styles.offerShopText}>at {offers[currentOffer].shopName}</Text>
             </View>
             <TouchableOpacity style={styles.offerButton}>
               <Text style={styles.offerButtonText}>{offers[currentOffer].buttonText}</Text>
             </TouchableOpacity>
           </Animated.View>
-          <View style={styles.offerDecoration}>
-            <Animated.View style={[styles.decorationCircle1, { opacity: fadeAnim }]} />
-            <Animated.View style={[styles.decorationCircle2, { opacity: fadeAnim }]} />
-          </View>
         </LinearGradient>
-      </View>
+      </TouchableOpacity>
     </FadeInView>
   );
 };
 
-// ENHANCED Category Item Component with smooth animations
+// ENHANCED Category Item Component
 const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: boolean; onPress: () => void }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -457,7 +641,7 @@ const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: bo
   );
 };
 
-// IMPROVED Product Card Component - Fixed UI Issues
+// UPDATED: Enhanced Product Card with proper navigation
 const AnimatedProductCard = ({ 
   item, 
   index, 
@@ -470,7 +654,7 @@ const AnimatedProductCard = ({
   onMessagePress: (product: Product) => void;
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const [saved, setSaved] = useState(false);
   const saveScale = useRef(new Animated.Value(1)).current;
@@ -514,151 +698,211 @@ const AnimatedProductCard = ({
     setSaved(!saved);
   };
 
-  // Mock data for e-commerce features
   const discountPercentage = Math.floor(Math.random() * 50) + 10;
   const originalPrice = Math.round(item.price * (1 + discountPercentage / 100));
-  const couponPrice = Math.round(item.price * 0.9);
+  const rating = item.rating ? parseFloat(item.rating.toFixed(1)) : 4.5;
+  const reviewCount = item.reviewCount || Math.floor(Math.random() * 100) + 1;
 
   return (
-    <Animated.View 
-      style={[
-        styles.productCard,
-        {
-          opacity: fadeAnim,
-          transform: [
-            { scale: scaleAnim },
-            { translateY: slideAnim }
-          ]
-        }
-      ]}
+    <TouchableOpacity 
+      onPress={() => {
+        console.log('🔄 Navigating to product details with:', item.id, item.name);
+        router.push({
+          pathname: "/(tabs)/details/productdetails",
+          params: { 
+            product: JSON.stringify({
+              id: item.id,
+              name: item.name,
+              description: item.description,
+              price: item.price,
+              stock: item.stock,
+              category: item.category,
+              type: item.type,
+              imageUrl: item.imageUrl,
+              image: item.image,
+              shopkeeperId: item.shopkeeperId,
+              shopId: item.shopId,
+              shopName: shopkeeperData?.shopName,
+              ownerName: shopkeeperData?.ownerName,
+              location: shopkeeperData?.location,
+              phone: shopkeeperData?.phone,
+              email: shopkeeperData?.email,
+              createdAt: item.createdAt
+            })
+          }
+        });
+      }}
+      activeOpacity={0.9}
     >
-      <View style={styles.productImageContainer}>
-        <Image 
-          source={{ 
-            uri: item.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' 
-          }} 
-          style={styles.productImage}
-          resizeMode="cover"
-        />
+      <Animated.View 
+        style={[
+          styles.productCard,
+          {
+            opacity: fadeAnim,
+            transform: [
+              { scale: scaleAnim },
+              { translateY: slideAnim }
+            ]
+          }
+        ]}
+      >
+        <View style={styles.productImageContainer}>
+          <Image 
+            source={{ 
+              uri: item.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' 
+            }} 
+            style={styles.productImage}
+            resizeMode="cover"
+          />
+          
+          {/* TOP BADGES CONTAINER */}
+          <View style={styles.topBadgesContainer}>
+            {/* Discount Badge */}
+            <FadeInView delay={300 + index * 50}>
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountText}>✔ {discountPercentage}% OFF</Text>
+              </View>
+            </FadeInView>
+
+            {/* Stock Badge */}
+            {item.stock < 10 && item.stock > 0 && (
+              <FadeInView delay={400 + index * 50}>
+                <View style={styles.lowStockBadge}>
+                  <Text style={styles.lowStockText}>Low Stock</Text>
+                </View>
+              </FadeInView>
+            )}
+            {item.stock === 0 && (
+              <FadeInView delay={400 + index * 50}>
+                <View style={styles.outOfStockBadge}>
+                  <Text style={styles.outOfStockText}>Out of Stock</Text>
+                </View>
+              </FadeInView>
+            )}
+          </View>
+          
+          {/* Favorite Button */}
+          <Animated.View style={[styles.saveButtonContainer, { transform: [{ scale: saveScale }] }]}>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+              <Ionicons 
+                name={saved ? "heart" : "heart-outline"} 
+                size={20} 
+                color={saved ? colors.error : colors.surface} 
+              />
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
         
-        {/* TOP BADGES CONTAINER - FIXED POSITIONING */}
-        <View style={styles.topBadgesContainer}>
-          {/* Discount Badge - TOP LEFT */}
-          <FadeInView delay={300 + index * 50}>
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>✔ {discountPercentage}% OFF</Text>
+        <View style={styles.productInfo}>
+          {/* Product Name */}
+          <FadeInView delay={550 + index * 50}>
+            <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+          </FadeInView>
+
+          {/* Rating Section */}
+          <FadeInView delay={600 + index * 50}>
+            <View style={styles.ratingContainer}>
+              <StarRating rating={rating} />
+              <Text style={styles.ratingText}>({rating.toFixed(1)})</Text>
+              <Text style={styles.reviewCount}>({reviewCount})</Text>
             </View>
           </FadeInView>
 
-          {/* Low Stock Badge - TOP LEFT (below discount) - RED as requested */}
-          {item.stock < 10 && item.stock > 0 && (
-            <FadeInView delay={400 + index * 50}>
-              <View style={styles.lowStockBadge}>
-                <Text style={styles.lowStockText}>Low Stock</Text>
+          {/* Description */}
+          <FadeInView delay={650 + index * 50}>
+            <Text style={styles.productDescription} numberOfLines={2}>
+              {item.description || 'A stylish, versatile piece with premium finish.'}
+            </Text>
+          </FadeInView>
+          
+          {/* Pricing Row */}
+          <FadeInView delay={700 + index * 50}>
+            <View style={styles.pricingContainer}>
+              <View style={styles.originalPriceContainer}>
+                <Text style={styles.originalPrice}>${originalPrice}</Text>
+                <Text style={styles.discountedPrice}>${item.price}</Text>
               </View>
-            </FadeInView>
-          )}
-          {item.stock === 0 && (
-            <FadeInView delay={400 + index * 50}>
-              <View style={styles.outOfStockBadge}>
-                <Text style={styles.outOfStockText}>Out of Stock</Text>
-              </View>
-            </FadeInView>
-          )}
-        </View>
-        
-        {/* Favorite Button - TOP RIGHT */}
-        <Animated.View style={[styles.saveButtonContainer, { transform: [{ scale: saveScale }] }]}>
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Ionicons 
-              name={saved ? "heart" : "heart-outline"} 
-              size={20} 
-              color={saved ? colors.error : colors.surface} 
-            />
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-      
-      <View style={styles.productInfo}>
-        {/* Product Name/Description - MADE VISIBLE */}
-        <FadeInView delay={550 + index * 50}>
-          <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-        </FadeInView>
-        
-        {/* Pricing Row */}
-        <FadeInView delay={600 + index * 50}>
-          <View style={styles.pricingContainer}>
-            <View style={styles.originalPriceContainer}>
-              <Text style={styles.originalPrice}>${originalPrice}</Text>
-              <Text style={styles.discountedPrice}>${item.price}</Text>
             </View>
-          </View>
-        </FadeInView>
-        
-        {/* Coupon Offer */}
-        <FadeInView delay={650 + index * 50}>
-          <View style={styles.couponContainer}>
-            <Text style={styles.wowText}>Wow</Text>
-            <Text style={styles.couponPrice}>${couponPrice} with Coupon</Text>
-          </View>
-        </FadeInView>
-        
-        {/* Action Buttons */}
-        <FadeInView delay={700 + index * 50}>
-          <View style={styles.productActions}>
-            <TouchableOpacity 
-              style={styles.cartButton}
-              onPress={() => {
-                const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-                router.push({
-                  pathname: '../orders/order-now',
-                  params: { 
-                    product: JSON.stringify({
-                      id: item.id,
-                      name: item.name,
-                      price: item.price,
-                      imageUrl: item.imageUrl,
-                      shopName: shopkeeperData?.shopName || 'Local Store',
-                      shopId: shopkeeperId || 'shop-001',
-                      description: item.description,
-                      stock: item.stock
-                    })
+          </FadeInView>
+          
+          {/* Action Buttons */}
+          <FadeInView delay={750 + index * 50}>
+            <View style={styles.productActions}>
+              <TouchableOpacity 
+                style={[
+                  styles.cartButton,
+                  item.stock === 0 && styles.disabledButton
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  if (item.stock > 0) {
+                    const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
+                    router.push({
+                      pathname: '../orders/order-now',
+                      params: { 
+                        product: JSON.stringify({
+                          id: item.id,
+                          name: item.name,
+                          price: item.price,
+                          imageUrl: item.imageUrl,
+                          shopName: shopkeeperData?.shopName || 'Local Store',
+                          shopId: shopkeeperId || 'shop-001',
+                          description: item.description,
+                          stock: item.stock
+                        })
+                      }
+                    });
                   }
-                });
-              }}
-            >
-              <Ionicons name="cart" size={16} color={colors.surface} />
-              <Text style={styles.cartButtonText}>Buy Now</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.messageButton}
-              onPress={() => onMessagePress(item)}
-            >
-              <Ionicons name="chatbubble" size={16} color={colors.accent} />
-            </TouchableOpacity>
-          </View>
-        </FadeInView>
-      </View>
-    </Animated.View>
+                }}
+                disabled={item.stock === 0}
+              >
+                <Ionicons name="cart" size={16} color={colors.surface} />
+                <Text style={styles.cartButtonText}>
+                  {item.stock > 0 ? 'Buy Now' : 'Out of Stock'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.messageButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onMessagePress(item);
+                }}
+              >
+                <Ionicons name="chatbubble" size={16} color={colors.accent} />
+              </TouchableOpacity>
+            </View>
+          </FadeInView>
+        </View>
+      </Animated.View>
+    </TouchableOpacity>
   );
 };
 
-// ENHANCED Customer Post Card Component with Smooth Animations
+// ENHANCED: Completely Restructured Customer Post Card Component
 const CustomerPostCard = ({ 
   item, 
   index,
-  onContactPress
+  onContactPress,
+  onEditPress,
+  onDeletePress,
+  currentUserId
 }: { 
   item: CustomerPost; 
   index: number;
   onContactPress: (post: CustomerPost) => void;
+  onEditPress: (post: CustomerPost) => void;
+  onDeletePress: (postId: string) => void;
+  currentUserId?: string;
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const [saved, setSaved] = useState(false);
   const saveScale = useRef(new Animated.Value(1)).current;
+  const [showActions, setShowActions] = useState(false);
+
+  const isOwnPost = currentUserId === item.customerId;
 
   useEffect(() => {
     Animated.parallel([
@@ -691,8 +935,21 @@ const CustomerPostCard = ({
 
   const getTypeGradient = () => {
     return item.type === 'NEED' 
-      ? [colors.needColor, '#fb923c'] 
-      : [colors.offerColor, '#34d399'];
+      ? colors.gradientNeed 
+      : colors.gradientOffer;
+  };
+
+  const getTypeIcon = () => {
+    return item.type === 'NEED' ? "help-circle" : "gift";
+  };
+
+  const getUrgencyColor = () => {
+    switch (item.urgency) {
+      case 'HIGH': return colors.error;
+      case 'MEDIUM': return colors.warning;
+      case 'LOW': return colors.success;
+      default: return colors.textSecondary;
+    }
   };
 
   const handleSave = () => {
@@ -709,6 +966,38 @@ const CustomerPostCard = ({
     setSaved(!saved);
   };
 
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => onDeletePress(item.id)
+        }
+      ]
+    );
+  };
+
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return 'Recently';
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (error) {
+      return 'Recently';
+    }
+  };
+
   return (
     <Animated.View 
       style={[
@@ -722,44 +1011,75 @@ const CustomerPostCard = ({
         }
       ]}
     >
-      {/* Post Header */}
-      <LinearGradient
-        colors={getTypeGradient()}
-        style={styles.postHeaderGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      >
-        <View style={styles.postHeader}>
-          <View style={styles.postUserInfo}>
-            <View style={styles.postAvatar}>
-              <Ionicons 
-                name={item.type === 'NEED' ? "help-circle" : "gift"} 
-                size={20} 
-                color="white" 
-              />
-            </View>
-            <View style={styles.postUserDetails}>
-              <Text style={styles.postUsername}>{item.customerName}</Text>
-              <View style={styles.postTypeBadge}>
-                <Text style={styles.postTypeText}>
-                  {item.type} • {item.category}
+      {/* Enhanced Post Header */}
+      <View style={styles.postHeader}>
+        <View style={styles.postUserInfo}>
+          <LinearGradient
+            colors={getTypeGradient() as [string, string]}
+            style={styles.postAvatar}
+          >
+            <Ionicons name={getTypeIcon()} size={20} color="white" />
+          </LinearGradient>
+          <View style={styles.postUserDetails}>
+            <Text style={styles.postUsername}>{item.customerName}</Text>
+            <View style={styles.postMetaRow}>
+              <View style={[styles.postTypeBadge, { backgroundColor: getTypeColor() + '20' }]}>
+                <Ionicons name={getTypeIcon()} size={12} color={getTypeColor()} />
+                <Text style={[styles.postTypeText, { color: getTypeColor() }]}>
+                  {item.type}
                 </Text>
               </View>
+              <Text style={styles.postDate}>{formatDate(item.createdAt)}</Text>
             </View>
           </View>
+        </View>
+        
+        <View style={styles.postHeaderActions}>
+          {isOwnPost && (
+            <TouchableOpacity 
+              style={styles.menuButton}
+              onPress={() => setShowActions(!showActions)}
+            >
+              <Ionicons name="ellipsis-vertical" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+          
           <Animated.View style={{ transform: [{ scale: saveScale }] }}>
             <TouchableOpacity onPress={handleSave} style={styles.bookmarkButton}>
-              <Ionicons 
-                name={saved ? "bookmark" : "bookmark-outline"} 
-                size={20} 
-                color="white" 
+              <Ionicons
+                name={saved ? "bookmark" : "bookmark-outline"}
+                size={20}
+                color={saved ? getTypeColor() : colors.textSecondary}
               />
             </TouchableOpacity>
           </Animated.View>
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* Post Content */}
+      {/* Action Menu for Own Posts */}
+      {showActions && isOwnPost && (
+        <View style={styles.actionMenu}>
+          <TouchableOpacity 
+            style={styles.actionMenuItem}
+            onPress={() => {
+              setShowActions(false);
+              onEditPress(item);
+            }}
+          >
+            <Ionicons name="create" size={16} color={colors.textPrimary} />
+            <Text style={styles.actionMenuText}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionMenuItem, styles.deleteAction]}
+            onPress={handleDelete}
+          >
+            <Ionicons name="trash" size={16} color={colors.error} />
+            <Text style={[styles.actionMenuText, styles.deleteActionText]}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Enhanced Post Content */}
       <View style={styles.postContent}>
         {item.imageUrl ? (
           <View style={styles.postImageContainer}>
@@ -768,20 +1088,24 @@ const CustomerPostCard = ({
               style={styles.postImage}
               resizeMode="cover"
             />
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.1)']}
+              style={styles.imageOverlay}
+            />
           </View>
         ) : (
           <View style={[styles.postImageContainer, styles.noImageContainer]}>
             <LinearGradient
-              colors={['#f8fafc', '#e2e8f0']}
+              colors={getTypeGradient() as [string, string]}
               style={styles.noImageGradient}
             >
               <Ionicons 
-                name={item.type === 'NEED' ? "help-circle" : "gift"} 
+                name={getTypeIcon()} 
                 size={48} 
-                color={item.type === 'NEED' ? colors.needColor : colors.offerColor} 
+                color="white" 
               />
               <Text style={styles.noImageText}>
-                {item.type === 'NEED' ? 'Need' : 'Offer'}
+                {item.type}
               </Text>
             </LinearGradient>
           </View>
@@ -792,40 +1116,44 @@ const CustomerPostCard = ({
           <Text style={styles.postDescription}>{item.description}</Text>
         </View>
         
-        <View style={styles.postDetails}>
+        {/* Enhanced Post Details Grid */}
+        <View style={styles.postDetailsGrid}>
           {item.price && (
-            <View style={styles.detailItem}>
-              <Ionicons name="pricetag" size={16} color={colors.textSecondary} />
-              <Text style={styles.detailLabel}>Price:</Text>
-              <Text style={styles.postPrice}>${item.price}</Text>
+            <View style={styles.detailChip}>
+              <Ionicons name="pricetag" size={14} color={getTypeColor()} />
+              <Text style={[styles.detailChipText, { color: getTypeColor() }]}>
+                ${item.price}
+              </Text>
             </View>
           )}
-          <View style={styles.detailItem}>
-            <Ionicons name="location" size={16} color={colors.textSecondary} />
-            <Text style={styles.detailLabel}>Location:</Text>
-            <Text style={styles.postLocation}>{item.location}</Text>
+          
+          <View style={styles.detailChip}>
+            <Ionicons name="location" size={14} color={colors.textSecondary} />
+            <Text style={styles.detailChipText}>{item.location}</Text>
           </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="time" size={16} color={colors.textSecondary} />
-            <Text style={styles.detailLabel}>Urgency:</Text>
-            <View style={[
-              styles.urgencyBadge,
-              { 
-                backgroundColor: item.urgency === 'HIGH' ? colors.error : 
-                                item.urgency === 'MEDIUM' ? colors.warning : colors.success 
-              }
-            ]}>
-              <Text style={styles.urgencyText}>{item.urgency}</Text>
-            </View>
+          
+          <View style={[styles.detailChip, { backgroundColor: getUrgencyColor() + '20' }]}>
+            <Ionicons name="time" size={14} color={getUrgencyColor()} />
+            <Text style={[styles.detailChipText, { color: getUrgencyColor() }]}>
+              {item.urgency}
+            </Text>
+          </View>
+          
+          <View style={styles.detailChip}>
+            <Ionicons name="grid" size={14} color={colors.textSecondary} />
+            <Text style={styles.detailChipText}>{item.category}</Text>
           </View>
         </View>
       </View>
 
+      {/* Enhanced Post Footer */}
       <View style={styles.postFooter}>
         <TouchableOpacity 
           style={[
             styles.contactButton,
-            { backgroundColor: getTypeColor() }
+            { 
+              backgroundColor: getTypeColor(),
+            }
           ]}
           onPress={() => onContactPress(item)}
         >
@@ -834,23 +1162,21 @@ const CustomerPostCard = ({
             size={16} 
             color="white" 
           />
-          <Text style={styles.contactButtonText}>Contact</Text>
+          <Text style={styles.contactButtonText}>Contact Poster</Text>
         </TouchableOpacity>
         
-        <View style={styles.postMeta}>
-          <Text style={styles.postDate}>
-            {item.createdAt?.seconds 
-              ? new Date(item.createdAt.seconds * 1000).toLocaleDateString()
-              : 'Recently'
-            }
-          </Text>
-        </View>
+        {isOwnPost && (
+          <View style={[styles.ownPostBadge, { backgroundColor: getTypeColor() + '20' }]}>
+            <Ionicons name="person" size={12} color={getTypeColor()} />
+            <Text style={[styles.ownPostText, { color: getTypeColor() }]}>Your Post</Text>
+          </View>
+        )}
       </View>
     </Animated.View>
   );
 };
 
-// ENHANCED Main CustomerHome Component
+// Main CustomerHome Component
 export default function CustomerHome() {
   const [products, setProducts] = useState<Product[]>([]);
   const [customerPosts, setCustomerPosts] = useState<CustomerPost[]>([]);
@@ -858,7 +1184,10 @@ export default function CustomerHome() {
   const [shopkeeperData, setShopkeeperData] = useState<{[key: string]: ShopkeeperData}>({});
   const [activeTab, setActiveTab] = useState<"all" | "need" | "offer">("all");
   const [createPostModalVisible, setCreatePostModalVisible] = useState(false);
+  const [editPostModalVisible, setEditPostModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [adsProducts, setAdsProducts] = useState<Product[]>([]);
+  const [shops, setShops] = useState<{[key: string]: Shop}>({});
   const router = useRouter();
   const { user } = useAuth();
   
@@ -872,6 +1201,8 @@ export default function CustomerHome() {
     location: "",
     urgency: "MEDIUM" as UrgencyLevel,
   });
+
+  const [editingPost, setEditingPost] = useState<CustomerPost | null>(null);
   
   const [activeFilter, setActiveFilter] = useState<PostFilter>({});
   const [loadingPosts, setLoadingPosts] = useState(false);
@@ -899,8 +1230,15 @@ export default function CustomerHome() {
         ...doc.data(),
       })) as Product[];
       
-      setProducts(data);
-      setFilteredProducts(data);
+      // Add mock ratings for demonstration with fixed decimal
+      const productsWithRatings = data.map(product => ({
+        ...product,
+        rating: parseFloat((3.5 + Math.random() * 1.5).toFixed(1)),
+        reviewCount: Math.floor(Math.random() * 100) + 1
+      }));
+      
+      setProducts(productsWithRatings);
+      setFilteredProducts(productsWithRatings);
 
       const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
       for (const product of data) {
@@ -925,6 +1263,29 @@ export default function CustomerHome() {
     }
   };
 
+  // Fetch ads products
+  const fetchAdsProducts = async () => {
+    try {
+      const ads = await getRandomProductsForAds(3);
+      setAdsProducts(ads);
+      
+      // Fetch shop details for ads products
+      const shopsMap: {[key: string]: Shop} = {};
+      for (const product of ads) {
+        const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
+        if (shopkeeperId && !shopsMap[shopkeeperId]) {
+          const shopDetails = await getShopDetails(shopkeeperId);
+          if (shopDetails) {
+            shopsMap[shopkeeperId] = shopDetails;
+          }
+        }
+      }
+      setShops(shopsMap);
+    } catch (error) {
+      console.error('Error fetching ads products:', error);
+    }
+  };
+
   const fetchCustomerPosts = async (filters: PostFilter = {}) => {
     try {
       setLoadingPosts(true);
@@ -942,6 +1303,7 @@ export default function CustomerHome() {
     setRefreshing(true);
     await fetchCustomerPosts(activeFilter);
     await fetchProductsAndShopkeepers();
+    await fetchAdsProducts();
     setRefreshing(false);
   };
 
@@ -1046,6 +1408,83 @@ export default function CustomerHome() {
     }
   };
 
+  const handleEditPost = async () => {
+    if (!user || !editingPost) {
+      Alert.alert('Error', 'Unable to edit post');
+      return;
+    }
+  
+    if (!newPost.title.trim() || !newPost.description.trim()) {
+      Alert.alert('Error', 'Please fill in title and description');
+      return;
+    }
+  
+    try {
+      setCreatingPost(true);
+  
+      let imageUrl: string | undefined = editingPost.imageUrl;
+
+      if (newPost.image && newPost.image !== editingPost.imageUrl) {
+        try {
+          const uploadedUrl = await uploadPostImage(newPost.image);
+          if (uploadedUrl) {
+            imageUrl = uploadedUrl;
+          }
+        } catch (imageError) {
+          console.warn('Image upload failed:', imageError);
+        }
+      }
+
+      const postData = {
+        title: newPost.title,
+        description: newPost.description,
+        price: newPost.price ? parseFloat(newPost.price) : undefined,
+        category: newPost.category || 'General',
+        type: newPost.type,
+        imageUrl: imageUrl,
+        location: newPost.location || 'Unknown Location',
+        urgency: newPost.urgency,
+        tags: newPost.category ? [newPost.category.toLowerCase()] : ['general'],
+      };
+  
+      await updateCustomerPost(editingPost.id, postData);
+      
+      Alert.alert('Success', 'Post updated successfully!');
+      
+      setEditPostModalVisible(false);
+      setEditingPost(null);
+      setNewPost({
+        title: "",
+        description: "",
+        price: "",
+        category: "",
+        type: "NEED",
+        image: null,
+        location: "",
+        urgency: "MEDIUM",
+      });
+      
+      fetchCustomerPosts(activeFilter);
+      
+    } catch (error) {
+      console.error('Error updating post:', error);
+      Alert.alert('Error', 'Failed to update post. Please try again.');
+    } finally {
+      setCreatingPost(false);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await deleteCustomerPost(postId);
+      Alert.alert('Success', 'Post deleted successfully!');
+      fetchCustomerPosts(activeFilter);
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      Alert.alert('Error', 'Failed to delete post. Please try again.');
+    }
+  };
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -1086,6 +1525,21 @@ export default function CustomerHome() {
     );
   };
 
+  const handleEditPostPress = (post: CustomerPost) => {
+    setEditingPost(post);
+    setNewPost({
+      title: post.title,
+      description: post.description,
+      price: post.price?.toString() || "",
+      category: post.category,
+      type: post.type,
+      image: post.imageUrl || null,
+      location: post.location,
+      urgency: post.urgency,
+    });
+    setEditPostModalVisible(true);
+  };
+
   const handleMessageButton = async (product: Product) => {
     if (!user) {
       alert('Please log in to send messages');
@@ -1110,9 +1564,50 @@ export default function CustomerHome() {
     }
   };
 
+  // Function to render ads after every 8 products
+  const renderProductsWithAds = () => {
+    const items = [];
+    
+    for (let i = 0; i < filteredProducts.length; i++) {
+      // Add product
+      const product = filteredProducts[i];
+      const shopkeeperId = (product as any).shopId || (product as any).shopkeeperID || (product as any).shopkeeper;
+      const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
+      
+      items.push(
+        <AnimatedProductCard 
+          key={`product-${product.id}`}
+          item={product} 
+          index={i} 
+          shopkeeperData={shopkeeper}
+          onMessagePress={handleMessageButton}
+        />
+      );
+      
+      // Add ad after every 8 products
+      if ((i + 1) % 8 === 0 && adsProducts.length > 0) {
+        const adIndex = Math.floor((i / 8) % adsProducts.length);
+        const adProduct = adsProducts[adIndex];
+        const shopkeeperId = (adProduct as any).shopId || (adProduct as any).shopkeeperID || (adProduct as any).shopkeeper;
+        const shop = shopkeeperId ? shops[shopkeeperId] : undefined;
+        
+        items.push(
+          <AdsCard 
+            key={`ad-${i}`}
+            product={adProduct}
+            shop={shop}
+          />
+        );
+      }
+    }
+    
+    return items;
+  };
+
   useEffect(() => {
     fetchProductsAndShopkeepers();
     fetchCustomerPosts();
+    fetchAdsProducts();
   }, []);
 
   useEffect(() => {
@@ -1135,6 +1630,7 @@ export default function CustomerHome() {
         await fetchCustomerPosts(activeFilter);
       } else {
         await fetchProductsAndShopkeepers();
+        await fetchAdsProducts();
       }
       
       setRefreshing(false);
@@ -1162,6 +1658,9 @@ export default function CustomerHome() {
                 item={item} 
                 index={index} 
                 onContactPress={handleContactPost}
+                onEditPress={handleEditPostPress}
+                onDeletePress={handleDeletePost}
+                currentUserId={user?.uid}
               />
             )}
             ListEmptyComponent={
@@ -1204,6 +1703,9 @@ export default function CustomerHome() {
                 item={item} 
                 index={index} 
                 onContactPress={handleContactPost}
+                onEditPress={handleEditPostPress}
+                onDeletePress={handleDeletePost}
+                currentUserId={user?.uid}
               />
             )}
             ListEmptyComponent={
@@ -1283,7 +1785,7 @@ export default function CustomerHome() {
                 {selectedCategory === 'all' ? 'Recommended for you' : `Top ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
               </Text>
               <TouchableOpacity>
-                <Text style={styles.seeAllText}>See all</Text>
+                {/* <Text style={styles.seeAllText}>See all</Text> */}
               </TouchableOpacity>
             </View>
             {filteredProducts.length > 0 ? (
@@ -1316,27 +1818,14 @@ export default function CustomerHome() {
             )}
           </View>
 
-          {/* All Products Grid */}
+          {/* All Products Grid with Ads */}
           {filteredProducts.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 {selectedCategory === 'all' ? 'All Products' : `All ${CATEGORIES.find(cat => cat.value === selectedCategory)?.name}`}
               </Text>
               <View style={styles.productsGrid}>
-                {filteredProducts.map((item, index) => {
-                  const shopkeeperId = (item as any).shopId || (item as any).shopkeeperID || (item as any).shopkeeper;
-                  const shopkeeper = shopkeeperId ? shopkeeperData[shopkeeperId] : null;
-                  
-                  return (
-                    <AnimatedProductCard 
-                      key={item.id}
-                      item={item} 
-                      index={index} 
-                      shopkeeperData={shopkeeper}
-                      onMessagePress={handleMessageButton}
-                    />
-                  );
-                })}
+                {renderProductsWithAds()}
               </View>
             </View>
           )}
@@ -1345,89 +1834,34 @@ export default function CustomerHome() {
     );
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* FIXED: Reduced Header Size */}
-      <FadeInView duration={800}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Image 
-              source={require('../../../assets/images/logo.png')} 
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
-          <Text style={styles.headerTitle}>TownMart</Text>
-          <View style={styles.headerRight}>
-            <TouchableOpacity 
-              style={styles.headerButton} 
-              onPress={() => setCreatePostModalVisible(true)}
-            >
-              <Ionicons name="add-circle" size={24} color={colors.accent} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.headerButton}>
-              <Ionicons name="cart" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </FadeInView>
+  const renderPostModal = (isEdit: boolean = false) => {
+    const modalTitle = isEdit ? 'Edit Post' : 'Create New Post';
+    const submitButtonText = isEdit ? 'Update Post' : 'Create Post';
+    const submitHandler = isEdit ? handleEditPost : handleCreatePost;
+    const modalVisible = isEdit ? editPostModalVisible : createPostModalVisible;
+    const setModalVisible = isEdit ? setEditPostModalVisible : setCreatePostModalVisible;
 
-      {/* Enhanced Tabs */}
-      <SlideInView delay={300}>
-        <View style={styles.tabContainer}>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === "all" && styles.activeTab]}
-            onPress={() => setActiveTab("all")}
-          >
-            <Ionicons 
-              name="grid" 
-              size={20} 
-              color={activeTab === "all" ? colors.surface : colors.textSecondary} 
-            />
-            <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>Products</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === "need" && styles.activeTab]}
-            onPress={() => setActiveTab("need")}
-          >
-            <Ionicons 
-              name="help-circle" 
-              size={20} 
-              color={activeTab === "need" ? colors.surface : colors.textSecondary} 
-            />
-            <Text style={[styles.tabText, activeTab === "need" && styles.activeTabText]}>Needs</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === "offer" && styles.activeTab]}
-            onPress={() => setActiveTab("offer")}
-          >
-            <Ionicons 
-              name="gift" 
-              size={20} 
-              color={activeTab === "offer" ? colors.surface : colors.textSecondary} 
-            />
-            <Text style={[styles.tabText, activeTab === "offer" && styles.activeTabText]}>Offers</Text>
-          </TouchableOpacity>
-        </View>
-      </SlideInView>
-
-      {renderContent()}
-
-      {/* Enhanced Create Post Modal */}
+    return (
       <Modal 
-        visible={createPostModalVisible} 
+        visible={modalVisible} 
         animationType="slide" 
         transparent={true}
-        onRequestClose={() => setCreatePostModalVisible(false)}
+        onRequestClose={() => {
+          setModalVisible(false);
+          if (isEdit) setEditingPost(null);
+        }}
       >
         <View style={styles.modalContainer}>
           <ScrollView contentContainerStyle={styles.modalScrollContent}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Create New Post</Text>
+                <Text style={styles.modalTitle}>{modalTitle}</Text>
                 <TouchableOpacity 
                   style={styles.closeButton}
-                  onPress={() => setCreatePostModalVisible(false)}
+                  onPress={() => {
+                    setModalVisible(false);
+                    if (isEdit) setEditingPost(null);
+                  }}
                 >
                   <Ionicons name="close" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
@@ -1439,7 +1873,7 @@ export default function CustomerHome() {
                   onPress={() => setNewPost({...newPost, type: "NEED"})}
                 >
                   <LinearGradient
-                    colors={newPost.type === "NEED" ? [colors.needColor, '#fb923c'] : ['#f1f5f9', '#e2e8f0']}
+                    colors={newPost.type === "NEED" ? colors.gradientNeed : ['#f1f5f9', '#e2e8f0']}
                     style={styles.typeButtonGradient}
                   >
                     <Text style={[styles.typeButtonText, newPost.type === "NEED" && styles.activeTypeButtonText]}>I Need</Text>
@@ -1450,7 +1884,7 @@ export default function CustomerHome() {
                   onPress={() => setNewPost({...newPost, type: "OFFER"})}
                 >
                   <LinearGradient
-                    colors={newPost.type === "OFFER" ? [colors.offerColor, '#34d399'] : ['#f1f5f9', '#e2e8f0']}
+                    colors={newPost.type === "OFFER" ? colors.gradientOffer : ['#f1f5f9', '#e2e8f0']}
                     style={styles.typeButtonGradient}
                   >
                     <Text style={[styles.typeButtonText, newPost.type === "OFFER" && styles.activeTypeButtonText]}>I Offer</Text>
@@ -1533,23 +1967,26 @@ export default function CustomerHome() {
               <View style={styles.modalButtons}>
                 <TouchableOpacity 
                   style={[styles.modalButton, styles.cancelButton]} 
-                  onPress={() => setCreatePostModalVisible(false)}
+                  onPress={() => {
+                    setModalVisible(false);
+                    if (isEdit) setEditingPost(null);
+                  }}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.modalButton, styles.submitButton, creatingPost && styles.disabledButton]}
-                  onPress={handleCreatePost}
+                  onPress={submitHandler}
                   disabled={creatingPost}
                 >
                   <LinearGradient
-                    colors={colors.gradientPrimary}
+                    colors={newPost.type === "NEED" ? colors.gradientNeed : colors.gradientOffer}
                     style={styles.submitButtonGradient}
                   >
                     {creatingPost ? (
                       <ActivityIndicator color="white" />
                     ) : (
-                      <Text style={styles.submitButtonText}>Create Post</Text>
+                      <Text style={styles.submitButtonText}>{submitButtonText}</Text>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
@@ -1558,17 +1995,90 @@ export default function CustomerHome() {
           </ScrollView>
         </View>
       </Modal>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <FadeInView duration={800}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Image 
+              source={require('../../../assets/images/logo.png')} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.headerTitle}>TownMart</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              style={styles.headerButton} 
+              onPress={() => setCreatePostModalVisible(true)}
+            >
+              <Ionicons name="add-circle" size={24} color={colors.accent} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton}>
+              <Ionicons name="cart" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </FadeInView>
+
+      {/* Enhanced Tabs */}
+      <SlideInView delay={300}>
+        <View style={styles.tabContainer}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === "all" && styles.activeTab]}
+            onPress={() => setActiveTab("all")}
+          >
+            <Ionicons 
+              name="grid" 
+              size={20} 
+              color={activeTab === "all" ? colors.surface : colors.textSecondary} 
+            />
+            <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>Products</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === "need" && styles.activeTab]}
+            onPress={() => setActiveTab("need")}
+          >
+            <Ionicons 
+              name="help-circle" 
+              size={20} 
+              color={activeTab === "need" ? colors.surface : colors.textSecondary} 
+            />
+            <Text style={[styles.tabText, activeTab === "need" && styles.activeTabText]}>Needs</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === "offer" && styles.activeTab]}
+            onPress={() => setActiveTab("offer")}
+          >
+            <Ionicons 
+              name="gift" 
+              size={20} 
+              color={activeTab === "offer" ? colors.surface : colors.textSecondary} 
+            />
+            <Text style={[styles.tabText, activeTab === "offer" && styles.activeTabText]}>Offers</Text>
+          </TouchableOpacity>
+        </View>
+      </SlideInView>
+
+      {renderContent()}
+
+      {/* Render both modals */}
+      {renderPostModal(false)}
+      {renderPostModal(true)}
     </SafeAreaView>
   );
 }
 
-// ENHANCED MODERN STYLES with Fixed UI Issues
+// ENHANCED MODERN STYLES with Improved Design
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  // FIXED: Reduced Header Size
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1693,6 +2203,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     opacity: 0.9,
   },
+  offerShopText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '400',
+    opacity: 0.8,
+    marginTop: 4,
+  },
   offerButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 20,
@@ -1706,28 +2223,141 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  offerDecoration: {
-    position: 'absolute',
-    right: -20,
-    top: -20,
+  // Ads Card Styles
+  adsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    marginBottom: 16,
+    marginHorizontal: 15,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    width: width - 30,
   },
-  decorationCircle1: {
+  adsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: colors.lightBackground,
+  },
+  adsBadge: {
+    backgroundColor: colors.accent,
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  adsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  adsContent: {
+    flexDirection: 'row',
+    padding: 16,
+  },
+  adsImage: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    position: 'absolute',
-    right: 20,
-    top: 20,
+    borderRadius: 8,
+    marginRight: 12,
   },
-  decorationCircle2: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    position: 'absolute',
-    right: 40,
-    top: 40,
+  adsInfo: {
+    flex: 1,
+  },
+  adsProductName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  adsRatingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  adsRatingText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  adsReviewCount: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  adsPricing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  adsOriginalPrice: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
+    marginRight: 6,
+  },
+  adsDiscountedPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginRight: 8,
+  },
+  adsDiscountBadge: {
+    backgroundColor: colors.success,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  adsDiscountText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  adsDelivery: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  adsShopSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.lightBackground,
+  },
+  adsShopText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  adsShopNowButton: {
+    backgroundColor: colors.accent,
+    margin: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  adsShopNowText: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: '600',
   },
   section: {
     marginBottom: 25,
@@ -1818,7 +2448,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  // FIXED: Enhanced Product Card Styles - Restructured Layout
+  // Enhanced Product Card Styles
   productCard: {
     backgroundColor: colors.surface,
     borderRadius: 12,
@@ -1844,7 +2474,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  // NEW: Top badges container for proper positioning
   topBadgesContainer: {
     position: 'absolute',
     top: 8,
@@ -1866,7 +2495,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
-  // FIXED: Save button container for top right positioning
   saveButtonContainer: {
     position: 'absolute',
     top: 8,
@@ -1885,7 +2513,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 4,
   },
-  // FIXED: Low Stock Badge in RED - positioned in topBadgesContainer
   lowStockBadge: {
     backgroundColor: colors.error,
     paddingHorizontal: 8,
@@ -1911,19 +2538,42 @@ const styles = StyleSheet.create({
   productInfo: {
     padding: 12,
   },
-  // FIXED: Product Name - made more visible
   productName: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.textPrimary,
     marginBottom: 8,
     lineHeight: 18,
-    minHeight: 36,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    marginRight: 4,
+  },
+  ratingText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  reviewCount: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  productDescription: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+    marginBottom: 8,
   },
   pricingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 12,
   },
   originalPriceContainer: {
     flexDirection: 'row',
@@ -1939,27 +2589,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.textPrimary,
-  },
-  couponContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  wowText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.success,
-    marginRight: 4,
-  },
-  couponPrice: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.success,
   },
   productActions: {
     flexDirection: 'row',
@@ -1990,7 +2619,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  // Enhanced Post Card Styles
+  // ENHANCED: Completely Restructured Post Card Styles
   postCard: {
     marginHorizontal: 20,
     marginVertical: 8,
@@ -2008,14 +2637,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  postHeaderGradient: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
   postHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   postUserInfo: {
     flexDirection: 'row',
@@ -2026,10 +2654,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+    marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   postUserDetails: {
     flex: 1,
@@ -2037,33 +2664,82 @@ const styles = StyleSheet.create({
   postUsername: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: colors.surface,
-    marginBottom: 2,
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  postMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   postTypeBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   postTypeText: {
     fontSize: 12,
-    fontWeight: '500',
-    color: colors.surface,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  postDate: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  postHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuButton: {
+    padding: 4,
+    marginRight: 8,
   },
   bookmarkButton: {
     padding: 4,
+  },
+  actionMenu: {
+    backgroundColor: colors.surface,
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  actionMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  deleteAction: {
+    marginTop: 4,
+  },
+  actionMenuText: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    marginLeft: 8,
+  },
+  deleteActionText: {
+    color: colors.error,
   },
   postContent: {
     padding: 0,
   },
   postImageContainer: {
     height: 200,
+    position: 'relative',
   },
   postImage: {
     width: '100%',
     height: '100%',
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 60,
   },
   noImageContainer: {
     backgroundColor: colors.lightBackground,
@@ -2077,17 +2753,18 @@ const styles = StyleSheet.create({
   noImageText: {
     marginTop: 8,
     fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
+    color: 'white',
+    fontWeight: '600',
   },
   postTextContent: {
-    padding: 20,
+    padding: 16,
   },
   postTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 8,
+    lineHeight: 24,
   },
   postDescription: {
     fontSize: 14,
@@ -2095,43 +2772,25 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 0,
   },
-  postDetails: {
-    paddingHorizontal: 20,
+  postDetailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
     paddingBottom: 16,
+    gap: 8,
   },
-  detailItem: {
+  detailChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.lightBackground,
+    gap: 4,
   },
-  detailLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginRight: 8,
+  detailChipText: {
+    fontSize: 12,
     fontWeight: '500',
-    marginLeft: 4,
-    width: 60,
-  },
-  postPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.success,
-    flex: 1,
-  },
-  postLocation: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  urgencyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  urgencyText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.surface,
   },
   postFooter: {
     flexDirection: 'row',
@@ -2139,17 +2798,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    padding: 20,
+    padding: 16,
     backgroundColor: colors.surface,
   },
-  postMeta: {
+  ownPostBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-  postDate: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  ownPostText: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   contactButton: {
     flexDirection: 'row',
@@ -2157,20 +2819,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
+    gap: 8,
   },
   contactButtonText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.surface,
-    marginLeft: 6,
   },
   listContent: {
     paddingBottom: 25,
@@ -2231,7 +2885,7 @@ const styles = StyleSheet.create({
   createFirstPostText: {
     color: colors.surface,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   // Enhanced Modal Styles
   modalContainer: {
