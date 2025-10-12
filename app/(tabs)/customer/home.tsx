@@ -66,6 +66,7 @@ const colors = {
   offerCard: 'rgba(245, 158, 11, 0.08)',
   lightBackground: 'rgba(226, 232, 240, 0.4)',
   deepBlue: '#1e40af',
+  white: '#ffffff',
 };
 
 // Define types
@@ -463,35 +464,12 @@ const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
   );
 };
 
-// UPDATED: Minimal Offers Banner Component
+// UPDATED: Restructured Offers Banner Component with Better Layout
 const OffersBanner = () => {
   const [offers, setOffers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
-
-  // Function to format Firestore Timestamp
-  const formatTimestamp = (timestamp: any) => {
-    if (!timestamp) return 'Limited Time';
-    
-    try {
-      if (timestamp.seconds && timestamp.nanoseconds) {
-        const date = new Date(timestamp.seconds * 1000);
-        return date.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric'
-        });
-      }
-      
-      if (typeof timestamp === 'string') {
-        return timestamp;
-      }
-      
-      return 'Limited Time';
-    } catch (error) {
-      return 'Limited Time';
-    }
-  };
 
   useEffect(() => {
     const fetchOffers = async () => {
@@ -514,7 +492,7 @@ const OffersBanner = () => {
 
   const handleScroll = (event: any) => {
     const contentOffset = event.nativeEvent.contentOffset.x;
-    const currentIndex = Math.round(contentOffset / (width - 40));
+    const currentIndex = Math.round(contentOffset / (width - 80));
     setCurrentIndex(currentIndex);
   };
 
@@ -542,7 +520,7 @@ const OffersBanner = () => {
           <Text style={styles.offersTitle}>🔥 Special Offers</Text>
           <TouchableOpacity 
             style={styles.seeAllButton}
-            onPress={() => router.push('../details/orders')}
+            onPress={() => router.push('../details/offers')}
           >
             <Text style={styles.seeAllText}>See All</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.accent} />
@@ -565,7 +543,10 @@ const OffersBanner = () => {
             return (
               <TouchableOpacity 
                 style={styles.offerCard}
-                onPress={() => router.push('../details/orders')}
+                onPress={() => router.push({
+                  pathname: '../details/offerdetails',
+                  params: { offer: JSON.stringify(item) }
+                })}
               >
                 <LinearGradient
                   colors={index % 2 === 0 ? colors.gradientPrimary : colors.gradientSecondary}
@@ -573,8 +554,45 @@ const OffersBanner = () => {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  {/* Minimal Content Layout */}
+                  {/* Restructured Content Layout */}
                   <View style={styles.offerContent}>
+                    {/* Text Content Section */}
+                    <View style={styles.offerTextContent}>
+                      <View style={styles.offerHeader}>
+                        <Text style={styles.offerShopName} numberOfLines={1}>
+                          {item.shopName || 'Premium Store'}
+                        </Text>
+                        <View style={styles.offerDiscountBadge}>
+                          <Text style={styles.offerDiscountText}>{discountPercentage}% OFF</Text>
+                        </View>
+                      </View>
+                      
+                      <Text style={styles.offerTitle} numberOfLines={2}>
+                        {item.title || 'Special Offer'}
+                      </Text>
+                      
+                      <Text style={styles.offerDescription} numberOfLines={3}>
+                        {item.description || 'Special limited time offer with great savings and premium quality products.'}
+                      </Text>
+                      
+                      <View style={styles.offerPricing}>
+                        <Text style={styles.offerOriginalPrice}>₹{item.originalPrice}</Text>
+                        <Text style={styles.offerDiscountPrice}>₹{item.discountPrice}</Text>
+                        <Text style={styles.offerSaveText}>Save ₹{item.originalPrice - item.discountPrice}</Text>
+                      </View>
+                      
+                      <View style={styles.offerFooter}>
+                        <View style={styles.offerTag}>
+                          <Ionicons name="time" size={12} color={colors.white} />
+                          <Text style={styles.offerTagText}>Limited Time</Text>
+                        </View>
+                        <View style={styles.offerTag}>
+                          <Ionicons name="flash" size={12} color={colors.white} />
+                          <Text style={styles.offerTagText}>Hot Deal</Text>
+                        </View>
+                      </View>
+                    </View>
+                    
                     {/* Image Section */}
                     <View style={styles.offerImageContainer}>
                       <Image 
@@ -582,16 +600,7 @@ const OffersBanner = () => {
                         style={styles.offerImage}
                         resizeMode="cover"
                       />
-                    </View>
-                    
-                    {/* Minimal Info Section */}
-                    <View style={styles.offerMinimalInfo}>
-                      <Text style={styles.offerDiscountBadge}>{discountPercentage}% OFF</Text>
-                      <Text style={styles.offerShopName} numberOfLines={1}>{item.shopName}</Text>
-                      <View style={styles.offerPricing}>
-                        <Text style={styles.offerOriginalPrice}>₹{item.originalPrice}</Text>
-                        <Text style={styles.offerDiscountPrice}>₹{item.discountPrice}</Text>
-                      </View>
+                      <View style={styles.imageOverlay} />
                     </View>
                   </View>
                 </LinearGradient>
@@ -1774,7 +1783,7 @@ export default function CustomerHome() {
             />
           }
         >
-          {/* UPDATED: Special Offers Banner */}
+          {/* UPDATED: Restructured Special Offers Banner */}
           <OffersBanner />
 
           {/* Categories Section */}
@@ -2104,7 +2113,6 @@ export default function CustomerHome() {
   );
 }
 
-// UPDATED STYLES with new color scheme
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -2192,144 +2200,207 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: colors.surface,
   },
-  // UPDATED: Offers Banner Styles - Minimal Design
+
+  // UPDATED: Restructured Offers Banner Styles
   offersBannerContainer: {
     marginHorizontal: 20,
-    marginVertical: 15,
+    marginBottom: 24,
   },
   offersHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   offersTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.textPrimary,
+    letterSpacing: -0.5,
   },
   seeAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   seeAllText: {
     fontSize: 14,
-    color: colors.accent,
     fontWeight: '600',
-    marginRight: 4,
+    color: colors.accent,
   },
   offersListContent: {
     paddingRight: 20,
+    gap: 12,
   },
   offerCard: {
-    width: width - 40,
-    marginRight: 15,
+    width: width - 80,
     borderRadius: 20,
-    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 8,
+      height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
-    elevation: 12,
-    height: 140, // Reduced height for minimal design
+    elevation: 5,
+    marginRight: 12,
   },
   offerGradient: {
-    flex: 1,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
+    minHeight: 200,
   },
   offerContent: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'stretch',
+  },
+  offerTextContent: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingRight: 12,
+  },
+  offerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  offerShopName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
+    opacity: 0.9,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  offerDiscountBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    marginLeft: 8,
+  },
+  offerDiscountText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.white,
+    letterSpacing: 0.5,
+  },
+  offerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.white,
+    lineHeight: 22,
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  offerDescription: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  offerPricing: {
+    marginBottom: 12,
+  },
+  offerOriginalPrice: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.7)',
+    textDecorationLine: 'line-through',
+    marginBottom: 2,
+  },
+  offerDiscountPrice: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.white,
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  offerSaveText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  offerFooter: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  offerTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  offerTagText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.white,
   },
   offerImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: 100,
+    height: 120,
+    borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'relative',
   },
   offerImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 16,
   },
-  offerMinimalInfo: {
-    flex: 1,
-    marginLeft: 16,
-    justifyContent: 'center',
+  imageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
   },
-  offerDiscountBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  offerShopName: {
-    color: colors.surface,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 6,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 4,
-  },
-  offerPricing: {
+  offersLoadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    gap: 12,
   },
-  offerOriginalPrice: {
-    color: colors.surface,
-    fontSize: 14,
-    textDecorationLine: 'line-through',
-    opacity: 0.8,
-    marginRight: 8,
-  },
-  offerDiscountPrice: {
-    color: colors.surface,
-    fontSize: 18,
-    fontWeight: 'bold',
+  offersLoadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 12,
-    gap: 6,
+    gap: 8,
+    marginTop: 16,
   },
   paginationDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.border,
+    opacity: 0.5,
   },
   paginationDotActive: {
-    backgroundColor: colors.accent,
     width: 20,
+    backgroundColor: colors.accent,
+    opacity: 1,
   },
-  offersLoadingContainer: {
-    marginHorizontal: 20,
-    marginVertical: 15,
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  offersLoadingText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
+
   // Ads Card Styles
   adsCard: {
     backgroundColor: colors.surface,
@@ -2461,11 +2532,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 15,
   },
-  seeAllText: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
-  },
   categoriesList: {
     paddingHorizontal: 15,
   },
@@ -2477,7 +2543,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   categoryItemSelected: {},
-  // UPDATED: Category Icon with Blue Gradient
   categoryIcon: {
     width: 64,
     height: 64,
@@ -2534,7 +2599,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  // Enhanced Product Card Styles
   productCard: {
     backgroundColor: colors.surface,
     borderRadius: 12,
@@ -2705,7 +2769,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  // Post Card Styles
+  disabledButton: {
+    opacity: 0.6,
+  },
   postCard: {
     marginHorizontal: 20,
     marginVertical: 8,
@@ -2820,13 +2886,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  imageOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 60,
-  },
   noImageContainer: {
     backgroundColor: colors.lightBackground,
   },
@@ -2916,7 +2975,6 @@ const styles = StyleSheet.create({
     paddingBottom: 25,
     paddingTop: 8,
   },
-  // Enhanced Empty State
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -2973,7 +3031,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // Enhanced Modal Styles
   modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
