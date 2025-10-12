@@ -3219,9 +3219,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 14,
   },
-  disabledButton: {
-    opacity: 0.6,
-  },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '500',
