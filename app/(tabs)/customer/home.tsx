@@ -40,7 +40,7 @@ import { db } from "../../../firebaseConfig";
 
 const { width, height } = Dimensions.get('window');
 
-// ENHANCED MODERN COLOR SCHEME
+// UPDATED COLOR SCHEME - No Purple
 const colors = {
   background: '#f8fafc',
   surface: '#ffffff',
@@ -53,19 +53,20 @@ const colors = {
   error: '#ef4444',
   border: '#e2e8f0',
   darkButton: '#1e293b',
-  needColor: '#8b5cf6',
-  offerColor: '#06b6d4',
-  gradientPrimary: ['#667eea', '#764ba2'] as const,
-  gradientSecondary: ['#f093fb', '#f5576c'] as const,
-  gradientSuccess: ['#10b981', '#34d399'] as const,
-  gradientWarning: ['#f59e0b', '#fbbf24'] as const,
-  gradientNeed: ['#8b5cf6', '#a78bfa'] as const,
-  gradientOffer: ['#06b6d4', '#22d3ee'] as const,
-  needCard: 'rgba(139, 92, 246, 0.08)',
-  offerCard: 'rgba(6, 182, 212, 0.08)',
+  needColor: '#06b6d4', // Changed from purple to blue
+  offerColor: '#f59e0b', // Changed to orange
+  gradientPrimary: ['#3b82f6', '#1e40af'] as const, // Blue gradient
+  gradientSecondary: ['#f59e0b', '#d97706'] as const, // Orange gradient
+  gradientSuccess: ['#10b981', '#059669'] as const, // Green gradient
+  gradientWarning: ['#f59e0b', '#d97706'] as const, // Orange gradient
+  gradientNeed: ['#06b6d4', '#0891b2'] as const, // Cyan gradient
+  gradientOffer: ['#f59e0b', '#d97706'] as const, // Orange gradient
+  gradientCategory: ['#3b82f6', '#2563eb'] as const, // Blue category gradient
+  needCard: 'rgba(6, 182, 212, 0.08)',
+  offerCard: 'rgba(245, 158, 11, 0.08)',
   lightBackground: 'rgba(226, 232, 240, 0.4)',
-  electricPurple: '#8b5cf6',
   deepBlue: '#1e40af',
+  white: '#ffffff',
 };
 
 // Define types
@@ -158,7 +159,7 @@ interface PostFilter {
   searchQuery?: string;
 }
 
-// Enhanced categories with modern icons
+// Enhanced categories with updated icons and colors
 const CATEGORIES = [
   { id: '1', name: 'All', icon: 'grid', value: 'all' },
   { id: '2', name: 'Electronics', icon: 'phone-portrait', value: 'electronics' },
@@ -172,7 +173,7 @@ const CATEGORIES = [
   { id: '10', name: 'Jewelry', icon: 'diamond', value: 'jewelry' },
 ];
 
-// API Functions
+// API Functions (same as before)
 const createCustomerPost = async (postData: Omit<CustomerPost, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
     const postWithTimestamps = {
@@ -441,14 +442,12 @@ const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
           </View>
           
           <View style={styles.adsPricing}>
-            <Text style={styles.adsOriginalPrice}>${originalPrice}</Text>
-            <Text style={styles.adsDiscountedPrice}>${product.price}</Text>
+            <Text style={styles.adsOriginalPrice}>₹{originalPrice}</Text>
+            <Text style={styles.adsDiscountedPrice}>₹{product.price}</Text>
             <View style={styles.adsDiscountBadge}>
               <Text style={styles.adsDiscountText}>✔ {discountPercentage}% OFF</Text>
             </View>
           </View>
-          
-          {/* <Text style={styles.adsDelivery}>Delivery by 15th Oct</Text> */}
         </View>
       </TouchableOpacity>
       
@@ -459,120 +458,178 @@ const AdsCard = ({ product, shop }: { product: Product; shop?: Shop }) => {
             router.push("/(tabs)/details/shop");
           }}
         >
-          {/* <Text style={styles.adsShopText}>Shop: {shop.shopName}</Text> */}
-          {/* <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} /> */}
         </TouchableOpacity>
       )}
-      
-      {/* <TouchableOpacity style={styles.adsShopNowButton}>
-        <Text style={styles.adsShopNowText}>Shop now →</Text>
-      </TouchableOpacity> */}
     </View>
   );
 };
 
-// Enhanced Offer Banner Component with shop redirect
-const OfferBanner = () => {
-  const [currentOffer, setCurrentOffer] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
-
-  const offers = [
-    { 
-      text: 'Buy 2 Get 1 Free', 
-      subtext: 'On selected items',
-      buttonText: 'Shop Now →',
-      gradient: colors.gradientSecondary,
-      shopName: 'Fashion Hub'
-    },
-    { 
-      text: '75% OFF', 
-      subtext: 'Limited Time Offer',
-      buttonText: 'Explore →',
-      gradient: colors.gradientPrimary,
-      shopName: 'Electro World'
-    },
-    { 
-      text: 'Free Shipping', 
-      subtext: 'On orders over $50',
-      buttonText: 'See Details →',
-      gradient: colors.gradientSuccess,
-      shopName: 'Home Essentials'
-    }
-  ];
+// UPDATED: Restructured Offers Banner Component with Better Layout
+const OffersBanner = () => {
+  const [offers, setOffers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    const offerInterval = setInterval(() => {
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(slideAnim, {
-            toValue: -50,
-            duration: 300,
-            useNativeDriver: true,
-          })
-        ]),
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(slideAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          })
-        ])
-      ]).start();
-      
-      setCurrentOffer((prev) => (prev + 1) % offers.length);
-    }, 5000);
+    const fetchOffers = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'offers'));
+        const offerList: any[] = [];
+        querySnapshot.forEach((doc) => {
+          offerList.push({ id: doc.id, ...doc.data() });
+        });
+        setOffers(offerList);
+      } catch (error) {
+        console.error('Error fetching offers:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    return () => clearInterval(offerInterval);
+    fetchOffers();
   }, []);
+
+  const handleScroll = (event: any) => {
+    const contentOffset = event.nativeEvent.contentOffset.x;
+    const currentIndex = Math.round(contentOffset / (width - 80));
+    setCurrentIndex(currentIndex);
+  };
+
+  const scrollToIndex = (index: number) => {
+    flatListRef.current?.scrollToIndex({ index, animated: true });
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.offersLoadingContainer}>
+        <ActivityIndicator size="small" color={colors.accent} />
+        <Text style={styles.offersLoadingText}>Loading offers...</Text>
+      </View>
+    );
+  }
+
+  if (offers.length === 0) {
+    return null;
+  }
 
   return (
     <FadeInView delay={200}>
-      <TouchableOpacity 
-        style={styles.offerBanner}
-        onPress={() => {
-          router.push("/(tabs)/details/shop");
-        }}
-      >
-        <LinearGradient
-          colors={offers[currentOffer].gradient}
-          style={styles.offerGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Animated.View style={[
-            styles.offerContent,
-            { 
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }
-          ]}>
-            <View style={styles.offerTextContainer}>
-              <Text style={styles.offerMainText}>{offers[currentOffer].text}</Text>
-              <Text style={styles.offerSubtext}>{offers[currentOffer].subtext}</Text>
-              <Text style={styles.offerShopText}>at {offers[currentOffer].shopName}</Text>
-            </View>
-            <TouchableOpacity style={styles.offerButton}>
-              <Text style={styles.offerButtonText}>{offers[currentOffer].buttonText}</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </LinearGradient>
-      </TouchableOpacity>
+      <View style={styles.offersBannerContainer}>
+        <View style={styles.offersHeader}>
+          <Text style={styles.offersTitle}>🔥 Special Offers</Text>
+          <TouchableOpacity 
+            style={styles.seeAllButton}
+            onPress={() => router.push('../details/offers')}
+          >
+            <Text style={styles.seeAllText}>See All</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.accent} />
+          </TouchableOpacity>
+        </View>
+        
+        <FlatList
+          ref={flatListRef}
+          data={offers}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          pagingEnabled
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.offersListContent}
+          renderItem={({ item, index }) => {
+            const discountPercentage = Math.round((1 - item.discountPrice / item.originalPrice) * 100);
+            
+            return (
+              <TouchableOpacity 
+                style={styles.offerCard}
+                onPress={() => router.push({
+                  pathname: '../details/offerdetails',
+                  params: { offer: JSON.stringify(item) }
+                })}
+              >
+                <LinearGradient
+                  colors={index % 2 === 0 ? colors.gradientPrimary : colors.gradientSecondary}
+                  style={styles.offerGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  {/* Restructured Content Layout */}
+                  <View style={styles.offerContent}>
+                    {/* Text Content Section */}
+                    <View style={styles.offerTextContent}>
+                      <View style={styles.offerHeader}>
+                        <Text style={styles.offerShopName} numberOfLines={1}>
+                          {item.shopName || 'Premium Store'}
+                        </Text>
+                        <View style={styles.offerDiscountBadge}>
+                          <Text style={styles.offerDiscountText}>{discountPercentage}% OFF</Text>
+                        </View>
+                      </View>
+                      
+                      <Text style={styles.offerTitle} numberOfLines={2}>
+                        {item.title || 'Special Offer'}
+                      </Text>
+                      
+                      <Text style={styles.offerDescription} numberOfLines={3}>
+                        {item.description || 'Special limited time offer with great savings and premium quality products.'}
+                      </Text>
+                      
+                      <View style={styles.offerPricing}>
+                        <Text style={styles.offerOriginalPrice}>₹{item.originalPrice}</Text>
+                        <Text style={styles.offerDiscountPrice}>₹{item.discountPrice}</Text>
+                        <Text style={styles.offerSaveText}>Save ₹{item.originalPrice - item.discountPrice}</Text>
+                      </View>
+                      
+                      <View style={styles.offerFooter}>
+                        <View style={styles.offerTag}>
+                          <Ionicons name="time" size={12} color={colors.white} />
+                          <Text style={styles.offerTagText}>Limited Time</Text>
+                        </View>
+                        <View style={styles.offerTag}>
+                          <Ionicons name="flash" size={12} color={colors.white} />
+                          <Text style={styles.offerTagText}>Hot Deal</Text>
+                        </View>
+                      </View>
+                    </View>
+                    
+                    {/* Image Section */}
+                    <View style={styles.offerImageContainer}>
+                      <Image 
+                        source={{ uri: item.imageUrl || 'https://images.unsplash.com/photo-1607082350899-7e105aa886ae?w=300' }} 
+                        style={styles.offerImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.imageOverlay} />
+                    </View>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          }}
+        />
+        
+        {/* Pagination Dots */}
+        {offers.length > 1 && (
+          <View style={styles.paginationContainer}>
+            {offers.map((_, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.paginationDot,
+                  currentIndex === index && styles.paginationDotActive
+                ]}
+                onPress={() => scrollToIndex(index)}
+              />
+            ))}
+          </View>
+        )}
+      </View>
     </FadeInView>
   );
 };
 
-// ENHANCED Category Item Component
+// UPDATED: Category Item Component with Blue Gradient
 const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: boolean; onPress: () => void }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -622,7 +679,7 @@ const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: bo
           isSelected && styles.categoryItemSelected
         ]}>
           <LinearGradient
-            colors={isSelected ? colors.gradientPrimary : ['#f1f5f9', '#e2e8f0']}
+            colors={isSelected ? colors.gradientCategory : ['#f1f5f9', '#e2e8f0']}
             style={styles.categoryIcon}
           >
             <Ionicons 
@@ -641,7 +698,7 @@ const CategoryItem = ({ item, isSelected, onPress }: { item: any; isSelected: bo
   );
 };
 
-// UPDATED: Enhanced Product Card with proper navigation
+// UPDATED: Product Card with Indian Rupee
 const AnimatedProductCard = ({ 
   item, 
   index, 
@@ -706,7 +763,6 @@ const AnimatedProductCard = ({
   return (
     <TouchableOpacity 
       onPress={() => {
-        console.log('🔄 Navigating to product details with:', item.id, item.name);
         router.push({
           pathname: "/(tabs)/details/productdetails",
           params: { 
@@ -755,16 +811,13 @@ const AnimatedProductCard = ({
             resizeMode="cover"
           />
           
-          {/* TOP BADGES CONTAINER */}
           <View style={styles.topBadgesContainer}>
-            {/* Discount Badge */}
             <FadeInView delay={300 + index * 50}>
               <View style={styles.discountBadge}>
                 <Text style={styles.discountText}>✔ {discountPercentage}% OFF</Text>
               </View>
             </FadeInView>
 
-            {/* Stock Badge */}
             {item.stock < 10 && item.stock > 0 && (
               <FadeInView delay={400 + index * 50}>
                 <View style={styles.lowStockBadge}>
@@ -781,7 +834,6 @@ const AnimatedProductCard = ({
             )}
           </View>
           
-          {/* Favorite Button */}
           <Animated.View style={[styles.saveButtonContainer, { transform: [{ scale: saveScale }] }]}>
             <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
               <Ionicons 
@@ -794,12 +846,10 @@ const AnimatedProductCard = ({
         </View>
         
         <View style={styles.productInfo}>
-          {/* Product Name */}
           <FadeInView delay={550 + index * 50}>
             <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
           </FadeInView>
 
-          {/* Rating Section */}
           <FadeInView delay={600 + index * 50}>
             <View style={styles.ratingContainer}>
               <StarRating rating={rating} />
@@ -808,24 +858,21 @@ const AnimatedProductCard = ({
             </View>
           </FadeInView>
 
-          {/* Description */}
           <FadeInView delay={650 + index * 50}>
             <Text style={styles.productDescription} numberOfLines={2}>
               {item.description || 'A stylish, versatile piece with premium finish.'}
             </Text>
           </FadeInView>
           
-          {/* Pricing Row */}
           <FadeInView delay={700 + index * 50}>
             <View style={styles.pricingContainer}>
               <View style={styles.originalPriceContainer}>
-                <Text style={styles.originalPrice}>${originalPrice}</Text>
-                <Text style={styles.discountedPrice}>${item.price}</Text>
+                <Text style={styles.originalPrice}>₹{originalPrice}</Text>
+                <Text style={styles.discountedPrice}>₹{item.price}</Text>
               </View>
             </View>
           </FadeInView>
           
-          {/* Action Buttons */}
           <FadeInView delay={750 + index * 50}>
             <View style={styles.productActions}>
               <TouchableOpacity 
@@ -879,7 +926,7 @@ const AnimatedProductCard = ({
   );
 };
 
-// ENHANCED: Completely Restructured Customer Post Card Component
+// UPDATED: Customer Post Card with new colors
 const CustomerPostCard = ({ 
   item, 
   index,
@@ -1011,7 +1058,6 @@ const CustomerPostCard = ({
         }
       ]}
     >
-      {/* Enhanced Post Header */}
       <View style={styles.postHeader}>
         <View style={styles.postUserInfo}>
           <LinearGradient
@@ -1056,7 +1102,6 @@ const CustomerPostCard = ({
         </View>
       </View>
 
-      {/* Action Menu for Own Posts */}
       {showActions && isOwnPost && (
         <View style={styles.actionMenu}>
           <TouchableOpacity 
@@ -1079,7 +1124,6 @@ const CustomerPostCard = ({
         </View>
       )}
 
-      {/* Enhanced Post Content */}
       <View style={styles.postContent}>
         {item.imageUrl ? (
           <View style={styles.postImageContainer}>
@@ -1116,13 +1160,12 @@ const CustomerPostCard = ({
           <Text style={styles.postDescription}>{item.description}</Text>
         </View>
         
-        {/* Enhanced Post Details Grid */}
         <View style={styles.postDetailsGrid}>
           {item.price && (
             <View style={styles.detailChip}>
               <Ionicons name="pricetag" size={14} color={getTypeColor()} />
               <Text style={[styles.detailChipText, { color: getTypeColor() }]}>
-                ${item.price}
+                ₹{item.price}
               </Text>
             </View>
           )}
@@ -1146,7 +1189,6 @@ const CustomerPostCard = ({
         </View>
       </View>
 
-      {/* Enhanced Post Footer */}
       <View style={styles.postFooter}>
         <TouchableOpacity 
           style={[
@@ -1741,8 +1783,8 @@ export default function CustomerHome() {
             />
           }
         >
-          {/* Enhanced Offer Banner */}
-          <OfferBanner />
+          {/* UPDATED: Restructured Special Offers Banner */}
+          <OffersBanner />
 
           {/* Categories Section */}
           <View style={styles.section}>
@@ -1926,7 +1968,7 @@ export default function CustomerHome() {
               <View style={styles.rowInputs}>
                 <TextInput
                   style={[styles.formInput, styles.halfInput]}
-                  placeholder="Price ($)"
+                  placeholder="Price (₹)"
                   placeholderTextColor={colors.textSecondary}
                   keyboardType="numeric"
                   value={newPost.price}
@@ -2000,7 +2042,7 @@ export default function CustomerHome() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header - REMOVED CART ICON */}
       <FadeInView duration={800}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -2018,9 +2060,7 @@ export default function CustomerHome() {
             >
               <Ionicons name="add-circle" size={24} color={colors.accent} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.headerButton}>
-              <Ionicons name="cart" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
+            {/* Cart icon removed as requested */}
           </View>
         </View>
       </FadeInView>
@@ -2073,7 +2113,6 @@ export default function CustomerHome() {
   );
 }
 
-// ENHANCED MODERN STYLES with Improved Design
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -2161,68 +2200,207 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: colors.surface,
   },
-  // Enhanced Offer Banner Styles
-  offerBanner: {
+
+  // UPDATED: Restructured Offers Banner Styles
+  offersBannerContainer: {
     marginHorizontal: 20,
-    marginVertical: 15,
+    marginBottom: 24,
+  },
+  offersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  offersTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  seeAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.accent,
+  },
+  offersListContent: {
+    paddingRight: 20,
+    gap: 12,
+  },
+  offerCard: {
+    width: width - 80,
     borderRadius: 20,
-    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 8,
+      height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
-    elevation: 12,
+    elevation: 5,
+    marginRight: 12,
   },
   offerGradient: {
-    padding: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    borderRadius: 20,
+    padding: 20,
+    minHeight: 200,
   },
   offerContent: {
     flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'stretch',
   },
-  offerTextContainer: {
-    marginBottom: 16,
+  offerTextContent: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingRight: 12,
   },
-  offerMainText: {
-    color: colors.surface,
-    fontSize: 28,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 4,
-    marginBottom: 4,
+  offerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
-  offerSubtext: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: '500',
-    opacity: 0.9,
-  },
-  offerShopText: {
-    color: colors.surface,
-    fontSize: 14,
-    fontWeight: '400',
-    opacity: 0.8,
-    marginTop: 4,
-  },
-  offerButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  offerButtonText: {
-    color: colors.surface,
+  offerShopName: {
     fontSize: 14,
     fontWeight: '600',
+    color: colors.white,
+    opacity: 0.9,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    flex: 1,
   },
+  offerDiscountBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    marginLeft: 8,
+  },
+  offerDiscountText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.white,
+    letterSpacing: 0.5,
+  },
+  offerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.white,
+    lineHeight: 22,
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  offerDescription: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  offerPricing: {
+    marginBottom: 12,
+  },
+  offerOriginalPrice: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.7)',
+    textDecorationLine: 'line-through',
+    marginBottom: 2,
+  },
+  offerDiscountPrice: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.white,
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  offerSaveText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  offerFooter: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  offerTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  offerTagText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.white,
+  },
+  offerImageContainer: {
+    width: 100,
+    height: 120,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'relative',
+  },
+  offerImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  offersLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    gap: 12,
+  },
+  offersLoadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+    opacity: 0.5,
+  },
+  paginationDotActive: {
+    width: 20,
+    backgroundColor: colors.accent,
+    opacity: 1,
+  },
+
   // Ads Card Styles
   adsCard: {
     backgroundColor: colors.surface,
@@ -2327,11 +2505,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
-  adsDelivery: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
   adsShopSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2341,23 +2514,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.lightBackground,
-  },
-  adsShopText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  adsShopNowButton: {
-    backgroundColor: colors.accent,
-    margin: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  adsShopNowText: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: '600',
   },
   section: {
     marginBottom: 25,
@@ -2375,11 +2531,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     paddingHorizontal: 20,
     marginBottom: 15,
-  },
-  seeAllText: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
   },
   categoriesList: {
     paddingHorizontal: 15,
@@ -2448,7 +2599,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  // Enhanced Product Card Styles
   productCard: {
     backgroundColor: colors.surface,
     borderRadius: 12,
@@ -2619,7 +2769,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  // ENHANCED: Completely Restructured Post Card Styles
+  disabledButton: {
+    opacity: 0.6,
+  },
   postCard: {
     marginHorizontal: 20,
     marginVertical: 8,
@@ -2734,13 +2886,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  imageOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 60,
-  },
   noImageContainer: {
     backgroundColor: colors.lightBackground,
   },
@@ -2830,7 +2975,6 @@ const styles = StyleSheet.create({
     paddingBottom: 25,
     paddingTop: 8,
   },
-  // Enhanced Empty State
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -2887,7 +3031,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // Enhanced Modal Styles
   modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

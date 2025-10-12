@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -55,7 +56,6 @@ export default function MyOrders() {
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [shopNames, setShopNames] = useState<{[key: string]: string}>({});
   const router = useRouter();
@@ -225,45 +225,6 @@ export default function MyOrders() {
     return `₹${amount?.toFixed(2) || '0.00'}`;
   };
 
-  // Enhanced Side Panel with Consistent Styling
-  const SidePanel = () => (
-    <View style={styles.sidePanel}>
-      <TouchableOpacity 
-        style={styles.sidePanelClose} 
-        onPress={() => setSidePanelVisible(false)}
-      >
-        <Ionicons name="close" size={24} color={colors.textPrimary} />
-      </TouchableOpacity>
-      
-      <View style={styles.sidePanelHeader}>
-        <Text style={styles.sidePanelTitle}>TownMart</Text>
-        <Text style={styles.sidePanelSubtitle}>Discover • Connect • Shop</Text>
-      </View>
-      
-      {[
-        { name: "Home", icon: "home-outline", route: "/customer/home" },
-        { name: "Search", icon: "search", route: "/customer/search" },
-        { name: "Messages", icon: "chatbubble-outline", route: "/customer/messages" },
-        { name: "Orders", icon: "list-outline", route: "/customer/myorders" },
-        { name: "Profile", icon: "person-outline", route: "/customer/profile" },
-      ].map((item, index) => (
-        <TouchableOpacity 
-          key={index}
-          style={[styles.menuItem, item.name === "Orders" && styles.activeMenuItem]}
-          onPress={() => {
-            setSidePanelVisible(false);
-            if (item.route) {
-              router.push(item.route as any);
-            }
-          }}
-        >
-          <Ionicons name={item.icon as any} size={20} color={colors.accent} />
-          <Text style={styles.menuItemText}>{item.name}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
   const renderOrderItem = ({ item }: { item: Order }) => (
     <TouchableOpacity 
       style={styles.orderCard}
@@ -324,14 +285,15 @@ export default function MyOrders() {
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
-        {/* CONSISTENT Header with TownMart */}
+        {/* UPDATED: Header with Logo in Top Left */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => setSidePanelVisible(true)}
-            style={styles.headerButton}
-          >
-            <Ionicons name="menu" size={24} color={colors.textPrimary} />
-          </TouchableOpacity>
+          <View style={styles.headerLogoContainer}>
+            <Image 
+              source={require('../../../assets/images/logo.png')} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
           
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>TownMart</Text>
@@ -350,14 +312,15 @@ export default function MyOrders() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        {/* CONSISTENT Header with TownMart */}
+        {/* UPDATED: Header with Logo in Top Left */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => setSidePanelVisible(true)}
-            style={styles.headerButton}
-          >
-            <Ionicons name="menu" size={24} color={colors.textPrimary} />
-          </TouchableOpacity>
+          <View style={styles.headerLogoContainer}>
+            <Image 
+              source={require('../../../assets/images/logo.png')} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
           
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>TownMart</Text>
@@ -376,14 +339,15 @@ export default function MyOrders() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* CONSISTENT Header with TownMart */}
+      {/* UPDATED: Header with Logo in Top Left */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => setSidePanelVisible(true)}
-          style={styles.headerButton}
-        >
-          <Ionicons name="menu" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
+        <View style={styles.headerLogoContainer}>
+          <Image 
+            source={require('../../../assets/images/logo.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
         
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>TownMart</Text>
@@ -392,9 +356,6 @@ export default function MyOrders() {
         
         <View style={styles.headerButton} />
       </View>
-
-      {/* Side Panel */}
-      {sidePanelVisible && <SidePanel />}
 
       {/* Enhanced Search Bar with Consistent Styling */}
       <View style={styles.searchContainer}>
@@ -469,7 +430,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  // CONSISTENT Header with TownMart
+  // UPDATED: Header with Logo in Top Left
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -488,6 +449,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+  },
+  headerLogoContainer: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: colors.lightBackground,
+  },
+  logo: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
   },
   headerButton: {
     width: 40,
@@ -710,60 +684,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  // Consistent Side Panel Styles
-  sidePanel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: '80%',
-    backgroundColor: colors.surface,
-    zIndex: 1000,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 16,
-  },
-  sidePanelClose: {
-    padding: 16,
-    alignSelf: 'flex-end',
-  },
-  sidePanelHeader: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  sidePanelTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: 1,
-  },
-  sidePanelSubtitle: {
-    fontSize: 12,
-    color: colors.accent,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    paddingLeft: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  activeMenuItem: {
-    backgroundColor: colors.lightBackground,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.accent,
-  },
-  menuItemText: {
-    marginLeft: 16,
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontWeight: '500',
-  },
+  // REMOVED: All sidebar-related styles
 });

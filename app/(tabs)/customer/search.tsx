@@ -103,9 +103,6 @@ const colors = {
   deepBlue: '#1e40af',
 };
 
-
-
-
 const { width, height } = Dimensions.get('window');
 
 // NEW: Star Rating Component (from Homepage)
@@ -127,7 +124,7 @@ const StarRating = ({ rating, size = 14 }: { rating: number; size?: number }) =>
   return <View style={styles.starsContainer}>{stars}</View>;
 };
 
-// UPDATED: Enhanced Product Card Component with HOMEPAGE STYLE
+// UPDATED: Enhanced Product Card Component with CONSISTENT BUTTON HEIGHT
 const ProductCard = React.memo(({ 
   item, 
   index, 
@@ -296,26 +293,21 @@ const ProductCard = React.memo(({
           <Text style={styles.reviewCount}>({reviewCount})</Text>
         </View>
 
-        {/* Description */}
-        <Text style={styles.productDescription} numberOfLines={2}>
-          {isShop ? `Owner: ${(item as Shop).ownerName}` : (item as Product).description || 'A stylish, versatile piece with premium finish.'}
-        </Text>
-        
-        {/* UPDATED: Pricing Row - MATCHING HOMEPAGE */}
+        {/* UPDATED: Pricing Row - MATCHING HOMEPAGE WITH INDIAN RUPEE */}
         {!isShop && (item as Product).price && (item as Product).price > 0 && (
           <View style={styles.pricingContainer}>
             <View style={styles.originalPriceContainer}>
-              <Text style={styles.originalPrice}>${originalPrice}</Text>
-              <Text style={styles.discountedPrice}>${(item as Product).price}</Text>
+              <Text style={styles.originalPrice}>₹{originalPrice}</Text>
+              <Text style={styles.discountedPrice}>₹{(item as Product).price}</Text>
             </View>
           </View>
         )}
         
-        {/* UPDATED: Action Buttons - MATCHING HOMEPAGE */}
+        {/* UPDATED: Action Buttons - FIXED CONSISTENT HEIGHT */}
         <View style={styles.productActions}>
           {isShop ? (
             <TouchableOpacity 
-              style={styles.cartButton}
+              style={[styles.cartButton, styles.shopButton]}
               onPress={() => onViewShopDetails(item as Shop)}
             >
               <Ionicons name="storefront" size={16} color={colors.surface} />
@@ -336,8 +328,6 @@ const ProductCard = React.memo(({
               </Text>
             </TouchableOpacity>
           )}
-          
-          {/* Message Button removed to match homepage style */}
         </View>
       </View>
     </Animated.View>
@@ -352,7 +342,6 @@ export default function SearchScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [sidePanelVisible, setSidePanelVisible] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{latitude: number; longitude: number} | null>(null);
   const [mapView, setMapView] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | Shop | null>(null);
@@ -373,7 +362,6 @@ export default function SearchScreen() {
 
   // Animation values
   const fadeAnim = useState(new Animated.Value(0))[0];
-  const slideAnim = useState(new Animated.Value(300))[0];
 
   // Load initial data
   useEffect(() => {
@@ -744,69 +732,6 @@ export default function SearchScreen() {
     return "Location not available";
   };
 
-  // Enhanced Side Panel
-  const SidePanel = () => {
-    useEffect(() => {
-      if (sidePanelVisible) {
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      }
-    }, [sidePanelVisible]);
-
-    const closePanel = () => {
-      Animated.timing(slideAnim, {
-        toValue: 300,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => setSidePanelVisible(false));
-    };
-
-    return (
-      <Animated.View 
-        style={[
-          styles.sidePanel,
-          { transform: [{ translateX: slideAnim }] }
-        ]}
-      >
-        <TouchableOpacity 
-          style={styles.sidePanelClose} 
-          onPress={closePanel}
-        >
-          <Ionicons name="close" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        
-        <View style={styles.sidePanelHeader}>
-          <Text style={styles.sidePanelTitle}>TownMart</Text>
-          <Text style={styles.sidePanelSubtitle}>Discover • Connect • Shop</Text>
-        </View>
-        
-        {[
-          { name: "Home", icon: "home-outline", route: "/customer/home" as Href},
-          { name: "Search", icon: "search", route: null },
-          { name: "Orders", icon: "list-outline", route: "/customer/myorders" as Href},
-          { name: "Profile", icon: "person-outline", route: "/customer/profile" as Href},
-        ].map((item, index) => (
-          <TouchableOpacity 
-            key={index}
-            style={[styles.menuItem, item.name === "Search" && styles.activeMenuItem]}
-            onPress={() => {
-              closePanel();
-              if (item.route) {
-                router.push(item.route);
-              }
-            }}
-          >
-            <Ionicons name={item.icon as any} size={20} color={colors.accent} />
-            <Text style={styles.menuItemText}>{item.name}</Text>
-          </TouchableOpacity>
-        ))}
-      </Animated.View>
-    );
-  };
-
   // Enhanced Filter Modal Component
   const FilterModal = () => {
     const [localFilters, setLocalFilters] = useState<FilterOptions>(activeFilters);
@@ -885,7 +810,7 @@ export default function SearchScreen() {
                     <Text style={styles.priceLabel}>Min Price</Text>
                     <TextInput
                       style={styles.priceInputField}
-                      placeholder="$0"
+                      placeholder="₹0"
                       keyboardType="numeric"
                       value={localFilters.minPrice?.toString() || ''}
                       onChangeText={(text) => setLocalFilters(prev => ({
@@ -898,7 +823,7 @@ export default function SearchScreen() {
                     <Text style={styles.priceLabel}>Max Price</Text>
                     <TextInput
                       style={styles.priceInputField}
-                      placeholder="$1000"
+                      placeholder="₹1000"
                       keyboardType="numeric"
                       value={localFilters.maxPrice?.toString() || ''}
                       onChangeText={(text) => setLocalFilters(prev => ({
@@ -1071,14 +996,15 @@ export default function SearchScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Animated.View style={[styles.animatedContainer, { opacity: fadeAnim }]}>
-        {/* CONSISTENT Header with TownMart */}
+        {/* UPDATED: Header with TownMart Logo */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => setSidePanelVisible(true)}
-            style={styles.headerButton}
-          >
-            <Ionicons name="menu" size={24} color={colors.textPrimary} />
-          </TouchableOpacity>
+          <View style={styles.headerLogoContainer}>
+            <Image 
+              source={require('../../../assets/images/logo.png')} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
           
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>TownMart</Text>
@@ -1087,9 +1013,6 @@ export default function SearchScreen() {
           
           <View style={styles.headerButton} />
         </View>
-
-        {/* Side Panel */}
-        {sidePanelVisible && <SidePanel />}
 
         {/* Filter Modal */}
         <FilterModal />
@@ -1149,7 +1072,7 @@ export default function SearchScreen() {
                 {activeFilters.minPrice !== null && (
                   <View style={styles.activeFilterTag}>
                     <Text style={styles.activeFilterTagText}>
-                      Min: ${activeFilters.minPrice}
+                      Min: ₹{activeFilters.minPrice}
                     </Text>
                     <TouchableOpacity onPress={() => setActiveFilters(prev => ({ ...prev, minPrice: null }))}>
                       <Ionicons name="close" size={14} color={colors.surface} />
@@ -1159,7 +1082,7 @@ export default function SearchScreen() {
                 {activeFilters.maxPrice !== null && (
                   <View style={styles.activeFilterTag}>
                     <Text style={styles.activeFilterTagText}>
-                      Max: ${activeFilters.maxPrice}
+                      Max: ₹{activeFilters.maxPrice}
                     </Text>
                     <TouchableOpacity onPress={() => setActiveFilters(prev => ({ ...prev, maxPrice: null }))}>
                       <Ionicons name="close" size={14} color={colors.surface} />
@@ -1312,7 +1235,7 @@ export default function SearchScreen() {
                         {'shopName' in selectedItem ? selectedItem.shopName : selectedItem.name}
                       </Text>
                       {'price' in selectedItem && selectedItem.price && selectedItem.price > 0 && (
-                        <Text style={styles.selectedItemPrice}>${selectedItem.price}</Text>
+                        <Text style={styles.selectedItemPrice}>₹{selectedItem.price}</Text>
                       )}
                     </View>
                   </View>
@@ -1323,10 +1246,6 @@ export default function SearchScreen() {
                   
                   {'ownerName' in selectedItem && (
                     <Text style={styles.selectedItemDetail}>👤 {selectedItem.ownerName}</Text>
-                  )}
-                  
-                  {'description' in selectedItem && selectedItem.description && (
-                    <Text style={styles.selectedItemDetail}>{selectedItem.description}</Text>
                   )}
                   
                   <View style={styles.actionButtons}>
@@ -1377,7 +1296,7 @@ export default function SearchScreen() {
   );
 }
 
-// UPDATED: ENHANCED MODERN STYLES with HOMEPAGE CONSISTENCY
+// UPDATED: ENHANCED MODERN STYLES with CONSISTENT BUTTON HEIGHT AND LOGO
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1386,7 +1305,7 @@ const styles = StyleSheet.create({
   animatedContainer: {
     flex: 1,
   },
-  // CONSISTENT Header with TownMart - MATCHING HOMEPAGE
+  // UPDATED: Header with Logo
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1405,6 +1324,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+  },
+  headerLogoContainer: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: colors.lightBackground,
+  },
+  logo: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
   },
   headerButton: {
     width: 40,
@@ -1609,7 +1541,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingTop: 8,
   },
-  // UPDATED: ENHANCED Product Card Styles - EXACTLY MATCHING HOMEPAGE
+  // UPDATED: ENHANCED Product Card Styles with CONSISTENT BUTTON HEIGHT
   productCard: {
     backgroundColor: colors.surface,
     borderRadius: 12,
@@ -1706,6 +1638,8 @@ const styles = StyleSheet.create({
   },
   productInfo: {
     padding: 12,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   productName: {
     fontSize: 14,
@@ -1735,12 +1669,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginLeft: 4,
   },
-  productDescription: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 16,
-    marginBottom: 8,
-  },
   // UPDATED: Pricing Container - MATCHING HOMEPAGE
   pricingContainer: {
     flexDirection: 'row',
@@ -1762,11 +1690,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.textPrimary,
   },
-  // UPDATED: Product Actions - MATCHING HOMEPAGE
+  // UPDATED: Product Actions - FIXED CONSISTENT HEIGHT
   productActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    minHeight: 36, // Fixed minimum height for consistency
   },
   cartButton: {
     flex: 1,
@@ -1774,10 +1703,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10, // Increased padding for better height
     paddingHorizontal: 12,
     borderRadius: 8,
-    marginRight: 8,
+    height: 36, // Fixed height for consistency
+  },
+  shopButton: {
+    // Specific style for shop button to ensure same height
+    height: 36,
   },
   disabledButton: {
     opacity: 0.6,
@@ -1913,61 +1846,6 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontWeight: '600',
     fontSize: 14,
-  },
-  sidePanel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: '80%',
-    backgroundColor: colors.surface,
-    zIndex: 1000,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 16,
-  },
-  sidePanelClose: {
-    padding: 16,
-    alignSelf: 'flex-end',
-  },
-  sidePanelHeader: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  sidePanelTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: 1,
-  },
-  sidePanelSubtitle: {
-    fontSize: 12,
-    color: colors.accent,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    paddingLeft: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  activeMenuItem: {
-    backgroundColor: colors.lightBackground,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.accent,
-  },
-  menuItemText: {
-    marginLeft: 16,
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontWeight: '500',
   },
   recentSearchesContainer: {
     padding: 20,
