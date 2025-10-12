@@ -3,6 +3,8 @@ import { useRouter } from "expo-router";
 import { collection, getDocs, orderBy, query, doc, getDoc, where } from "firebase/firestore";
 import { getAuth } from 'firebase/auth'; // Add this import
 import React, { useEffect, useState , useCallback} from "react";
+import { conversationService } from '@/utils/conversationService'; // Add this import
+
 import {
   Dimensions,
   FlatList,
@@ -13,7 +15,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   View,
-  Animated
+  Animated,
+  ActivityIndicator
 } from "react-native";
 import { db } from "../../../firebaseConfig";
 
@@ -46,6 +49,27 @@ const COLORS = {
 type PostType = 'NEED' | 'OFFER';
 type PostStatus = 'ACTIVE' | 'FULFILLED' | 'EXPIRED';
 type UrgencyLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+interface Order {
+  id: string;
+  shopId: string;
+  status: 'pending' | 'completed' | 'cancelled' | 'shipped' | 'delivered';
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  items: Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    image: string;
+  }>;
+  paymentMethod: string;
+  shopName: string;
+  createdAt: any;
+  totalAmount?: number;
+}
 
 interface CustomerPost {
   id: string;
@@ -128,182 +152,285 @@ type FeedItem =
   | { id: string; type: 'product'; data: Product }
   | { id: string; type: 'offer'; data: Offer };
 
-export default function ShopkeeperHome() {
-  const [posts, setPosts] = useState<Product[]>([]);
-  const [customerPosts, setCustomerPosts] = useState<CustomerPost[]>([]);
-  const [offers, setOffers] = useState<Offer[]>([]); // Move this inside the component
-  const [filteredPosts, setFilteredPosts] = useState<Product[]>([]);
-  const [filteredCustomerPosts, setFilteredCustomerPosts] = useState<CustomerPost[]>([]);
-  const [filteredOffers, setFilteredOffers] = useState<Offer[]>([]);
-  const [activeTab, setActiveTab] = useState("all");
-  const [stats, setStats] = useState({
-    totalOrders: 24,
-    pendingOrders: 8,
-    totalRevenue: 2840,
-    totalProducts: 45
-  });
-  const [shopkeeperData, setShopkeeperData] = useState<{[key: string]: ShopkeeperData}>({});
-  const [refreshing, setRefreshing] = useState(false);
-  const scrollY = new Animated.Value(0);
-
-  const router = useRouter();
-
-  const fetchCustomerPosts = async () => {
-    try {
-      const q = query(
-        collection(db, "customerPosts"), 
-        where('type', '==', 'NEED'),
-        where('status', '==', 'ACTIVE'),
-        orderBy('createdAt', 'desc')
-      );
-
-      const snapshot = await getDocs(q);
-      const posts: CustomerPost[] = [];
-      
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        posts.push({
-          id: doc.id,
-          customerId: data.customerId || '',
-          customerName: data.customerName || 'Anonymous Customer',
-          customerEmail: data.customerEmail || '',
-          title: data.title || '',
-          description: data.description || '',
-          price: data.price,
-          category: data.category || 'General',
-          type: data.type || 'NEED',
-          imageUrl: data.imageUrl,
-          location: data.location || 'Unknown Location',
-          status: data.status || 'ACTIVE',
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt,
-          tags: data.tags || [],
-          contactInfo: data.contactInfo || { email: data.customerEmail || '', preferredContact: 'message' },
-          urgency: data.urgency || 'MEDIUM'
-        } as CustomerPost);
-      });
-
-      setCustomerPosts(posts);
-      setFilteredCustomerPosts(posts);
-    } catch (error) {
-      console.error('Error fetching customer posts:', error);
-    }
-  };
-
-  const headerBackgroundOpacity = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-
-
-  const fetchOffers = async () => {
-    try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-      
+  export default function ShopkeeperHome() {
+    const [posts, setPosts] = useState<Product[]>([]);
+    const [customerPosts, setCustomerPosts] = useState<CustomerPost[]>([]);
+    const [offers, setOffers] = useState<Offer[]>([]);
+    const [filteredPosts, setFilteredPosts] = useState<Product[]>([]);
+    const [filteredCustomerPosts, setFilteredCustomerPosts] = useState<CustomerPost[]>([]);
+    const [filteredOffers, setFilteredOffers] = useState<Offer[]>([]);
+    const [activeTab, setActiveTab] = useState("all");
+    const [stats, setStats] = useState({
+      totalOrders: 0,
+      pendingOrders: 0,
+      completedOrders: 0,
+      totalProducts: 0
+    });
+    const [shopkeeperData, setShopkeeperData] = useState<{[key: string]: ShopkeeperData}>({});
+    const [refreshing, setRefreshing] = useState(false);
+    const [loadingStats, setLoadingStats] = useState(true);
+    const scrollY = new Animated.Value(0);
+  
+    const router = useRouter();
+    const auth = getAuth();
+    const user = auth.currentUser;
+  
+    // Fetch shopkeeper stats from Firestore
+    const fetchShopkeeperStats = async () => {
       if (!user) return;
-
-      const q = query(
-        collection(db, "offers"),
-        where('shopkeeperId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-      );
-
-      const snapshot = await getDocs(q);
-      const offersData: Offer[] = [];
       
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        offersData.push({
+      try {
+        setLoadingStats(true);
+        console.log('Fetching stats for shopkeeper:', user.uid);
+    
+        // Fetch orders for this shopkeeper
+        const ordersQuery = query(
+          collection(db, "orders"),
+          where('shopId', '==', user.uid)
+        );
+        
+        const ordersSnapshot = await getDocs(ordersQuery);
+        const orders = ordersSnapshot.docs.map(doc => ({
           id: doc.id,
-          shopkeeperId: data.shopkeeperId,
-          shopkeeperName: data.shopkeeperName,
-          shopName: data.shopName,
-          title: data.title,
-          description: data.description,
-          originalPrice: data.originalPrice,
-          discountPrice: data.discountPrice,
-          category: data.category,
-          terms: data.terms,
-          imageUrl: data.imageUrl,
-          expiryDate: data.expiryDate,
-          status: data.status,
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt,
-          isExpired: data.isExpired,
-          location: data.location,
-          tags: data.tags || [],
-        } as Offer);
-      });
-
-      setOffers(offersData);
-      setFilteredOffers(offersData);
-    } catch (error) {
-      console.error('Error fetching offers:', error);
-    }
-  };
-
-  const fetchProductsAndShopkeepers = async () => {
-    try {
-      const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Product[];
-      
-      setPosts(data);
-      setFilteredPosts(data);
-      
-      const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
-      const shopkeeperIds = new Set<string>();
-      for (const product of data) {
-        const shopkeeperId = product.shopkeeperId || product.shopId || product.shopkeeper;
-        if (shopkeeperId) {
-          shopkeeperIds.add(shopkeeperId);
-        }
-      }
-
-      for (const shopkeeperId of Array.from(shopkeeperIds)) {
+          ...doc.data()
+        })) as Order[];
+    
+        // Calculate order stats
+        const totalOrders = orders.length;
+        const pendingOrders = orders.filter(order => 
+          order.status === 'pending' 
+        ).length;
+        const completedOrders = orders.filter(order => 
+          order.status === 'completed'  || order.status === 'delivered'
+        ).length;
+    
+        // Fetch products for this shopkeeper - try multiple field names
+        let totalProducts = 0;
         try {
-          const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
-          if (shopkeeperDoc.exists()) {
-            shopkeeperMap[shopkeeperId] = shopkeeperDoc.data() as ShopkeeperData;
+          // Try shopkeeperId first
+          const productsQuery1 = query(
+            collection(db, "products"),
+            where('shopkeeperId', '==', user.uid)
+          );
+          const productsSnapshot1 = await getDocs(productsQuery1);
+          totalProducts = productsSnapshot1.size;
+          
+          // If no products found, try shopId
+          if (totalProducts === 0) {
+            const productsQuery2 = query(
+              collection(db, "products"),
+              where('shopId', '==', user.uid)
+            );
+            const productsSnapshot2 = await getDocs(productsQuery2);
+            totalProducts = productsSnapshot2.size;
           }
-        } catch (error) {
-          console.error("Error fetching shopkeeper:", error);
+          
+          // If still no products, try shopkeeper field
+          if (totalProducts === 0) {
+            const productsQuery3 = query(
+              collection(db, "products"),
+              where('shopkeeper', '==', user.uid)
+            );
+            const productsSnapshot3 = await getDocs(productsQuery3);
+            totalProducts = productsSnapshot3.size;
+          }
+          
+          // If still no products, fetch all and filter client-side
+          if (totalProducts === 0) {
+            const allProductsQuery = query(collection(db, "products"));
+            const allProductsSnapshot = await getDocs(allProductsQuery);
+            const allProducts = allProductsSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            })) as Product[];
+            
+            totalProducts = allProducts.filter(product => 
+              product.shopkeeperId === user.uid || 
+              product.shopId === user.uid || 
+              product.shopkeeper === user.uid
+            ).length;
+          }
+        } catch (productError) {
+          console.error('Error fetching products:', productError);
+          // Fallback: count all products (for debugging)
+          const allProductsQuery = query(collection(db, "products"));
+          const allProductsSnapshot = await getDocs(allProductsQuery);
+          totalProducts = allProductsSnapshot.size;
         }
+    
+        // Update stats
+        setStats({
+          totalOrders,
+          pendingOrders,
+          completedOrders,
+          totalProducts
+        });
+    
+        console.log('Stats updated:', {
+          totalOrders,
+          pendingOrders,
+          completedOrders,
+          totalProducts,
+          userId: user.uid
+        });
+    
+      } catch (error) {
+        console.error('Error fetching shopkeeper stats:', error);
+      } finally {
+        setLoadingStats(false);
       }
-      
-      setShopkeeperData(shopkeeperMap);
-    } catch (err) {
-      console.log("Error fetching products:", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchProductsAndShopkeepers();
-    fetchCustomerPosts();
-    fetchOffers();
-  }, []);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      if (activeTab === "need") {
-        await fetchCustomerPosts();
-      } else if (activeTab === "offer") {
-        await fetchOffers();
-      } else {
-        await fetchProductsAndShopkeepers();
+    };
+  
+    const fetchCustomerPosts = async () => {
+      try {
+        const q = query(
+          collection(db, "customerPosts"), 
+          where('type', '==', 'NEED'),
+          where('status', '==', 'ACTIVE'),
+          orderBy('createdAt', 'desc')
+        );
+  
+        const snapshot = await getDocs(q);
+        const posts: CustomerPost[] = [];
+        
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          posts.push({
+            id: doc.id,
+            customerId: data.customerId || '',
+            customerName: data.customerName || 'Anonymous Customer',
+            customerEmail: data.customerEmail || '',
+            title: data.title || '',
+            description: data.description || '',
+            price: data.price,
+            category: data.category || 'General',
+            type: data.type || 'NEED',
+            imageUrl: data.imageUrl,
+            location: data.location || 'Unknown Location',
+            status: data.status || 'ACTIVE',
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+            tags: data.tags || [],
+            contactInfo: data.contactInfo || { email: data.customerEmail || '', preferredContact: 'message' },
+            urgency: data.urgency || 'MEDIUM'
+          } as CustomerPost);
+        });
+  
+        setCustomerPosts(posts);
+        setFilteredCustomerPosts(posts);
+      } catch (error) {
+        console.error('Error fetching customer posts:', error);
       }
-    } catch (error) {
-      console.error('Error during refresh:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [activeTab]);
+    };
+  
+    const fetchOffers = async () => {
+      try {
+        if (!user) return;
+  
+        const q = query(
+          collection(db, "offers"),
+          where('shopkeeperId', '==', user.uid),
+          orderBy('createdAt', 'desc')
+        );
+  
+        const snapshot = await getDocs(q);
+        const offersData: Offer[] = [];
+        
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          offersData.push({
+            id: doc.id,
+            shopkeeperId: data.shopkeeperId,
+            shopkeeperName: data.shopkeeperName,
+            shopName: data.shopName,
+            title: data.title,
+            description: data.description,
+            originalPrice: data.originalPrice,
+            discountPrice: data.discountPrice,
+            category: data.category,
+            terms: data.terms,
+            imageUrl: data.imageUrl,
+            expiryDate: data.expiryDate,
+            status: data.status,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+            isExpired: data.isExpired,
+            location: data.location,
+            tags: data.tags || [],
+          } as Offer);
+        });
+  
+        setOffers(offersData);
+        setFilteredOffers(offersData);
+      } catch (error) {
+        console.error('Error fetching offers:', error);
+      }
+    };
+  
+    const fetchProductsAndShopkeepers = async () => {
+      try {
+        const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Product[];
+        
+        setPosts(data);
+        setFilteredPosts(data);
+        
+        const shopkeeperMap: {[key: string]: ShopkeeperData} = {};
+        const shopkeeperIds = new Set<string>();
+        for (const product of data) {
+          const shopkeeperId = product.shopkeeperId || product.shopId || product.shopkeeper;
+          if (shopkeeperId) {
+            shopkeeperIds.add(shopkeeperId);
+          }
+        }
+  
+        for (const shopkeeperId of Array.from(shopkeeperIds)) {
+          try {
+            const shopkeeperDoc = await getDoc(doc(db, "shopkeepers", shopkeeperId));
+            if (shopkeeperDoc.exists()) {
+              shopkeeperMap[shopkeeperId] = shopkeeperDoc.data() as ShopkeeperData;
+            }
+          } catch (error) {
+            console.error("Error fetching shopkeeper:", error);
+          }
+        }
+        
+        setShopkeeperData(shopkeeperMap);
+      } catch (err) {
+        console.log("Error fetching products:", err);
+      }
+    };
+  
+    useEffect(() => {
+      fetchProductsAndShopkeepers();
+      fetchCustomerPosts();
+      fetchOffers();
+      fetchShopkeeperStats();
+    }, []);
+  
+    const onRefresh = useCallback(async () => {
+      setRefreshing(true);
+      try {
+        await fetchShopkeeperStats();
+        
+        if (activeTab === "need") {
+          await fetchCustomerPosts();
+        } else if (activeTab === "offer") {
+          await fetchOffers();
+        } else {
+          await fetchProductsAndShopkeepers();
+        }
+      } catch (error) {
+        console.error('Error during refresh:', error);
+      } finally {
+        setRefreshing(false);
+      }
+    }, [activeTab]);
+  
 
   useEffect(() => {
     if (activeTab === "all") {
@@ -446,28 +573,48 @@ export default function ShopkeeperHome() {
             )}
           </View>
         </View>
-
-        {/* Action Button */}
-        <View style={styles.singleActionButton}>
-          <TouchableOpacity 
-            style={[
-              styles.viewButton, 
-              isExpired && styles.disabledButton
-            ]}
-            disabled={isExpired}
-          >
-            <Ionicons name="eye" size={16} color="white" />
-            <Text style={styles.viewButtonText}>
-              {isExpired ? 'Offer Expired' : 'View Offer'}
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
     );
   };
 
-  // Customer Post Card Component
-  const CustomerPostCard = ({ item }: { item: CustomerPost }) => (
+// Enhanced Customer Post Card Component with Messaging
+const CustomerPostCard = ({ item }: { item: CustomerPost }) => {
+  const [messaging, setMessaging] = useState(false);
+  const auth = getAuth();
+  const user = auth.currentUser;
+
+  const handleMessageCustomer = async () => {
+    if (!user) {
+      alert('Please log in to send messages');
+      return;
+    }
+
+    if (!item.customerId) {
+      alert('Unable to identify the customer');
+      return;
+    }
+
+    try {
+      setMessaging(true);
+      
+      // Create conversation between shopkeeper and customer
+      const conversationId = await conversationService.findOrCreateConversation(user.uid, item.customerId);
+      
+      // Send initial message about the customer's need
+      await conversationService.sendInitialMessageAboutNeed(conversationId, user.uid, item);
+      
+      // Navigate to chat
+      router.push(`/chat/${conversationId}`);
+      
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+      alert('Failed to start conversation. Please try again.');
+    } finally {
+      setMessaging(false);
+    }
+  };
+
+  return (
     <View style={styles.customerPostCard}>
       <View style={styles.cardHeader}>
         <View style={styles.userInfo}>
@@ -539,16 +686,40 @@ export default function ShopkeeperHome() {
         </View>
       </View>
 
-      {/* Single Contact Button */}
-      <View style={styles.singleActionButton}>
-        <TouchableOpacity style={styles.contactButton}>
-          <Ionicons name="chatbubble-ellipses" size={16} color="white" />
-          <Text style={styles.contactButtonText}
-            onPress={() => router.push('/(tabs)/chat/[id]')}>Contact Customer</Text>
+      {/* Enhanced Action Buttons */}
+      <View style={styles.actionButtonsContainer}>
+        <TouchableOpacity 
+          style={[styles.contactButton, messaging && styles.disabledButton]}
+          onPress={handleMessageCustomer}
+          disabled={messaging}
+        >
+          {messaging ? (
+            <ActivityIndicator size="small" color="white" />
+          ) : (
+            <>
+              <Ionicons name="chatbubble-ellipses" size={16} color="white" />
+              <Text style={styles.contactButtonText}>Message Customer</Text>
+            </>
+          )}
         </TouchableOpacity>
+        
+        {/* Additional contact options */}
+        <View style={styles.quickContactButtons}>
+          {item.contactInfo?.phone && (
+            <TouchableOpacity style={styles.quickContactButton}>
+              <Ionicons name="call" size={14} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
+          {item.contactInfo?.email && (
+            <TouchableOpacity style={styles.quickContactButton}>
+              <Ionicons name="mail" size={14} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
+};
 
   // Product Card Component 
   const ProductCard = ({ item }: { item: Product }) => {
@@ -741,7 +912,7 @@ export default function ShopkeeperHome() {
   // Header Component
   const Header = () => (
     <View style={styles.header}>
-      <Animated.View style={[styles.headerBackground, { opacity: headerBackgroundOpacity }]} />
+      <Animated.View style={[styles.headerBackground]} />
       <TouchableOpacity 
         style={styles.menuButton}
         onPress={() => router.push('/shopkeeper/profile')}
@@ -758,51 +929,64 @@ export default function ShopkeeperHome() {
     </View>
   );
 
-  // Stats Section with background container
-  const StatsSection = () => (
-    <View style={styles.statsContainer}>
-      <View style={styles.statsBackground}>
-        <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
-            <Ionicons name="cart" size={20} color={COLORS.primary} />
-          </View>
-          <Text style={styles.statValue}>{stats.totalOrders}</Text>
-          <Text style={styles.statLabel}>Orders</Text>
+// Stats Section with consistent icons and proper alignment
+// Stats Section with proper icons
+const StatsSection = () => (
+  <View style={styles.statsContainer}>
+    <View style={styles.statsBackground}>
+      {loadingStats ? (
+        <View style={styles.loadingStats}>
+          <ActivityIndicator size="small" color={COLORS.primary} />
+          <Text style={styles.loadingStatsText}>Loading stats...</Text>
         </View>
-        
-        <View style={styles.statDivider} />
-        
-        <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: COLORS.dangerLight }]}>
-            <Ionicons name="time" size={20} color={COLORS.danger} />
+      ) : (
+        <>
+          {/* Total Orders */}
+          <View style={styles.statItem}>
+            <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
+              <Ionicons name="cart-outline" size={20} color={COLORS.primary} />
+            </View>
+            <Text style={styles.statValue}>{stats.totalOrders}</Text>
+            <Text style={styles.statLabel}>Total Orders</Text>
           </View>
-          <Text style={styles.statValue}>{stats.pendingOrders}</Text>
-          <Text style={styles.statLabel}>Pending</Text>
-        </View>
-        
-        <View style={styles.statDivider} />
-        
-        <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: COLORS.accentLight }]}>
-            <Ionicons name="cash" size={20} color={COLORS.accent} />
+          
+          <View style={styles.statDivider} />
+          
+          {/* Pending Orders */}
+          <View style={styles.statItem}>
+            <View style={[styles.statIcon, { backgroundColor: COLORS.warning + '20' }]}>
+              <Ionicons name="time-outline" size={20} color={COLORS.secondary} />
+            </View>
+            <Text style={styles.statValue}>{stats.pendingOrders}</Text>
+            <Text style={styles.statLabel}>Pending</Text>
           </View>
-          <Text style={styles.statValue}>${stats.totalRevenue}</Text>
-          <Text style={styles.statLabel}>Revenue</Text>
-        </View>
-        
-        <View style={styles.statDivider} />
-        
-        <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: COLORS.overlay }]}>
-            <Ionicons name="cube" size={20} color={COLORS.secondary} />
+          
+          <View style={styles.statDivider} />
+          
+          {/* Completed Orders */}
+          <View style={styles.statItem}>
+            <View style={[styles.statIcon, { backgroundColor: COLORS.success + '20' }]}>
+              <Ionicons name="checkmark-done-outline" size={20} color={COLORS.secondary} />
+            </View>
+            <Text style={styles.statValue}>{stats.completedOrders}</Text>
+            <Text style={styles.statLabel}>Completed</Text>
           </View>
-          <Text style={styles.statValue}>{stats.totalProducts}</Text>
-          <Text style={styles.statLabel}>Products</Text>
-        </View>
-      </View>
+          
+          <View style={styles.statDivider} />
+          
+          {/* Total Products */}
+          <View style={styles.statItem}>
+            <View style={[styles.statIcon, { backgroundColor: COLORS.accentLight }]}>
+              <Ionicons name="cube-outline" size={20} color={COLORS.accent} />
+            </View>
+            <Text style={styles.statValue}>{stats.totalProducts}</Text>
+            <Text style={styles.statLabel}>Products</Text>
+          </View>
+        </>
+      )}
     </View>
-  );
-
+  </View>
+);
   // Tabs Section - Static (won't scroll)
   const TabsSection = () => (
     <View style={styles.tabContainer}>
@@ -953,44 +1137,48 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 8,
   },
-  statsBackground: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.inputBackground,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: COLORS.secondaryLight,
-    fontWeight: '500',
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: COLORS.border,
-    marginHorizontal: 8,
-  },
+// Update these styles in your stylesheet
+statsBackground: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: COLORS.inputBackground,
+  borderRadius: 16,
+  padding: 16,
+  borderWidth: 1,
+  borderColor: COLORS.border,
+},
+statItem: {
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+statIcon: {
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginBottom: 8,
+},
+statValue: {
+  fontSize: 16,
+  fontWeight: 'bold',
+  color: COLORS.secondary,
+  marginBottom: 2,
+  textAlign: 'center',
+},
+statLabel: {
+  fontSize: 11,
+  color: COLORS.secondaryLight,
+  fontWeight: '500',
+  textAlign: 'center',
+},
+statDivider: {
+  width: 1,
+  height: 35,
+  backgroundColor: COLORS.border,
+  marginHorizontal: 4,
+},
   // Tab Styles
   tabContainer: {
     flexDirection: 'row',
@@ -1424,5 +1612,37 @@ discountText: {
 expiredDateText: {
   color: COLORS.danger,
   fontWeight: '600',
+},
+// Add to your styles object
+actionButtonsContainer: {
+  padding: 16,
+  paddingTop: 8,
+  borderTopWidth: 1,
+  borderTopColor: COLORS.borderLight,
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+},
+quickContactButtons: {
+  flexDirection: 'row',
+  gap: 8,
+},
+quickContactButton: {
+  padding: 8,
+  borderRadius: 8,
+  backgroundColor: COLORS.primaryLight,
+  borderWidth: 1,
+  borderColor: COLORS.primary,
+},
+loadingStats: {
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingVertical: 20,
+},
+loadingStatsText: {
+  marginTop: 8,
+  fontSize: 12,
+  color: COLORS.textMuted,
 },
 } as const);

@@ -343,6 +343,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    paddingBottom:40
   },
   animatedContainer: {
     flex: 1,
@@ -356,6 +357,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    paddingTop:40
   },
   backButton: {
     padding: 4,
