@@ -149,6 +149,35 @@ export default function OfferDetails() {
     );
   };
 
+  const handleShopPress = () => {
+    if (!offerData) return;
+
+    console.log('🛍️ Navigating to shop with data:', {
+      shopId: offerData.shopkeeperId,
+      shopName: offerData.shopName,
+      ownerName: offerData.shopkeeperName,
+      location: offerData.location
+    });
+    
+    // Pass individual parameters that shop.tsx expects
+    router.push({
+      pathname: '../details/shop',
+      params: { 
+        shopId: offerData.shopkeeperId,
+        shopName: offerData.shopName,
+        ownerName: offerData.shopkeeperName,
+        location: offerData.location || 'Unknown Location',
+        // Add default values for required fields
+        email: '',
+        phone: '',
+        latitude: '21.1443', // Default latitude
+        longitude: '79.0789', // Default longitude  
+        shopLogo: '',
+        uid: offerData.shopkeeperId
+      }
+    });
+  };
+
   const calculateDiscount = () => {
     if (offerData?.originalPrice && offerData?.discountPrice) {
       const discount = ((offerData.originalPrice - offerData.discountPrice) / offerData.originalPrice) * 100;
@@ -399,8 +428,12 @@ export default function OfferDetails() {
             )}
           </View>
 
-          {/* Shop Information Card */}
-          <View style={styles.shopCard}>
+          {/* Shop Information Card - Now Clickable */}
+          <TouchableOpacity 
+            style={styles.shopCard}
+            onPress={handleShopPress}
+            activeOpacity={0.7}
+          >
             <Text style={styles.sectionTitle}>Shop Information</Text>
             <View style={styles.shopInfo}>
               <View style={styles.shopAvatar}>
@@ -416,11 +449,11 @@ export default function OfferDetails() {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.viewShopButton}>
+              <View style={styles.viewShopButton}>
                 <Ionicons name="arrow-forward" size={20} color={colors.offerColor} />
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* Safety Information */}
           <View style={styles.safetyCard}>
@@ -893,7 +926,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: colors.lightBackground,
     justifyContent: 'center',
     alignItems: 'center',
   },

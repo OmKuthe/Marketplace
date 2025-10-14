@@ -19,6 +19,12 @@ allprojects {
     maven { url 'https://www.jitpack.io' }
   }
 }
+buildscript {
+    ext {
+        ndkVersion = "26.1.10909125"
+        cmakeVersion = "3.22.1"
+    }
+}
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
